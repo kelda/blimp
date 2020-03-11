@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package blimp.errors.v0;
+
+option go_package = "github.com/kelda-inc/blimp/pkg/proto/errors";
+
+// Error is a union of possible error types. Each field corresponds to a type
+// in our Go code.
+message Error {
+  ContextError context_error = 1;
+
+  FriendlyError friendly_error = 2;
+
+  // `text` is the default case. If none of the above fields are defined, then
+  // it's assumed that the error isn't a special Blimp type, and can be created
+  // with errors.New.
+  string text = 4;
+}
+
+message ContextError {
+  Error error = 1;
+  string context = 2;
+}
+
+message FriendlyError {
+  string friendly_message = 1;
+}

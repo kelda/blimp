@@ -1,0 +1,15 @@
+version: '3'
+services:
+  web:
+    build: .
+    command:
+      - "node"
+      - "/usr/src/app/server.js"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mongo
+  mongo:
+    image: "mongo"
+    ports:
+      - "27017:27017"

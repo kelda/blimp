@@ -1,0 +1,8 @@
+version: '3'
+services:
+  manager:
+    build:
+      context: .
+      dockerfile: ./cluster-controller/Dockerfile
+    ports:
+      - "9000:9000"

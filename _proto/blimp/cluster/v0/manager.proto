@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package blimp.cluster.v0;
+
+import "blimp/errors/v0/errors.proto";
+
+option go_package = "github.com/kelda-inc/blimp/pkg/proto/cluster";
+
+service Manager {
+  rpc Boot(BootRequest) returns (BootResponse) {}
+}
+
+message BootRequest {
+  string token = 1;
+  string composeFile = 2;
+  map<string, string> builtImages = 3;
+}
+
+message BootResponse {
+  blimp.errors.v0.Error error = 1;
+  string SandboxAddress = 2;
+  KubeCredentials kubeCredentials = 3;
+}
+
+message KubeCredentials {
+  string host = 1;
+  string caCrt = 2;
+  string token = 3;
+  string namespace = 4;
+}
