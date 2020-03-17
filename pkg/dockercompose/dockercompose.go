@@ -25,10 +25,10 @@ type Service struct {
 
 type PortMapping struct {
 	// The port accessed by the user via localhost.
-	HostPort int
+	HostPort uint32
 
 	// The port inside the container.
-	ContainerPort int
+	ContainerPort uint32
 }
 
 func (mapping *PortMapping) UnmarshalJSON(b []byte) error {
@@ -37,14 +37,14 @@ func (mapping *PortMapping) UnmarshalJSON(b []byte) error {
 		return fmt.Errorf("parse string: %w", err)
 	}
 
-	var mappingParts []int
+	var mappingParts []uint32
 	// TODO: Port ranges.
 	for _, portStr := range strings.Split(mappingStr, ":") {
-		port, err := strconv.Atoi(portStr)
+		port, err := strconv.ParseUint(portStr, 10, 32)
 		if err != nil {
 			return fmt.Errorf("parse mapping port: %w", err)
 		}
-		mappingParts = append(mappingParts, port)
+		mappingParts = append(mappingParts, uint32(port))
 	}
 
 	switch len(mappingParts) {

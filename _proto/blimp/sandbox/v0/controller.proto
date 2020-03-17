@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package blimp.sandbox.v0;
+
+option go_package = "github.com/kelda-inc/blimp/pkg/proto/sandbox";
+
+service Controller {
+  rpc Tunnel(stream TunnelMsg) returns (stream TunnelMsg) {}
+}
+
+message TunnelHeader{
+    string name = 1;
+    uint32 port = 2; // Unused for volume streams
+}
+
+message EOF {}
+
+// The first message the Client sends to the server must be a header.  After
+// that all messages either direction must be bufs.  Optionally, either
+// direction may send an EOF to indicate they have no more to send.
+message TunnelMsg {
+  oneof msg {
+    TunnelHeader header = 1;
+    bytes buf = 2;
+    EOF eof = 3;
+  }
+}

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -23,11 +24,12 @@ import (
 	"google.golang.org/grpc/encoding/gzip"
 
 	"github.com/kelda-inc/blimp/cli/authstore"
-	"github.com/kelda-inc/blimp/cli/up/tunnel"
 	"github.com/kelda-inc/blimp/cli/util"
 	"github.com/kelda-inc/blimp/pkg/auth"
 	"github.com/kelda-inc/blimp/pkg/dockercompose"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
+	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
+	"github.com/kelda-inc/blimp/pkg/tunnel"
 )
 
 const registry = "gcr.io/kevin-230505"
@@ -129,28 +131,59 @@ func (cmd *up) run() error {
 		return err
 	}
 
-	kubeClient, restConfig, err := cmd.auth.KubeClient()
+	sandboxConn, err := grpc.Dial(bootResp.SandboxAddress,
+		grpc.WithInsecure(),
+		grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
 	if err != nil {
 		return err
 	}
+	defer sandboxConn.Close()
+	scc := sandbox.NewControllerClient(sandboxConn)
 
 	// Start the tunnels.
-	var desiredTunnels []tunnel.Tunnel
 	for name, svc := range parsedCompose.Services {
 		for _, mapping := range svc.PortMappings {
-			desiredTunnels = append(desiredTunnels, tunnel.Tunnel{
-				Service:     name,
-				PortMapping: mapping,
-			})
+			go startTunnel(scc, name, mapping)
 		}
 	}
-	go tunnel.Run(kubeClient, restConfig, cmd.auth.KubeNamespace, desiredTunnels)
 
 	// Block until the user exits.
 	exitSig := make(chan os.Signal, 1)
 	signal.Notify(exitSig, os.Interrupt)
 	<-exitSig
 	return nil
+}
+
+func startTunnel(scc sandbox.ControllerClient, name string,
+	mapping dockercompose.PortMapping) {
+
+	addr := fmt.Sprintf("127.0.0.1:%d", mapping.HostPort)
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		// TODO.  It's appropriate that this error is fatal, but we need
+		// a better way of handling it.  Log messages are ugly, and we
+		// need to do some cleanup.
+		log.WithFields(log.Fields{
+			"error":   err,
+			"address": addr,
+			"network": "tcp",
+		}).Fatal("faield ot listen for connections")
+		return
+	}
+
+	log.WithField("tunnel", mapping).Info("Accpeting Connections")
+	err = tunnel.Client(scc, ln, name, mapping.ContainerPort)
+	if err != nil {
+		// TODO.  Same question about Fatal.  Also if accept errors
+		// maybe wes hould have retried inside accept tunnels instead of
+		// fatal out here?
+		log.WithFields(log.Fields{
+			"error":   err,
+			"address": addr,
+			"network": "tcp",
+		}).Fatal("failed ot listen for connections")
+		return
+	}
 }
 
 func (cmd *up) buildImages(namespace string, composeFile dockercompose.Config) (map[string]string, error) {

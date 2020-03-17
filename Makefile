@@ -10,7 +10,7 @@ install:
 	go install ./cli ./cluster-controller ./sandbox-controller
 
 generate:
-	protoc -I _proto _proto/blimp/sandbox/v0/manager.proto --go_out=plugins=grpc:$$GOPATH/src
+	protoc -I _proto _proto/blimp/sandbox/v0/controller.proto --go_out=plugins=grpc:$$GOPATH/src
 	protoc -I _proto _proto/blimp/cluster/v0/manager.proto --go_out=plugins=grpc:$$GOPATH/src
 	protoc _proto/blimp/errors/v0/errors.proto --go_out=plugins=grpc:$$GOPATH/src
 
