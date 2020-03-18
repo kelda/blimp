@@ -1,4 +1,4 @@
-FROM node:10
+FROM node:10-alpine
 ENV PORT 8080
 WORKDIR /usr/src/app
 COPY . /usr/src/app
