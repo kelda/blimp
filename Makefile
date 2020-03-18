@@ -5,6 +5,10 @@ SANDBOX_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-sandbox-controller:${VERSION}
 CLUSTER_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-cluster-controller:${VERSION}
 LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} -X github.com/kelda-inc/blimp/pkg/version.SandboxControllerImage=${SANDBOX_CONTROLLER_IMAGE}"
 
+# Default target for local development.  Just builds binaries
+install:
+	go install ./cli ./cluster-controller ./sandbox-controller
+
 generate:
 	protoc -I _proto _proto/blimp/sandbox/v0/manager.proto --go_out=plugins=grpc:$$GOPATH/src
 	protoc -I _proto _proto/blimp/cluster/v0/manager.proto --go_out=plugins=grpc:$$GOPATH/src
@@ -28,3 +32,4 @@ run-cluster-controller: build-cluster-controller
 build-all: build-sandbox-controller build-cluster-controller
 
 push-all: push-sandbox-controller push-cluster-controller
+
