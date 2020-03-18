@@ -5,7 +5,7 @@ Make sure you're using go v1.13 or above.
 1. Boot a Kubernetes cluster.
 1. Generate credentials for the cluster-controller to deploy to the cluster. Use `./scripts/make-kubeconfig.sh` to generate a Kubeconfig.
 1. Add the credentials to `cluster-controller/main.go`. Copy the relevant fields out of the Kubeconfig.
-1. Configure builds to push to your dev registry. Edit `DOCKER_REPO` in `./Makefile`.
+1. Add the BLIMP_DOCKER_REPO environment variable to your bashrc to configure builds to push to your dev registry.
 1. Build the `sandbox-controller`: `make push-sandbox-controller`.
 1. Start the `cluster-controller`: `make run-cluster-controller`. This takes a while (couple minutes).
 1. Compile the CLI: `go install ./cli`

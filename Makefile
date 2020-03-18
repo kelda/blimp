@@ -1,4 +1,4 @@
-DOCKER_REPO = gcr.io/kevin-230505
+DOCKER_REPO = ${BLIMP_DOCKER_REPO}
 #VERSION?=$(shell ./scripts/dev_version.sh)
 VERSION?=latest
 SANDBOX_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-sandbox-controller:${VERSION}
