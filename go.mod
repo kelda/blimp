@@ -12,22 +12,33 @@ replace (
 )
 
 require (
+	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
+	github.com/Microsoft/go-winio v0.4.13-0.20190408173621-84b4ab48a507 // indirect
+	github.com/containerd/containerd v1.3.0-0.20190507210959-7c1e88399ec0 // indirect
 	github.com/coreos/go-oidc v2.2.1+incompatible
+	github.com/docker/distribution v2.7.1-0.20190205005809-0d3efadf0154+incompatible // indirect
 	github.com/docker/docker v1.14.0-0.20190319215453-e7b5f7dbe98c
+	github.com/docker/go-connections v0.3.0 // indirect
+	github.com/docker/go-units v0.3.1 // indirect
 	github.com/ghodss/yaml v1.0.0
 	github.com/golang/protobuf v1.3.3
 	github.com/googleapis/gnostic v0.4.0 // indirect
+	github.com/gorilla/mux v1.7.4 // indirect
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/miekg/dns v1.1.28
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/moby/buildkit v0.6.4
+	github.com/morikuni/aec v0.0.0-20170113033406-39771216ff4c // indirect
+	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
+	github.com/opencontainers/image-spec v1.0.1 // indirect
+	github.com/pkg/errors v0.8.1 // indirect
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
 	github.com/sirupsen/logrus v1.3.0
 	github.com/spf13/cobra v0.0.6
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	google.golang.org/grpc v1.28.0
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
-	gopkg.in/square/go-jose.v2 v2.4.1
+	gopkg.in/square/go-jose.v2 v2.4.1 // indirect
+	gotest.tools v2.2.0+incompatible // indirect
 	k8s.io/api v0.17.3
 	k8s.io/apimachinery v0.17.3
 	k8s.io/client-go v0.17.3
