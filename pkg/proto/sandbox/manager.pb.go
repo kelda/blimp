@@ -23,7 +23,9 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
-func init() { proto.RegisterFile("blimp/sandbox/v0/manager.proto", fileDescriptor_d576fe4bfe8d36c7) }
+func init() {
+	proto.RegisterFile("blimp/sandbox/v0/manager.proto", fileDescriptor_d576fe4bfe8d36c7)
+}
 
 var fileDescriptor_d576fe4bfe8d36c7 = []byte{
 	// 129 bytes of a gzipped FileDescriptorProto
@@ -40,11 +42,11 @@ var fileDescriptor_d576fe4bfe8d36c7 = []byte{
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ context.Context
-var _ grpc.ClientConn
+var _ grpc.ClientConnInterface
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion4
+const _ = grpc.SupportPackageIsVersion6
 
 // ManagerClient is the client API for Manager service.
 //
@@ -53,15 +55,19 @@ type ManagerClient interface {
 }
 
 type managerClient struct {
-	cc *grpc.ClientConn
+	cc grpc.ClientConnInterface
 }
 
-func NewManagerClient(cc *grpc.ClientConn) ManagerClient {
+func NewManagerClient(cc grpc.ClientConnInterface) ManagerClient {
 	return &managerClient{cc}
 }
 
 // ManagerServer is the server API for Manager service.
 type ManagerServer interface {
+}
+
+// UnimplementedManagerServer can be embedded to have forward compatible implementations.
+type UnimplementedManagerServer struct {
 }
 
 func RegisterManagerServer(s *grpc.Server, srv ManagerServer) {

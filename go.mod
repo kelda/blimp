@@ -25,7 +25,7 @@ require (
 	github.com/sirupsen/logrus v1.3.0
 	github.com/spf13/cobra v0.0.6
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
-	google.golang.org/grpc v1.21.0
+	google.golang.org/grpc v1.28.0
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/square/go-jose.v2 v2.4.1
 	k8s.io/api v0.17.3

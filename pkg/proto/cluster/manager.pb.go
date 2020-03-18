@@ -9,6 +9,8 @@ import (
 	proto "github.com/golang/protobuf/proto"
 	errors "github.com/kelda-inc/blimp/pkg/proto/errors"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -203,7 +205,9 @@ func init() {
 	proto.RegisterType((*KubeCredentials)(nil), "blimp.cluster.v0.KubeCredentials")
 }
 
-func init() { proto.RegisterFile("blimp/cluster/v0/manager.proto", fileDescriptor_d156d5389f4d1cd6) }
+func init() {
+	proto.RegisterFile("blimp/cluster/v0/manager.proto", fileDescriptor_d156d5389f4d1cd6)
+}
 
 var fileDescriptor_d156d5389f4d1cd6 = []byte{
 	// 398 bytes of a gzipped FileDescriptorProto
@@ -236,11 +240,11 @@ var fileDescriptor_d156d5389f4d1cd6 = []byte{
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ context.Context
-var _ grpc.ClientConn
+var _ grpc.ClientConnInterface
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion4
+const _ = grpc.SupportPackageIsVersion6
 
 // ManagerClient is the client API for Manager service.
 //
@@ -250,10 +254,10 @@ type ManagerClient interface {
 }
 
 type managerClient struct {
-	cc *grpc.ClientConn
+	cc grpc.ClientConnInterface
 }
 
-func NewManagerClient(cc *grpc.ClientConn) ManagerClient {
+func NewManagerClient(cc grpc.ClientConnInterface) ManagerClient {
 	return &managerClient{cc}
 }
 
@@ -269,6 +273,14 @@ func (c *managerClient) Boot(ctx context.Context, in *BootRequest, opts ...grpc.
 // ManagerServer is the server API for Manager service.
 type ManagerServer interface {
 	Boot(context.Context, *BootRequest) (*BootResponse, error)
+}
+
+// UnimplementedManagerServer can be embedded to have forward compatible implementations.
+type UnimplementedManagerServer struct {
+}
+
+func (*UnimplementedManagerServer) Boot(ctx context.Context, req *BootRequest) (*BootResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Boot not implemented")
 }
 
 func RegisterManagerServer(s *grpc.Server, srv ManagerServer) {
