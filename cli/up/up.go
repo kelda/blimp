@@ -29,7 +29,6 @@ import (
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 )
 
-const managerHost = "localhost:9000"
 const registry = "gcr.io/kevin-230505"
 
 func New() *cobra.Command {
@@ -90,7 +89,7 @@ func (cmd *up) run() error {
 
 	// Send the boot request to the cluster manager.
 	// TODO: Use TLS
-	conn, err := grpc.Dial(managerHost,
+	conn, err := grpc.Dial(util.ManagerHost,
 		grpc.WithInsecure(),
 		grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
 	if err != nil {

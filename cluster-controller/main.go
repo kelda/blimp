@@ -487,6 +487,68 @@ func (s *server) deletePod(namespace, name string) error {
 	return nil
 }
 
+func (s *server) GetStatus(ctx context.Context, req *cluster.GetStatusRequest) (*cluster.GetStatusResponse, error) {
+	user, err := auth.ParseIDToken(req.GetToken())
+	if err != nil {
+		return &cluster.GetStatusResponse{}, err
+	}
+
+	namespace := dnsCompliantHash(user.ID)
+	status, err := s.getSandboxStatus(namespace)
+	if err != nil {
+		return &cluster.GetStatusResponse{}, err
+	}
+
+	return &cluster.GetStatusResponse{Status: &status}, nil
+}
+
+func (s *server) WatchStatus(req *cluster.GetStatusRequest, stream cluster.Manager_WatchStatusServer) error {
+	user, err := auth.ParseIDToken(req.GetToken())
+	if err != nil {
+		return err
+	}
+
+	namespace := dnsCompliantHash(user.ID)
+	watcher, err := s.kubeClient.CoreV1().Pods(namespace).Watch(metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+	defer watcher.Stop()
+
+	trig := watcher.ResultChan()
+	for {
+		status, err := s.getSandboxStatus(namespace)
+		if err != nil {
+			return err
+		}
+
+		if err := stream.Send(&cluster.GetStatusResponse{Status: &status}); err != nil {
+			return err
+		}
+
+		select {
+		case <-trig:
+		}
+	}
+}
+
+func (s *server) getSandboxStatus(namespace string) (cluster.SandboxStatus, error) {
+	pods, err := s.kubeClient.CoreV1().Pods(namespace).List(metav1.ListOptions{
+		LabelSelector: "blimp.customerPod=true",
+	})
+	if err != nil {
+		return cluster.SandboxStatus{}, err
+	}
+
+	services := map[string]*cluster.ServiceStatus{}
+	for _, pod := range pods.Items {
+		services[pod.Name] = &cluster.ServiceStatus{
+			Phase: string(pod.Status.Phase),
+		}
+	}
+	return cluster.SandboxStatus{Services: services}, nil
+}
+
 func toPods(namespace, dnsServer string, cfg dockercompose.Config, builtImages map[string]string) (pods []corev1.Pod) {
 	for name, svc := range cfg.Services {
 		image := svc.Image
