@@ -18,6 +18,7 @@ import (
 	"github.com/docker/docker/pkg/jsonmessage"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"golang.org/x/crypto/ssh/terminal"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding/gzip"
 
@@ -197,7 +198,9 @@ func (cmd *up) buildImage(spec dockercompose.Build, tag string) (string, error) 
 
 	// Block until the build completes, and return any errors that happen
 	// during the build.
-	err = jsonmessage.DisplayJSONMessagesStream(buildResp.Body, os.Stderr, 0, false, nil)
+	outFile := os.Stderr
+	isTerminal := terminal.IsTerminal(int(outFile.Fd()))
+	err = jsonmessage.DisplayJSONMessagesStream(buildResp.Body, outFile, outFile.Fd(), isTerminal, nil)
 	if err != nil {
 		return "", fmt.Errorf("build image: %w", err)
 	}
@@ -209,10 +212,12 @@ func (cmd *up) buildImage(spec dockercompose.Build, tag string) (string, error) 
 	if err != nil {
 		return "", fmt.Errorf("push image: %w", err)
 	}
+	defer pushResp.Close()
 
-	// TODO: Catch errors with push.. Maybe display message stream?
-	io.Copy(os.Stderr, pushResp)
-	pushResp.Close()
+	err = jsonmessage.DisplayJSONMessagesStream(pushResp, outFile, outFile.Fd(), isTerminal, nil)
+	if err != nil {
+		return "", fmt.Errorf("build image: %w", err)
+	}
 	return tag, nil
 }
 
