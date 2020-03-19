@@ -146,6 +146,7 @@ func (cmd *up) run() error {
 			go startTunnel(scc, name, mapping)
 		}
 	}
+	log.Info("Established Localhost Tunnels")
 
 	// Block until the user exits.
 	exitSig := make(chan os.Signal, 1)
@@ -171,7 +172,6 @@ func startTunnel(scc sandbox.ControllerClient, name string,
 		return
 	}
 
-	log.WithField("tunnel", mapping).Info("Accpeting Connections")
 	err = tunnel.Client(scc, ln, name, mapping.ContainerPort)
 	if err != nil {
 		// TODO.  Same question about Fatal.  Also if accept errors
