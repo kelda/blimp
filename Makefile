@@ -33,3 +33,5 @@ build-all: build-sandbox-controller build-cluster-controller
 
 push-all: push-sandbox-controller push-cluster-controller
 
+build-circle-image:
+	docker build -f .circleci/Dockerfile . -t keldaio/circleci-blimp
