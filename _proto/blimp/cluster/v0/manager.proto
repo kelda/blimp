@@ -8,6 +8,7 @@ option go_package = "github.com/kelda-inc/blimp/pkg/proto/cluster";
 
 service Manager {
   rpc Boot(BootRequest) returns (BootResponse) {}
+  rpc Delete(DeleteRequest) returns (DeleteResponse) {}
   rpc GetStatus(GetStatusRequest) returns (GetStatusResponse) {}
   rpc WatchStatus(GetStatusRequest) returns (stream GetStatusResponse) {}
 }
@@ -29,6 +30,13 @@ message KubeCredentials {
   string caCrt = 2;
   string token = 3;
   string namespace = 4;
+}
+
+message DeleteRequest {
+  string token = 1;
+}
+
+message DeleteResponse {
 }
 
 message GetStatusRequest {

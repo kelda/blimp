@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/kelda-inc/blimp/cli/down"
 	"github.com/kelda-inc/blimp/cli/login"
 	"github.com/kelda-inc/blimp/cli/logs"
 	"github.com/kelda-inc/blimp/cli/ps"
@@ -27,6 +28,7 @@ func main() {
 		SilenceErrors: true,
 	}
 	rootCmd.AddCommand(
+		down.New(),
 		login.New(),
 		logs.New(),
 		ps.New(),

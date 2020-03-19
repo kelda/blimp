@@ -487,6 +487,19 @@ func (s *server) deletePod(namespace, name string) error {
 	return nil
 }
 
+func (s *server) Delete(ctx context.Context, req *cluster.DeleteRequest) (*cluster.DeleteResponse, error) {
+	user, err := auth.ParseIDToken(req.GetToken())
+	if err != nil {
+		return &cluster.DeleteResponse{}, err
+	}
+
+	namespace := dnsCompliantHash(user.ID)
+	if err := s.kubeClient.CoreV1().Namespaces().Delete(namespace, nil); err != nil {
+		return &cluster.DeleteResponse{}, err
+	}
+	return &cluster.DeleteResponse{}, nil
+}
+
 func (s *server) GetStatus(ctx context.Context, req *cluster.GetStatusRequest) (*cluster.GetStatusResponse, error) {
 	user, err := auth.ParseIDToken(req.GetToken())
 	if err != nil {
