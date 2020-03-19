@@ -12,6 +12,7 @@ import (
 	"github.com/kelda-inc/blimp/cli/login"
 	"github.com/kelda-inc/blimp/cli/logs"
 	"github.com/kelda-inc/blimp/cli/ps"
+	"github.com/kelda-inc/blimp/cli/ssh"
 	"github.com/kelda-inc/blimp/cli/up"
 )
 
@@ -32,6 +33,7 @@ func main() {
 		login.New(),
 		logs.New(),
 		ps.New(),
+		ssh.New(),
 		up.New(),
 	)
 
