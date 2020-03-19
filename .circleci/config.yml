@@ -19,9 +19,55 @@ jobs:
           name: Build
           command: make
 
+  push-docker-tagged:
+    executor: docker-executor
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run:
+          name: Push Docker image
+          command: |
+            docker login gcr.io --username _json_key --password "${DOCKER_KEY}"
+            BLIMP_DOCKER_REPO=gcr.io/kelda-blimp VERSION=${CIRCLE_TAG} make push-all
+
+  upload-release:
+    executor: docker-executor
+    steps:
+      - checkout
+      - run:
+          name: Upload Release
+          command: ./scripts/upload_release.sh
+
 workflows:
   version: 2
 
   pr:
     jobs:
       - build
+
+  build-push-tag:
+    jobs:
+      - build:
+          filters: # Required since `push-docker-tag` depends on `build`.
+            tags:
+              only: /.*/
+            branches:
+              ignore: /.*/
+      - push-docker-tagged:
+          requires:
+            - build
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              ignore: /.*/
+      - upload-release:
+          requires:
+            - build
+            - push-docker-tagged
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              ignore: /.*/
