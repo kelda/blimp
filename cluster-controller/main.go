@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/kelda-inc/blimp/pkg/auth"
 	"github.com/kelda-inc/blimp/pkg/dockercompose"
@@ -27,17 +28,10 @@ import (
 
 	// Install the gzip compressor.
 	_ "google.golang.org/grpc/encoding/gzip"
-)
 
-// The credentials required to connect to the customer cluster.
-// TODO: Read from env var.
-var customerClusterConfig = rest.Config{
-	Host:        "https://104.198.2.28",
-	BearerToken: "eyJhbGciOiJSUzI1NiIsImtpZCI6IiJ9.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJkZWZhdWx0Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZWNyZXQubmFtZSI6ImtlbGRhLXVzZXItdG9rZW4tMnZkYmMiLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC5uYW1lIjoia2VsZGEtdXNlciIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VydmljZS1hY2NvdW50LnVpZCI6IjQ4ODI4M2ZiLTY2MzItMTFlYS1hZDM0LTQyMDEwYThhMDA3YiIsInN1YiI6InN5c3RlbTpzZXJ2aWNlYWNjb3VudDpkZWZhdWx0OmtlbGRhLXVzZXIifQ.wvo5Wk8LGdEOSurxNu7b7kgVCGpuY5S4Mz9y-PfI989ZnNZUOeNMGcEEB-b-bUisy38CAYXPrS9VsDmbZrxDZoDAkz1yyjhaQ7nMt_eixOAuhYYPtzd_QeTdDzfIz_dy5d1zkxGwJmxfsTg0ZQMxDZ6Mee30eoroCjKpAsDWKg94TFvZJDMZ8tYcTJdleJO5a9D497xHC8Tcmdli6DCo9vGi5IME9SOUuu3esycSXCi1ClD8Oi0dAPerWjTGOmAWrpHedwmNyk-B46GF09TwrE1kOJdOQAoQURrEkftS4FhoXOJsbS-eY5e5Dr1Eneqnc6mRX1oSXNY0VyvVbAQmRQ",
-	TLSClientConfig: rest.TLSClientConfig{
-		CAData: mustDecodeBase64("LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURERENDQWZTZ0F3SUJBZ0lSQUl3M3RaU3kvMFFFdm1hYmEwNUJybGN3RFFZSktvWklodmNOQVFFTEJRQXcKTHpFdE1Dc0dBMVVFQXhNa01XUmhNakJpTkRndE1tVXpNQzAwTldFd0xXSTFPREl0WXpCaFpqWmhaRFE1WlRjNQpNQjRYRFRJd01ETXhOREUyTURRMU9Wb1hEVEkxTURNeE16RTNNRFExT1Zvd0x6RXRNQ3NHQTFVRUF4TWtNV1JoCk1qQmlORGd0TW1Vek1DMDBOV0V3TFdJMU9ESXRZekJoWmpaaFpEUTVaVGM1TUlJQklqQU5CZ2txaGtpRzl3MEIKQVFFRkFBT0NBUThBTUlJQkNnS0NBUUVBcEhhUk4vQWRZSEowRVkzWE14U0hmV1hIOTNKNEM5SUdoWEFYRFdWNApKbkoxakVaaEFBcUM5VlBpU0tLaHVOQ0J3UlloRGlXSEJYdkgxRmw2MFM5Q2dodzF5MnR0RjZyL0hSai9TaTRoCmttTURHWlRXOE0rQmUrdkErL1Y0WUQ1ak03UFgxTjZnVEJiTFowVGtuNGNoUm51WTVLbG92RFNzVzkvd0tOem8KTmJRZjE2MDA4K254ZmVObit6bkVySmFRZnpuMXR0akFZS2hPVkxKRUFnaW9xL1Izak5HYnhMZ1JXQk40bVBEWgpBZGtTNUFCNHlFQ0Q0VVpwT0ZYS0FOek1oMm82cXpNUUFqYzJpa3hhTnA0YXE2cmpibDlxRlNoc0hqYTFYU2VqClZPYUtOVXpuenlYWG50NU1YSFVEM2hCUlJyeVE0WTZPWklGNndydU1jREM3QlFJREFRQUJveU13SVRBT0JnTlYKSFE4QkFmOEVCQU1DQWdRd0R3WURWUjBUQVFIL0JBVXdBd0VCL3pBTkJna3Foa2lHOXcwQkFRc0ZBQU9DQVFFQQpWaE5SajdBdlZlUElWZEVMcjdiZ0xpekMvM1J4OFpCK3NoSFpOaWJUUCtDdlQ0NEdBWThrMkR5ZGNzZnkxT3dHCkg0b0c0R1hyaFNDOTVDaGcrUlNKOXdxeDdhaDZ6MXpET1Y3MFpFVTRzbEwxMTRtN3F4bTZYbEtMMVQ4REM3L3UKSGNSa0NjYTdtRGE4ZEI4SGNkMXVjWmdiZXQ4QlJheGplem13WjI5WDhvVDd1dEpvUTl0ZkVObHE0clEzdHkrawpvYm1GTXNQSEFWZlcrdnFvOEJyclFEUjF5NnZvU2gyNDgwNmRmU3AxV00veGZjUnJ4UEluUXRnYnUyeGsyQTdhCmd5NzZha29nR3ZQTjZsSzQrZFdmV1ZSaWRCa2JtVkVpVUlNcXNmLzVDSytpakNqbFFmQmZaVXZHaDYvdEFXZ1cKTjRFU0w3Tlk0S1JSNGtWQ05kWnBxZz09Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"),
-	},
-}
+	// Load the client authentication plugin necessary for connecting to GKE.
+	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+)
 
 const (
 	Port        = 9000
@@ -45,13 +39,13 @@ const (
 )
 
 func main() {
-	kubeClient, err := kubernetes.NewForConfig(&customerClusterConfig)
+	kubeClient, restConfig, err := getKubeClient()
 	if err != nil {
 		log.WithError(err).Error("Failed to connect to customer cluster")
 		os.Exit(1)
 	}
 
-	s := &server{kubeClient}
+	s := &server{kubeClient, restConfig}
 	addr := fmt.Sprintf("0.0.0.0:%d", Port)
 
 	if err := s.listenAndServe(addr); err != nil {
@@ -74,6 +68,7 @@ func (s *server) listenAndServe(address string) error {
 
 type server struct {
 	kubeClient kubernetes.Interface
+	restConfig *rest.Config
 }
 
 func (s *server) Boot(ctx context.Context, req *cluster.BootRequest) (*cluster.BootResponse, error) {
@@ -317,7 +312,7 @@ func (s *server) createCLICreds(namespace string) (cluster.KubeCredentials, erro
 	}
 
 	return cluster.KubeCredentials{
-		Host:      customerClusterConfig.Host,
+		Host:      s.restConfig.Host,
 		CaCrt:     string(caCrt),
 		Token:     string(token),
 		Namespace: namespace,
@@ -669,4 +664,24 @@ func serviceGetter(kubeClient kubernetes.Interface, namespace, name string) func
 	return func() (interface{}, error) {
 		return kubeClient.CoreV1().Services(namespace).Get(name, metav1.GetOptions{})
 	}
+}
+
+// getKubeClient gets a Kubernetes client connected to the cluster defined in
+// the local kubeconfig.
+func getKubeClient() (kubernetes.Interface, *rest.Config, error) {
+	rules := clientcmd.NewDefaultClientConfigLoadingRules()
+	kubeConfig := clientcmd.
+		NewNonInteractiveDeferredLoadingClientConfig(rules, &clientcmd.ConfigOverrides{})
+
+	restConfig, err := kubeConfig.ClientConfig()
+	if err != nil {
+		return nil, nil, fmt.Errorf("get rest config: %w", err)
+	}
+
+	kubeClient, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return nil, nil, fmt.Errorf("new kube client: %w", err)
+	}
+
+	return kubeClient, restConfig, nil
 }
