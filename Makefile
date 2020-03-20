@@ -15,9 +15,32 @@ LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
 # Include all .mk files so you can have your own local configurations
 include $(wildcard *.mk)
 
-# Default target for local development.  Just builds binaries
-install: certs
-	CGO_ENABLED=0 go install -ldflags $(LD_FLAGS) ./cli ./cluster-controller ./sandbox-controller ./registry ./boot-waiter
+# Default target for local development.  Just builds binaries for now assumes
+# OSX
+install: certs build-cli-osx
+	mv blimp-osx $(GOPATH)/bin/cli
+	CGO_ENABLED=0 go install -ldflags $(LD_FLAGS) \
+		    ./cluster-controller \
+		    ./sandbox-controller \
+		    ./registry \
+		    ./boot-waiter \
+		    ./sandbox-syncthing
+
+syncthing-macos:
+	curl -L -O https://github.com/syncthing/syncthing/releases/download/v1.4.0/syncthing-macos-amd64-v1.4.0.tar.gz
+	tar -xf syncthing*.tar.gz
+	mv syncthing-macos-amd64-v1.4.0/syncthing syncthing-macos
+	rm -rf syncthing-macos-amd64*
+
+syncthing-linux:
+	curl -L -O https://github.com/syncthing/syncthing/releases/download/v1.4.0/syncthing-linux-amd64-v1.4.0.tar.gz
+	tar -xf syncthing*.tar.gz
+	mv syncthing-linux-amd64-v1.4.0/syncthing syncthing-linux
+	rm -rf syncthing-linux-amd64*
+
+go-get:
+	go get -u github.com/GeertJohan/go.rice
+	go get -u github.com/GeertJohan/go.rice/rice
 
 generate:
 	protoc -I _proto _proto/blimp/sandbox/v0/controller.proto --go_out=plugins=grpc:$$GOPATH/src
@@ -36,11 +59,17 @@ certs:
 		-nodes \
 		-subj "/C=US/ST=California/L=Berkeley/O=Kelda Inc/OU=Kelda Blimp Manager/CN=localhost"
 
-build-cli-linux:
+build-cli-linux: syncthing-linux
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LD_FLAGS) -o blimp-linux ./cli
+	cp syncthing-linux ./pkg/syncthing/stbin
+	rice append -i ./pkg/syncthing --exec blimp-osx
+	rm ./pkg/syncthing/stbin
 
-build-cli-osx:
+build-cli-osx: syncthing-macos
 	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LD_FLAGS) -o blimp-osx ./cli
+	cp syncthing-macos ./pkg/syncthing/stbin
+	rice append -i ./pkg/syncthing --exec blimp-osx
+	rm ./pkg/syncthing/stbin
 
 run-cluster-controller: certs
 	go run -ldflags $(LD_FLAGS) ./cluster-controller -tls-cert ${MANAGER_CERT_PATH} -tls-key ${MANAGER_KEY_PATH}
@@ -51,14 +80,14 @@ build-circle-image:
 SANDBOX_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-sandbox-controller:${VERSION}
 CLUSTER_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-cluster-controller:${VERSION}
 BOOT_WAITER_IMAGE = ${DOCKER_REPO}/blimp-boot-waiter:${VERSION}
-SYNCTHING_IMAGE = ${DOCKER_REPO}/syncthing:${VERSION}
+SYNCTHING_IMAGE = ${DOCKER_REPO}/sandbox-syncthing:${VERSION}
 DOCKER_AUTH_IMAGE = ${DOCKER_REPO}/blimp-docker-auth:${VERSION}
 
 build-docker:
 	docker build -t blimp-go-build --build-arg COMPILE_FLAGS=${LD_FLAGS} .
 	docker build -t blimp-cluster-controller -t ${CLUSTER_CONTROLLER_IMAGE} -f ./cluster-controller/Dockerfile .
 	docker build -t blimp-sandbox-controller -t ${SANDBOX_CONTROLLER_IMAGE} -f ./sandbox-controller/Dockerfile .
-	docker build -t syncthing -t ${SYNCTHING_IMAGE} -f ./syncthing/Dockerfile ./syncthing
+	docker build -t sandbox-syncthing -t ${SYNCTHING_IMAGE} -f ./sandbox-syncthing/Dockerfile ./sandbox-syncthing
 	docker build -t boot-waiter -t ${BOOT_WAITER_IMAGE} -f ./boot-waiter/Dockerfile ./boot-waiter
 	docker build -t blimp-docker-auth -t ${DOCKER_AUTH_IMAGE} -f ./registry/Dockerfile .
 

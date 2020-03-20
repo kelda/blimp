@@ -37,6 +37,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/dockercompose"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
+	"github.com/kelda-inc/blimp/pkg/syncthing"
 	"github.com/kelda-inc/blimp/pkg/version"
 
 	// Install the gzip compressor.
@@ -122,15 +123,12 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, err
 	}
 
-	// TODO: Ignore unused variable error. Ethan should remove once he actually uses value.
-	_ = dcCfg
-
 	namespace := user.Namespace
 	if err := s.createNamespace(namespace); err != nil {
 		return &cluster.CreateSandboxResponse{}, fmt.Errorf("create namespace: %w", err)
 	}
 
-	if err := s.createSyncthing(namespace); err != nil {
+	if err := s.createSyncthing(namespace, dcCfg); err != nil {
 		return &cluster.CreateSandboxResponse{}, fmt.Errorf("deploy syncthing: %w", err)
 	}
 
@@ -439,7 +437,36 @@ func newSelfSignedCert(ip string) (pemCert, pemKey []byte, err error) {
 	return certOut.Bytes(), keyOut.Bytes(), nil
 }
 
-func (s *server) createSyncthing(namespace string) error {
+func (s *server) createSyncthing(namespace string, cfg dockercompose.Config) error {
+	idPathMap := map[string]string{}
+
+	var volumes []corev1.Volume
+	var volumeMounts []corev1.VolumeMount
+	for _, svc := range cfg.Services {
+		for _, desired := range svc.Volumes {
+			id := desired.Id(namespace)
+			hostPath := volumeHostPath(namespace, id)
+
+			volume, mount := makeVolumeMount(namespace, id,
+				hostPath, desired.Target)
+
+			if _, ok := idPathMap[id]; ok {
+				continue
+			}
+
+			idPathMap[id] = hostPath
+
+			// In the syncthing container, we always mount at the
+			// hostpath to avoid collisions between different
+			// volumes that may be mounted at the same location in
+			// different containers.
+			mount.MountPath = hostPath
+			volumeMounts = append(volumeMounts, mount)
+
+			volumes = append(volumes, volume)
+		}
+	}
+
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
@@ -450,7 +477,10 @@ func (s *server) createSyncthing(namespace string) error {
 				Name:            "syncthing",
 				Image:           version.SyncthingImage,
 				ImagePullPolicy: "Always",
+				Args:            syncthing.MapToArgs(idPathMap),
+				VolumeMounts:    volumeMounts,
 			}},
+			Volumes: volumes,
 		},
 	}
 
@@ -861,6 +891,32 @@ func (s *server) getSandboxStatus(namespace string) (cluster.SandboxStatus, erro
 	return cluster.SandboxStatus{Services: services}, nil
 }
 
+func makeVolumeMount(namespace, id, hostpath, target string) (
+	corev1.Volume,
+	corev1.VolumeMount,
+) {
+	// Volumes are backed by a directory on the node's filesystem.
+	hostPathType := corev1.HostPathDirectoryOrCreate
+	volume := corev1.Volume{
+		Name: id,
+		VolumeSource: corev1.VolumeSource{
+			HostPath: &corev1.HostPathVolumeSource{
+				Path: hostpath,
+				Type: &hostPathType,
+			},
+		},
+	}
+	mount := corev1.VolumeMount{
+		Name:      id,
+		MountPath: target,
+	}
+	return volume, mount
+}
+
+func volumeHostPath(namespace, id string) string {
+	return fmt.Sprintf("/var/blimp/volumes/%s/%s", namespace, id)
+}
+
 func toPods(namespace, managerIP string, cfg dockercompose.Config, builtImages map[string]string) (pods []corev1.Pod, configMaps []corev1.ConfigMap, err error) {
 	for name, svc := range cfg.Services {
 		// Each pod has a corresponding ConfigMap containing the dependencies
@@ -903,28 +959,12 @@ func toPods(namespace, managerIP string, cfg dockercompose.Config, builtImages m
 		// Volumes are backed by a directory on the node's filesystem.
 		var volumeMounts []corev1.VolumeMount
 		for _, desired := range svc.Volumes {
-			if desired.Type != "volume" {
-				log.WithField("type", desired.Type).
-					WithField("source", desired.Source).
-					Warn("Skipping unsupported volume type")
-				continue
-			}
-
-			hostPathType := corev1.HostPathDirectoryOrCreate
-			volumes = append(volumes, corev1.Volume{
-				Name: desired.Source,
-				VolumeSource: corev1.VolumeSource{
-					HostPath: &corev1.HostPathVolumeSource{
-						Path: fmt.Sprintf("/var/blimp/volumes/%s/%s", namespace, desired.Source),
-						Type: &hostPathType,
-					},
-				},
-			})
-
-			volumeMounts = append(volumeMounts, corev1.VolumeMount{
-				Name:      desired.Source,
-				MountPath: desired.Target,
-			})
+			id := desired.Id(namespace)
+			hostPath := volumeHostPath(namespace, id)
+			volume, mount := makeVolumeMount(namespace, id,
+				hostPath, desired.Target)
+			volumes = append(volumes, volume)
+			volumeMounts = append(volumeMounts, mount)
 		}
 
 		var envVars []corev1.EnvVar

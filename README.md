@@ -2,6 +2,7 @@
 
 Make sure you're using go v1.13 or above.
 
+1. `make go-get`
 1. Boot a Kubernetes cluster.
 1. Generate credentials for the cluster-controller to deploy to the cluster. Use `./scripts/make-kubeconfig.sh` to generate a Kubeconfig.
 1. Add the credentials to `cluster-controller/main.go`. Copy the relevant fields out of the Kubeconfig.

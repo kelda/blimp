@@ -33,6 +33,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/dockercompose"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
+	"github.com/kelda-inc/blimp/pkg/syncthing"
 	"github.com/kelda-inc/blimp/pkg/tunnel"
 )
 
@@ -154,6 +155,8 @@ func (cmd *up) run() error {
 		return err
 	}
 
+	haveSyncthing := cmd.bootSyncthing(parsedCompose)
+
 	// TODO: Does Docker rebuild images when files change?
 	builtImages, err := cmd.buildImages(parsedCompose)
 	if err != nil {
@@ -194,8 +197,14 @@ func (cmd *up) run() error {
 	sandboxManager := sandbox.NewControllerClient(sandboxConn)
 	for name, svc := range parsedCompose.Services {
 		for _, mapping := range svc.PortMappings {
-			go startTunnel(sandboxManager, cmd.auth.AuthToken, name, mapping)
+			go startTunnel(sandboxManager, cmd.auth.AuthToken, name,
+				mapping.HostPort, mapping.ContainerPort)
 		}
+	}
+
+	if haveSyncthing {
+		go startTunnel(sandboxManager, cmd.auth.AuthToken, "syncthing",
+			syncthing.Port, syncthing.Port)
 	}
 
 	var services []string
@@ -216,9 +225,9 @@ func (cmd *up) run() error {
 }
 
 func startTunnel(scc sandbox.ControllerClient, token, name string,
-	mapping dockercompose.PortMapping) {
+	hostPort, containerPort uint32) {
 
-	addr := fmt.Sprintf("127.0.0.1:%d", mapping.HostPort)
+	addr := fmt.Sprintf("127.0.0.1:%d", hostPort)
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		// TODO.  It's appropriate that this error is fatal, but we need
@@ -232,7 +241,7 @@ func startTunnel(scc sandbox.ControllerClient, token, name string,
 		return
 	}
 
-	err = tunnel.Client(scc, ln, token, name, mapping.ContainerPort)
+	err = tunnel.Client(scc, ln, token, name, containerPort)
 	if err != nil {
 		// TODO.  Same question about Fatal.  Also if accept errors
 		// maybe wes hould have retried inside accept tunnels instead of
@@ -334,6 +343,32 @@ func (cmd *up) buildImage(spec dockercompose.Build, svc string) (string, error) 
 		return "", fmt.Errorf("push image: %w", err)
 	}
 	return name, nil
+}
+
+func (cmd *up) bootSyncthing(dcCfg dockercompose.Config) bool {
+	namespace := cmd.auth.KubeNamespace
+	idPathMap := map[string]string{}
+	for _, svc := range dcCfg.Services {
+		for _, v := range svc.Volumes {
+			if v.Type != "bind" {
+				continue
+			}
+			idPathMap[v.Id(namespace)] = v.Source
+		}
+	}
+
+	if len(idPathMap) == 0 {
+		return false
+	}
+
+	go func() {
+		err := syncthing.Run(idPathMap)
+		if err != nil {
+			log.WithError(err).Warn("syncthing error")
+		}
+	}()
+
+	return true
 }
 
 func makeTar(dir string) (io.Reader, error) {

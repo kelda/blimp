@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ghodss/yaml"
+	"github.com/kelda-inc/blimp/pkg/volume"
 )
 
 // TODO: Could generate from the schema definitions in the Docker Compose
@@ -76,9 +77,7 @@ func (vars *EnvironmentVariables) UnmarshalJSON(b []byte) error {
 type Volume struct{}
 
 type VolumeMount struct {
-	Type   string
-	Source string
-	Target string
+	volume.V
 
 	// If the volume mount was defined using the string syntax, the volume's
 	// type can't be inferred until the mount is compared with the volumes
