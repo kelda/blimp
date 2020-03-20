@@ -26,8 +26,8 @@ build-cluster-controller:
 push-cluster-controller: build-cluster-controller
 	docker push ${CLUSTER_CONTROLLER_IMAGE}
 
-run-cluster-controller: build-cluster-controller
-	docker run -p 9000:9000 ${CLUSTER_CONTROLLER_IMAGE} blimp-cluster-controller
+run-cluster-controller:
+	go run -ldflags $(LD_FLAGS) ./cluster-controller
 
 build-all: build-sandbox-controller build-cluster-controller
 
