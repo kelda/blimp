@@ -13,5 +13,5 @@ cp blimp-osx ${osx_binary}
 cp blimp-linux ${linux_binary}
 chmod +x ${osx_binary} ${linux_binary}
 
-aws s3 cp ${osx_binary} s3://${s3_bucket}/${osx_binary}
-aws s3 cp ${linux_binary} s3://${s3_bucket}/${linux_binary}
+aws s3 cp ${osx_binary} s3://${s3_bucket}/${osx_binary} --acl public-read
+aws s3 cp ${linux_binary} s3://${s3_bucket}/${linux_binary} --acl public-read
