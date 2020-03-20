@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: manager
+spec:
+  selector:
+    matchLabels:
+      service: manager
+  template:
+    metadata:
+      labels:
+        service: manager
+    spec:
+      containers:
+      - name: manager
+        image: gcr.io/kelda-blimp/blimp-cluster-controller:0.1.0
+        imagePullPolicy: Always
+        volumeMounts:
+        - name: kubeconfig
+          mountPath: "/root/.kube"
+          readOnly: true
+      volumes:
+      - name: kubeconfig
+        secret:
+          secretName: customer-cluster-kubeconfig

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: manager
+spec:
+  ports:
+  - name: grpc
+    port: 9000
+    targetPort: 9000
+  type: LoadBalancer
+  selector:
+    service: manager
