@@ -6,7 +6,15 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const ManagerHost = "localhost:9000"
+var ManagerHost = getManagerHost()
+
+func getManagerHost() string {
+	envVal := os.Getenv("MANAGER_HOST")
+	if envVal != "" {
+		return envVal
+	}
+	return "blimp-manager.kelda.io:9000"
+}
 
 // HandleFatalError handles errors that are severe enough to terminate the
 // program.
