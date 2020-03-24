@@ -98,6 +98,7 @@ func (s *server) Boot(ctx context.Context, req *cluster.BootRequest) (*cluster.B
 		return &cluster.BootResponse{}, fmt.Errorf("create pod runner service account: %w", err)
 	}
 
+	// TODO: Delete pods.
 	for _, pod := range toPods(namespace, dnsIP, dcCfg, req.BuiltImages) {
 		if err := s.deployPod(pod); err != nil {
 			return &cluster.BootResponse{}, fmt.Errorf("create pod: %w", err)
@@ -564,6 +565,35 @@ func toPods(namespace, dnsServer string, cfg dockercompose.Config, builtImages m
 			image = builtImages[name]
 			// TODO: Error if image DNE.
 		}
+
+		// Volumes are backed by a directory on the node's filesystem.
+		var volumes []corev1.Volume
+		var volumeMounts []corev1.VolumeMount
+		for _, desired := range svc.Volumes {
+			if desired.Type != "volume" {
+				log.WithField("type", desired.Type).
+					WithField("source", desired.Source).
+					Warn("Skipping unsupported volume type")
+				continue
+			}
+
+			hostPathType := corev1.HostPathDirectoryOrCreate
+			volumes = append(volumes, corev1.Volume{
+				Name: desired.Source,
+				VolumeSource: corev1.VolumeSource{
+					HostPath: &corev1.HostPathVolumeSource{
+						Path: fmt.Sprintf("/var/blimp/volumes/%s/%s", namespace, desired.Source),
+						Type: &hostPathType,
+					},
+				},
+			})
+
+			volumeMounts = append(volumeMounts, corev1.VolumeMount{
+				Name:      desired.Source,
+				MountPath: desired.Target,
+			})
+		}
+
 		// TODO: Resources
 		pod := corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
@@ -578,9 +608,10 @@ func toPods(namespace, dnsServer string, cfg dockercompose.Config, builtImages m
 			Spec: corev1.PodSpec{
 				Containers: []corev1.Container{
 					{
-						Name:    name,
-						Image:   image,
-						Command: svc.Command,
+						Name:         name,
+						Image:        image,
+						Command:      svc.Command,
+						VolumeMounts: volumeMounts,
 						// TODO: Env
 					},
 				},
@@ -592,6 +623,7 @@ func toPods(namespace, dnsServer string, cfg dockercompose.Config, builtImages m
 				ImagePullSecrets: []corev1.LocalObjectReference{
 					{Name: "build-registry-auth"},
 				},
+				Volumes:            volumes,
 				ServiceAccountName: "pod-runner",
 				Affinity: &corev1.Affinity{
 					PodAffinity: &corev1.PodAffinity{

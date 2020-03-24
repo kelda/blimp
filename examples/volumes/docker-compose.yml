@@ -1,0 +1,30 @@
+version: '3'
+services:
+  red:
+    image: "ubuntu"
+    command:
+      - "tail"
+      - "-f"
+      - "/dev/null"
+    volumes:
+      - type: "volume"
+        source: "shared-volume"
+        target: "/red-shared"
+  blue:
+    image: "ubuntu"
+    command:
+      - "tail"
+      - "-f"
+      - "/dev/null"
+    volumes:
+      - "shared-volume:/blue-shared"
+  bind-volume:
+    image: "ubuntu"
+    command:
+      - "tail"
+      - "-f"
+      - "/dev/null"
+    volumes:
+      - ".:/my-code"
+volumes:
+  shared-volume:

@@ -14,6 +14,7 @@ import (
 
 type Config struct {
 	Services map[string]Service `json:"services"`
+	Volumes  map[string]Volume  `json:"volumes"`
 }
 
 type Service struct {
@@ -21,6 +22,62 @@ type Service struct {
 	Command      []string      `json:"command"`
 	PortMappings []PortMapping `json:"ports"`
 	Build        *Build        `json:"build"`
+	Volumes      []VolumeMount `json:"volumes"`
+}
+
+type Volume struct{}
+
+type VolumeMount struct {
+	Type   string
+	Source string
+	Target string
+
+	// If the volume mount was defined using the string syntax, the volume's
+	// type can't be inferred until the mount is compared with the volumes
+	// explicitly declared by the Docker Compose file.
+	guessType bool
+}
+
+func (mount *VolumeMount) UnmarshalJSON(b []byte) error {
+	var intf interface{}
+	if err := yaml.Unmarshal(b, &intf); err != nil {
+		return err
+	}
+
+	// Volumes may be expressed as a string as passed to `docker run`, or in
+	// full YAML syntax.
+	switch v := intf.(type) {
+	case string:
+		mountParts := strings.Split(v, ":")
+		if len(mountParts) == 1 {
+			mount.Target = mountParts[0]
+		} else {
+			mount.guessType = true
+			mount.Source = mountParts[0]
+			mount.Target = mountParts[1]
+			// TODO: 3rd part is Mode.
+		}
+	case map[string]interface{}:
+		var ok bool
+		mount.Type, ok = v["type"].(string)
+		if !ok {
+			return errors.New("unexpected type for type")
+		}
+
+		mount.Source, ok = v["source"].(string)
+		if !ok {
+			return errors.New("unexpected type for source")
+		}
+
+		mount.Target, ok = v["target"].(string)
+		if !ok {
+			return errors.New("unexpected type for target")
+		}
+	default:
+		return errors.New("unexpected type for mount")
+	}
+
+	return nil
 }
 
 type PortMapping struct {
@@ -97,6 +154,20 @@ func (build *Build) UnmarshalJSON(b []byte) error {
 func Parse(cfg []byte) (parsed Config, err error) {
 	if err := yaml.Unmarshal(cfg, &parsed); err != nil {
 		return Config{}, fmt.Errorf("parse: %w", err)
+	}
+
+	for _, svc := range parsed.Services {
+		for i, volume := range svc.Volumes {
+			if !volume.guessType {
+				continue
+			}
+
+			if _, ok := parsed.Volumes[volume.Source]; ok {
+				svc.Volumes[i].Type = "volume"
+			} else {
+				svc.Volumes[i].Type = "bind"
+			}
+		}
 	}
 	return parsed, nil
 }
