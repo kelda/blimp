@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha1"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -212,7 +213,6 @@ func (cmd *up) buildImages(namespace string, composeFile dockercompose.Config) (
 func (cmd *up) buildImage(spec dockercompose.Build, tag string) (string, error) {
 	opts := types.ImageBuildOptions{
 		Dockerfile: spec.Dockerfile,
-		Tags:       []string{tag},
 	}
 	if opts.Dockerfile == "" {
 		opts.Dockerfile = "Dockerfile"
@@ -231,11 +231,28 @@ func (cmd *up) buildImage(spec dockercompose.Build, tag string) (string, error) 
 
 	// Block until the build completes, and return any errors that happen
 	// during the build.
+	var imageID string
+	callback := func(msg jsonmessage.JSONMessage) {
+		var id struct{ ID string }
+		if err := json.Unmarshal(*msg.Aux, &id); err != nil {
+			log.WithError(err).Warn("Failed to parse build ID")
+			return
+		}
+
+		if id.ID != "" {
+			imageID = id.ID
+		}
+	}
+
 	stderr := os.Stderr
 	isTerminal := terminal.IsTerminal(int(stderr.Fd()))
-	err = jsonmessage.DisplayJSONMessagesStream(buildResp.Body, stderr, stderr.Fd(), isTerminal, nil)
+	err = jsonmessage.DisplayJSONMessagesStream(buildResp.Body, stderr, stderr.Fd(), isTerminal, callback)
 	if err != nil {
 		return "", fmt.Errorf("build image: %w", err)
+	}
+
+	if err := cmd.dockerClient.ImageTag(context.TODO(), imageID, tag); err != nil {
+		return "", fmt.Errorf("tag image: %w", err)
 	}
 
 	// TODO: Auth
