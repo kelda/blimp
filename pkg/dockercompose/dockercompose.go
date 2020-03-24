@@ -18,11 +18,54 @@ type Config struct {
 }
 
 type Service struct {
-	Image        string        `json:"image"`
-	Command      []string      `json:"command"`
-	PortMappings []PortMapping `json:"ports"`
-	Build        *Build        `json:"build"`
-	Volumes      []VolumeMount `json:"volumes"`
+	Image        string               `json:"image"`
+	Command      []string             `json:"command"`
+	PortMappings []PortMapping        `json:"ports"`
+	Build        *Build               `json:"build"`
+	Volumes      []VolumeMount        `json:"volumes"`
+	Environment  EnvironmentVariables `json:"environment"`
+}
+
+type EnvironmentVariables map[string]string
+
+func (vars *EnvironmentVariables) UnmarshalJSON(b []byte) error {
+	*vars = map[string]string{}
+
+	var intf interface{}
+	if err := yaml.Unmarshal(b, &intf); err != nil {
+		return err
+	}
+
+	// Environment variables may be expressed as either an array or dictionary.
+	switch varsIntf := intf.(type) {
+	case []interface{}:
+		for _, keyValIntf := range varsIntf {
+			keyValStr, ok := keyValIntf.(string)
+			if !ok {
+				return errors.New("expected a list of strings")
+			}
+
+			keyValParts := strings.SplitN(keyValStr, "=", 2)
+			if len(keyValParts) != 2 {
+				return fmt.Errorf("missing environment variable value: %s", keyValStr)
+			}
+
+			(*vars)[keyValParts[0]] = keyValParts[1]
+		}
+	case map[string]interface{}:
+		for key, valIntf := range varsIntf {
+			valStr, ok := valIntf.(string)
+			if !ok {
+				return fmt.Errorf("environment variable value must be a string: %v", valIntf)
+			}
+
+			(*vars)[key] = valStr
+		}
+	default:
+		return errors.New("unexpected type for environment")
+	}
+
+	return nil
 }
 
 type Volume struct{}

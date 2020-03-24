@@ -594,6 +594,14 @@ func toPods(namespace, dnsServer string, cfg dockercompose.Config, builtImages m
 			})
 		}
 
+		var envVars []corev1.EnvVar
+		for k, v := range svc.Environment {
+			envVars = append(envVars, corev1.EnvVar{
+				Name:  k,
+				Value: v,
+			})
+		}
+
 		// TODO: Resources
 		pod := corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
@@ -612,7 +620,7 @@ func toPods(namespace, dnsServer string, cfg dockercompose.Config, builtImages m
 						Image:        image,
 						Command:      svc.Command,
 						VolumeMounts: volumeMounts,
-						// TODO: Env
+						Env:          envVars,
 					},
 				},
 				DNSPolicy: corev1.DNSNone,
