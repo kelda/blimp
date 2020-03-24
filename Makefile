@@ -1,9 +1,6 @@
 DOCKER_REPO = ${BLIMP_DOCKER_REPO}
 #VERSION?=$(shell ./scripts/dev_version.sh)
 VERSION?=latest
-SANDBOX_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-sandbox-controller:${VERSION}
-CLUSTER_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-cluster-controller:${VERSION}
-DEPENDS_ON_IMAGE = ${DOCKER_REPO}/blimp-depends-on-waiter:${VERSION}
 LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} -X github.com/kelda-inc/blimp/pkg/version.SandboxControllerImage=${SANDBOX_CONTROLLER_IMAGE} -X github.com/kelda-inc/blimp/pkg/version.DependsOnImage=${DEPENDS_ON_IMAGE}"
 
 # Default target for local development.  Just builds binaries
@@ -21,30 +18,23 @@ build-cli-linux:
 build-cli-osx:
 	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LD_FLAGS) -o blimp-osx ./cli
 
-build-sandbox-controller:
-	docker build -t ${SANDBOX_CONTROLLER_IMAGE} -f ./sandbox-controller/Dockerfile --build-arg COMPILE_FLAGS=${LD_FLAGS} .
-
-push-sandbox-controller: build-sandbox-controller
-	docker push ${SANDBOX_CONTROLLER_IMAGE}
-
-build-cluster-controller:
-	docker build -t ${CLUSTER_CONTROLLER_IMAGE} -f ./cluster-controller/Dockerfile --build-arg COMPILE_FLAGS=${LD_FLAGS} .
-
-push-cluster-controller: build-cluster-controller
-	docker push ${CLUSTER_CONTROLLER_IMAGE}
-
 run-cluster-controller:
 	go run -ldflags $(LD_FLAGS) ./cluster-controller
 
-build-depends-on:
-	docker build -t ${DEPENDS_ON_IMAGE} -f ./depends-on-waiter/Dockerfile ./depends-on-waiter
-
-push-depends-on: build-depends-on
-	docker push ${DEPENDS_ON_IMAGE}
-
-build-all: build-sandbox-controller build-cluster-controller build-depends-on
-
-push-all: push-sandbox-controller push-cluster-controller push-depends-on
-
 build-circle-image:
 	docker build -f .circleci/Dockerfile . -t keldaio/circleci-blimp
+
+SANDBOX_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-sandbox-controller:${VERSION}
+CLUSTER_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-cluster-controller:${VERSION}
+DEPENDS_ON_IMAGE = ${DOCKER_REPO}/blimp-depends-on-waiter:${VERSION}
+
+build-docker:
+	docker build -t blimp-go-build .
+	docker build -t ${CLUSTER_CONTROLLER_IMAGE} -f ./cluster-controller/Dockerfile --build-arg COMPILE_FLAGS=${LD_FLAGS} .
+	docker build -t ${SANDBOX_CONTROLLER_IMAGE} -f ./sandbox-controller/Dockerfile --build-arg COMPILE_FLAGS=${LD_FLAGS} .
+	docker build -t ${DEPENDS_ON_IMAGE} -f ./depends-on-waiter/Dockerfile ./depends-on-waiter
+
+push-docker: build-docker
+	docker push ${SANDBOX_CONTROLLER_IMAGE}
+	docker push ${CLUSTER_CONTROLLER_IMAGE}
+	docker push ${DEPENDS_ON_IMAGE}
