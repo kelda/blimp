@@ -614,6 +614,13 @@ func toPods(namespace, dnsServer string, cfg dockercompose.Config, builtImages m
 				},
 			},
 			Spec: corev1.PodSpec{
+				InitContainers: []corev1.Container{
+					{
+						Name:  "depends-on-waiter",
+						Image: version.DependsOnImage,
+						Args:  svc.DependsOn,
+					},
+				},
 				Containers: []corev1.Container{
 					{
 						Name:         name,

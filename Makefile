@@ -3,7 +3,8 @@ DOCKER_REPO = ${BLIMP_DOCKER_REPO}
 VERSION?=latest
 SANDBOX_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-sandbox-controller:${VERSION}
 CLUSTER_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-cluster-controller:${VERSION}
-LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} -X github.com/kelda-inc/blimp/pkg/version.SandboxControllerImage=${SANDBOX_CONTROLLER_IMAGE}"
+DEPENDS_ON_IMAGE = ${DOCKER_REPO}/blimp-depends-on-waiter:${VERSION}
+LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} -X github.com/kelda-inc/blimp/pkg/version.SandboxControllerImage=${SANDBOX_CONTROLLER_IMAGE} -X github.com/kelda-inc/blimp/pkg/version.DependsOnImage=${DEPENDS_ON_IMAGE}"
 
 # Default target for local development.  Just builds binaries
 install:
@@ -35,9 +36,15 @@ push-cluster-controller: build-cluster-controller
 run-cluster-controller:
 	go run -ldflags $(LD_FLAGS) ./cluster-controller
 
-build-all: build-sandbox-controller build-cluster-controller
+build-depends-on:
+	docker build -t ${DEPENDS_ON_IMAGE} -f ./depends-on-waiter/Dockerfile ./depends-on-waiter
 
-push-all: push-sandbox-controller push-cluster-controller
+push-depends-on: build-depends-on
+	docker push ${DEPENDS_ON_IMAGE}
+
+build-all: build-sandbox-controller build-cluster-controller build-depends-on
+
+push-all: push-sandbox-controller push-cluster-controller push-depends-on
 
 build-circle-image:
 	docker build -f .circleci/Dockerfile . -t keldaio/circleci-blimp

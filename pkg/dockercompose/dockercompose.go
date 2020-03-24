@@ -24,6 +24,8 @@ type Service struct {
 	Build        *Build               `json:"build"`
 	Volumes      []VolumeMount        `json:"volumes"`
 	Environment  EnvironmentVariables `json:"environment"`
+	// TODO: Validate that DependsOn only references declared services.
+	DependsOn []string `json:"depends_on"`
 }
 
 type EnvironmentVariables map[string]string
