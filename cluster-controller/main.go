@@ -572,6 +572,7 @@ func toPods(namespace, dnsServer string, cfg dockercompose.Config, builtImages m
 				Labels: map[string]string{
 					"blimp.service":     name,
 					"blimp.customerPod": "true",
+					"blimp.customer":    namespace,
 				},
 			},
 			Spec: corev1.PodSpec{
@@ -592,6 +593,20 @@ func toPods(namespace, dnsServer string, cfg dockercompose.Config, builtImages m
 					{Name: "build-registry-auth"},
 				},
 				ServiceAccountName: "pod-runner",
+				Affinity: &corev1.Affinity{
+					PodAffinity: &corev1.PodAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+							{
+								LabelSelector: &metav1.LabelSelector{
+									MatchLabels: map[string]string{
+										"blimp.customer": namespace,
+									},
+								},
+								TopologyKey: corev1.LabelHostname,
+							},
+						},
+					},
+				},
 			},
 		}
 		pods = append(pods, pod)
