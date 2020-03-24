@@ -99,10 +99,9 @@ func (s *server) Boot(ctx context.Context, req *cluster.BootRequest) (*cluster.B
 	}
 
 	// TODO: Delete pods.
-	for _, pod := range toPods(namespace, dnsIP, dcCfg, req.BuiltImages) {
-		if err := s.deployPod(pod); err != nil {
-			return &cluster.BootResponse{}, fmt.Errorf("create pod: %w", err)
-		}
+	customerPods := toPods(namespace, dnsIP, dcCfg, req.BuiltImages)
+	if err := s.deployCustomerPods(namespace, customerPods); err != nil {
+		return &cluster.BootResponse{}, fmt.Errorf("boot customer pods: %w", err)
 	}
 
 	cliCreds, err := s.createCLICreds(namespace)
@@ -428,6 +427,33 @@ func (s *server) createRoleBinding(binding rbacv1.RoleBinding) error {
 		_, err = c.Create(&binding)
 	}
 	return err
+}
+
+func (s *server) deployCustomerPods(namespace string, desired []corev1.Pod) error {
+	currPods, err := s.kubeClient.CoreV1().Pods(namespace).List(metav1.ListOptions{
+		LabelSelector: "blimp.customerPod=true",
+	})
+	if err != nil {
+		return fmt.Errorf("list: %w", err)
+	}
+
+	desiredNames := map[string]struct{}{}
+	for _, pod := range desired {
+		if err := s.deployPod(pod); err != nil {
+			return fmt.Errorf("create: %w", err)
+		}
+		desiredNames[pod.Name] = struct{}{}
+	}
+
+	// Delete any stale pods.
+	for _, pod := range currPods.Items {
+		if _, ok := desiredNames[pod.Name]; !ok {
+			if err := s.deletePod(pod.Namespace, pod.Name); err != nil {
+				return fmt.Errorf("delete: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 func (s *server) deployPod(pod corev1.Pod) error {
