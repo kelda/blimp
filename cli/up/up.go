@@ -231,25 +231,29 @@ func (cmd *up) buildImage(spec dockercompose.Build, tag string) (string, error) 
 
 	// Block until the build completes, and return any errors that happen
 	// during the build.
-	outFile := os.Stderr
-	isTerminal := terminal.IsTerminal(int(outFile.Fd()))
-	err = jsonmessage.DisplayJSONMessagesStream(buildResp.Body, outFile, outFile.Fd(), isTerminal, nil)
+	stderr := os.Stderr
+	isTerminal := terminal.IsTerminal(int(stderr.Fd()))
+	err = jsonmessage.DisplayJSONMessagesStream(buildResp.Body, stderr, stderr.Fd(), isTerminal, nil)
 	if err != nil {
 		return "", fmt.Errorf("build image: %w", err)
 	}
 
 	// TODO: Auth
+	pp := util.NewProgressPrinter(stderr, "Pushing image..")
+	go pp.Run()
+	defer pp.StopWithPrint(" Done\n")
+
 	pushResp, err := cmd.dockerClient.ImagePush(context.TODO(), tag, types.ImagePushOptions{
 		RegistryAuth: auth.RegistryAuth,
 	})
 	if err != nil {
-		return "", fmt.Errorf("push image: %w", err)
+		return "", fmt.Errorf("start image push: %w", err)
 	}
 	defer pushResp.Close()
 
-	err = jsonmessage.DisplayJSONMessagesStream(pushResp, outFile, outFile.Fd(), isTerminal, nil)
+	err = jsonmessage.DisplayJSONMessagesStream(pushResp, ioutil.Discard, 0, false, nil)
 	if err != nil {
-		return "", fmt.Errorf("build image: %w", err)
+		return "", fmt.Errorf("push image: %w", err)
 	}
 	return tag, nil
 }
