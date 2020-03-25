@@ -18,8 +18,10 @@ type Config struct {
 }
 
 type Service struct {
-	Image        string               `json:"image"`
+	Image string `json:"image"`
+	// TODO: Command and Entrypoint can be specified by a single raw string as well.
 	Command      []string             `json:"command"`
+	Entrypoint   []string             `json:"entrypoint"`
 	PortMappings []PortMapping        `json:"ports"`
 	Build        *Build               `json:"build"`
 	Volumes      []VolumeMount        `json:"volumes"`

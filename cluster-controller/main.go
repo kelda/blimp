@@ -824,7 +824,8 @@ func toPods(namespace, dnsServer string, cfg dockercompose.Config, builtImages m
 					{
 						Name:         name,
 						Image:        image,
-						Command:      svc.Command,
+						Command:      svc.Entrypoint,
+						Args:         svc.Command,
 						VolumeMounts: volumeMounts,
 						Env:          envVars,
 					},
