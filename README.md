@@ -16,3 +16,20 @@ Make sure you're using go v1.13 or above.
 # Protobufs
 
 Protobuf/grpc definitions are in `_proto`. Generate the corresponding Go files with `make generate`.
+
+# TLS
+
+The CLI communicates with the Cluster Manager and the Sandbox Controller over TLS.
+
+The Cluster Manager certificate is pre-generated. The public key is
+compiled into the CLI binary so that the CLI can verify against MITM attacks.
+The private key is supplied to the Cluster Manager at runtime.
+
+The Sandbox Controller public and private key is generated at runtime by the
+Cluster Manager when a new development environment is created. The Cluster
+Manager sends the Sandbox Controller's certificate to the CLI when `blimp up`
+is run, again to avoid a MITM attack.
+
+The certs for local development are stored in `./certs`. They are generated
+with `make certs`, which is automatically run if certificates don't already
+exist.

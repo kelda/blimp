@@ -6,11 +6,10 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/encoding/gzip"
 
 	"github.com/kelda-inc/blimp/cli/authstore"
 	"github.com/kelda-inc/blimp/cli/util"
+	"github.com/kelda-inc/blimp/pkg/auth"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 )
 
@@ -38,17 +37,14 @@ func New() *cobra.Command {
 }
 
 func run(authToken string) error {
-	conn, err := grpc.Dial(util.ManagerHost,
-		// TODO: Encrypt
-		grpc.WithInsecure(),
-		grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
+	conn, err := util.Dial(util.ManagerHost, auth.ClusterManagerCert)
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
 	clusterManager := cluster.NewManagerClient(conn)
-	_, err = clusterManager.Delete(context.Background(), &cluster.DeleteRequest{
+	_, err = clusterManager.DeleteSandbox(context.Background(), &cluster.DeleteSandboxRequest{
 		Token: authToken,
 	})
 	if err == nil {

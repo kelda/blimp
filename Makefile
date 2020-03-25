@@ -1,19 +1,33 @@
 DOCKER_REPO = ${BLIMP_DOCKER_REPO}
 #VERSION?=$(shell ./scripts/dev_version.sh)
 VERSION?=latest
+MANAGER_KEY_PATH = "./certs/cluster-manager.key.pem"
+MANAGER_CERT_PATH = "./certs/cluster-manager.crt.pem"
 LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
 	   -X github.com/kelda-inc/blimp/pkg/version.SandboxControllerImage=${SANDBOX_CONTROLLER_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/version.DependsOnImage=${DEPENDS_ON_IMAGE} \
-	   -X github.com/kelda-inc/blimp/pkg/version.SyncthingImage=${SYNCTHING_IMAGE}"
+	   -X github.com/kelda-inc/blimp/pkg/version.SyncthingImage=${SYNCTHING_IMAGE} \
+	   -X github.com/kelda-inc/blimp/pkg/auth.ClusterManagerCertBase64=$(shell base64 ${MANAGER_CERT_PATH})"
 
 # Default target for local development.  Just builds binaries
-install:
-	go install ./cli ./cluster-controller ./sandbox-controller
+install: certs
+	go install -ldflags $(LD_FLAGS) ./cli ./cluster-controller ./sandbox-controller
 
 generate:
 	protoc -I _proto _proto/blimp/sandbox/v0/controller.proto --go_out=plugins=grpc:$$GOPATH/src
 	protoc -I _proto _proto/blimp/cluster/v0/manager.proto --go_out=plugins=grpc:$$GOPATH/src
 	protoc _proto/blimp/errors/v0/errors.proto --go_out=plugins=grpc:$$GOPATH/src
+
+certs:
+	mkdir certs
+	openssl req \
+		-x509 \
+		-newkey rsa:4096 \
+		-keyout ${MANAGER_KEY_PATH} \
+		-out ${MANAGER_CERT_PATH} \
+		-days 365 \
+		-nodes \
+		-subj "/C=US/ST=California/L=Berkeley/O=Kelda Inc/OU=Kelda Blimp Manager/CN=localhost"
 
 build-cli-linux:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LD_FLAGS) -o blimp-linux ./cli
@@ -21,8 +35,8 @@ build-cli-linux:
 build-cli-osx:
 	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LD_FLAGS) -o blimp-osx ./cli
 
-run-cluster-controller:
-	go run -ldflags $(LD_FLAGS) ./cluster-controller
+run-cluster-controller: certs
+	go run -ldflags $(LD_FLAGS) ./cluster-controller -tls-cert ${MANAGER_CERT_PATH} -tls-key ${MANAGER_KEY_PATH}
 
 build-circle-image:
 	docker build -f .circleci/Dockerfile . -t keldaio/circleci-blimp

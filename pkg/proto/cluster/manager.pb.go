@@ -7,7 +7,6 @@ import (
 	context "context"
 	fmt "fmt"
 	proto "github.com/golang/protobuf/proto"
-	errors "github.com/kelda-inc/blimp/pkg/proto/errors"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -25,7 +24,109 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
-type BootRequest struct {
+type CreateSandboxRequest struct {
+	Token                string   `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *CreateSandboxRequest) Reset()         { *m = CreateSandboxRequest{} }
+func (m *CreateSandboxRequest) String() string { return proto.CompactTextString(m) }
+func (*CreateSandboxRequest) ProtoMessage()    {}
+func (*CreateSandboxRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d156d5389f4d1cd6, []int{0}
+}
+
+func (m *CreateSandboxRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_CreateSandboxRequest.Unmarshal(m, b)
+}
+func (m *CreateSandboxRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_CreateSandboxRequest.Marshal(b, m, deterministic)
+}
+func (m *CreateSandboxRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateSandboxRequest.Merge(m, src)
+}
+func (m *CreateSandboxRequest) XXX_Size() int {
+	return xxx_messageInfo_CreateSandboxRequest.Size(m)
+}
+func (m *CreateSandboxRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateSandboxRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateSandboxRequest proto.InternalMessageInfo
+
+func (m *CreateSandboxRequest) GetToken() string {
+	if m != nil {
+		return m.Token
+	}
+	return ""
+}
+
+type CreateSandboxResponse struct {
+	SandboxAddress       string           `protobuf:"bytes,1,opt,name=SandboxAddress,proto3" json:"SandboxAddress,omitempty"`
+	SandboxCert          string           `protobuf:"bytes,2,opt,name=SandboxCert,proto3" json:"SandboxCert,omitempty"`
+	KubeCredentials      *KubeCredentials `protobuf:"bytes,3,opt,name=kubeCredentials,proto3" json:"kubeCredentials,omitempty"`
+	ImageNamespace       string           `protobuf:"bytes,4,opt,name=ImageNamespace,proto3" json:"ImageNamespace,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
+	XXX_unrecognized     []byte           `json:"-"`
+	XXX_sizecache        int32            `json:"-"`
+}
+
+func (m *CreateSandboxResponse) Reset()         { *m = CreateSandboxResponse{} }
+func (m *CreateSandboxResponse) String() string { return proto.CompactTextString(m) }
+func (*CreateSandboxResponse) ProtoMessage()    {}
+func (*CreateSandboxResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d156d5389f4d1cd6, []int{1}
+}
+
+func (m *CreateSandboxResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_CreateSandboxResponse.Unmarshal(m, b)
+}
+func (m *CreateSandboxResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_CreateSandboxResponse.Marshal(b, m, deterministic)
+}
+func (m *CreateSandboxResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateSandboxResponse.Merge(m, src)
+}
+func (m *CreateSandboxResponse) XXX_Size() int {
+	return xxx_messageInfo_CreateSandboxResponse.Size(m)
+}
+func (m *CreateSandboxResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateSandboxResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateSandboxResponse proto.InternalMessageInfo
+
+func (m *CreateSandboxResponse) GetSandboxAddress() string {
+	if m != nil {
+		return m.SandboxAddress
+	}
+	return ""
+}
+
+func (m *CreateSandboxResponse) GetSandboxCert() string {
+	if m != nil {
+		return m.SandboxCert
+	}
+	return ""
+}
+
+func (m *CreateSandboxResponse) GetKubeCredentials() *KubeCredentials {
+	if m != nil {
+		return m.KubeCredentials
+	}
+	return nil
+}
+
+func (m *CreateSandboxResponse) GetImageNamespace() string {
+	if m != nil {
+		return m.ImageNamespace
+	}
+	return ""
+}
+
+type DeployRequest struct {
 	Token                string            `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	ComposeFile          string            `protobuf:"bytes,2,opt,name=composeFile,proto3" json:"composeFile,omitempty"`
 	BuiltImages          map[string]string `protobuf:"bytes,3,rep,name=builtImages,proto3" json:"builtImages,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
@@ -34,106 +135,82 @@ type BootRequest struct {
 	XXX_sizecache        int32             `json:"-"`
 }
 
-func (m *BootRequest) Reset()         { *m = BootRequest{} }
-func (m *BootRequest) String() string { return proto.CompactTextString(m) }
-func (*BootRequest) ProtoMessage()    {}
-func (*BootRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d156d5389f4d1cd6, []int{0}
+func (m *DeployRequest) Reset()         { *m = DeployRequest{} }
+func (m *DeployRequest) String() string { return proto.CompactTextString(m) }
+func (*DeployRequest) ProtoMessage()    {}
+func (*DeployRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d156d5389f4d1cd6, []int{2}
 }
 
-func (m *BootRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_BootRequest.Unmarshal(m, b)
+func (m *DeployRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DeployRequest.Unmarshal(m, b)
 }
-func (m *BootRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_BootRequest.Marshal(b, m, deterministic)
+func (m *DeployRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DeployRequest.Marshal(b, m, deterministic)
 }
-func (m *BootRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_BootRequest.Merge(m, src)
+func (m *DeployRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeployRequest.Merge(m, src)
 }
-func (m *BootRequest) XXX_Size() int {
-	return xxx_messageInfo_BootRequest.Size(m)
+func (m *DeployRequest) XXX_Size() int {
+	return xxx_messageInfo_DeployRequest.Size(m)
 }
-func (m *BootRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_BootRequest.DiscardUnknown(m)
+func (m *DeployRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeployRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_BootRequest proto.InternalMessageInfo
+var xxx_messageInfo_DeployRequest proto.InternalMessageInfo
 
-func (m *BootRequest) GetToken() string {
+func (m *DeployRequest) GetToken() string {
 	if m != nil {
 		return m.Token
 	}
 	return ""
 }
 
-func (m *BootRequest) GetComposeFile() string {
+func (m *DeployRequest) GetComposeFile() string {
 	if m != nil {
 		return m.ComposeFile
 	}
 	return ""
 }
 
-func (m *BootRequest) GetBuiltImages() map[string]string {
+func (m *DeployRequest) GetBuiltImages() map[string]string {
 	if m != nil {
 		return m.BuiltImages
 	}
 	return nil
 }
 
-type BootResponse struct {
-	Error                *errors.Error    `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
-	SandboxAddress       string           `protobuf:"bytes,2,opt,name=SandboxAddress,proto3" json:"SandboxAddress,omitempty"`
-	KubeCredentials      *KubeCredentials `protobuf:"bytes,3,opt,name=kubeCredentials,proto3" json:"kubeCredentials,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
-	XXX_unrecognized     []byte           `json:"-"`
-	XXX_sizecache        int32            `json:"-"`
+type DeployResponse struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *BootResponse) Reset()         { *m = BootResponse{} }
-func (m *BootResponse) String() string { return proto.CompactTextString(m) }
-func (*BootResponse) ProtoMessage()    {}
-func (*BootResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d156d5389f4d1cd6, []int{1}
+func (m *DeployResponse) Reset()         { *m = DeployResponse{} }
+func (m *DeployResponse) String() string { return proto.CompactTextString(m) }
+func (*DeployResponse) ProtoMessage()    {}
+func (*DeployResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d156d5389f4d1cd6, []int{3}
 }
 
-func (m *BootResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_BootResponse.Unmarshal(m, b)
+func (m *DeployResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DeployResponse.Unmarshal(m, b)
 }
-func (m *BootResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_BootResponse.Marshal(b, m, deterministic)
+func (m *DeployResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DeployResponse.Marshal(b, m, deterministic)
 }
-func (m *BootResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_BootResponse.Merge(m, src)
+func (m *DeployResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeployResponse.Merge(m, src)
 }
-func (m *BootResponse) XXX_Size() int {
-	return xxx_messageInfo_BootResponse.Size(m)
+func (m *DeployResponse) XXX_Size() int {
+	return xxx_messageInfo_DeployResponse.Size(m)
 }
-func (m *BootResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_BootResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_BootResponse proto.InternalMessageInfo
-
-func (m *BootResponse) GetError() *errors.Error {
-	if m != nil {
-		return m.Error
-	}
-	return nil
+func (m *DeployResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeployResponse.DiscardUnknown(m)
 }
 
-func (m *BootResponse) GetSandboxAddress() string {
-	if m != nil {
-		return m.SandboxAddress
-	}
-	return ""
-}
-
-func (m *BootResponse) GetKubeCredentials() *KubeCredentials {
-	if m != nil {
-		return m.KubeCredentials
-	}
-	return nil
-}
+var xxx_messageInfo_DeployResponse proto.InternalMessageInfo
 
 type KubeCredentials struct {
 	Host                 string   `protobuf:"bytes,1,opt,name=host,proto3" json:"host,omitempty"`
@@ -149,7 +226,7 @@ func (m *KubeCredentials) Reset()         { *m = KubeCredentials{} }
 func (m *KubeCredentials) String() string { return proto.CompactTextString(m) }
 func (*KubeCredentials) ProtoMessage()    {}
 func (*KubeCredentials) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d156d5389f4d1cd6, []int{2}
+	return fileDescriptor_d156d5389f4d1cd6, []int{4}
 }
 
 func (m *KubeCredentials) XXX_Unmarshal(b []byte) error {
@@ -198,75 +275,75 @@ func (m *KubeCredentials) GetNamespace() string {
 	return ""
 }
 
-type DeleteRequest struct {
+type DeleteSandboxRequest struct {
 	Token                string   `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *DeleteRequest) Reset()         { *m = DeleteRequest{} }
-func (m *DeleteRequest) String() string { return proto.CompactTextString(m) }
-func (*DeleteRequest) ProtoMessage()    {}
-func (*DeleteRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d156d5389f4d1cd6, []int{3}
+func (m *DeleteSandboxRequest) Reset()         { *m = DeleteSandboxRequest{} }
+func (m *DeleteSandboxRequest) String() string { return proto.CompactTextString(m) }
+func (*DeleteSandboxRequest) ProtoMessage()    {}
+func (*DeleteSandboxRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d156d5389f4d1cd6, []int{5}
 }
 
-func (m *DeleteRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_DeleteRequest.Unmarshal(m, b)
+func (m *DeleteSandboxRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DeleteSandboxRequest.Unmarshal(m, b)
 }
-func (m *DeleteRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_DeleteRequest.Marshal(b, m, deterministic)
+func (m *DeleteSandboxRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DeleteSandboxRequest.Marshal(b, m, deterministic)
 }
-func (m *DeleteRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_DeleteRequest.Merge(m, src)
+func (m *DeleteSandboxRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteSandboxRequest.Merge(m, src)
 }
-func (m *DeleteRequest) XXX_Size() int {
-	return xxx_messageInfo_DeleteRequest.Size(m)
+func (m *DeleteSandboxRequest) XXX_Size() int {
+	return xxx_messageInfo_DeleteSandboxRequest.Size(m)
 }
-func (m *DeleteRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_DeleteRequest.DiscardUnknown(m)
+func (m *DeleteSandboxRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteSandboxRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_DeleteRequest proto.InternalMessageInfo
+var xxx_messageInfo_DeleteSandboxRequest proto.InternalMessageInfo
 
-func (m *DeleteRequest) GetToken() string {
+func (m *DeleteSandboxRequest) GetToken() string {
 	if m != nil {
 		return m.Token
 	}
 	return ""
 }
 
-type DeleteResponse struct {
+type DeleteSandboxResponse struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *DeleteResponse) Reset()         { *m = DeleteResponse{} }
-func (m *DeleteResponse) String() string { return proto.CompactTextString(m) }
-func (*DeleteResponse) ProtoMessage()    {}
-func (*DeleteResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d156d5389f4d1cd6, []int{4}
+func (m *DeleteSandboxResponse) Reset()         { *m = DeleteSandboxResponse{} }
+func (m *DeleteSandboxResponse) String() string { return proto.CompactTextString(m) }
+func (*DeleteSandboxResponse) ProtoMessage()    {}
+func (*DeleteSandboxResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_d156d5389f4d1cd6, []int{6}
 }
 
-func (m *DeleteResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_DeleteResponse.Unmarshal(m, b)
+func (m *DeleteSandboxResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_DeleteSandboxResponse.Unmarshal(m, b)
 }
-func (m *DeleteResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_DeleteResponse.Marshal(b, m, deterministic)
+func (m *DeleteSandboxResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_DeleteSandboxResponse.Marshal(b, m, deterministic)
 }
-func (m *DeleteResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_DeleteResponse.Merge(m, src)
+func (m *DeleteSandboxResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DeleteSandboxResponse.Merge(m, src)
 }
-func (m *DeleteResponse) XXX_Size() int {
-	return xxx_messageInfo_DeleteResponse.Size(m)
+func (m *DeleteSandboxResponse) XXX_Size() int {
+	return xxx_messageInfo_DeleteSandboxResponse.Size(m)
 }
-func (m *DeleteResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_DeleteResponse.DiscardUnknown(m)
+func (m *DeleteSandboxResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_DeleteSandboxResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_DeleteResponse proto.InternalMessageInfo
+var xxx_messageInfo_DeleteSandboxResponse proto.InternalMessageInfo
 
 type GetStatusRequest struct {
 	Token                string   `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
@@ -279,7 +356,7 @@ func (m *GetStatusRequest) Reset()         { *m = GetStatusRequest{} }
 func (m *GetStatusRequest) String() string { return proto.CompactTextString(m) }
 func (*GetStatusRequest) ProtoMessage()    {}
 func (*GetStatusRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d156d5389f4d1cd6, []int{5}
+	return fileDescriptor_d156d5389f4d1cd6, []int{7}
 }
 
 func (m *GetStatusRequest) XXX_Unmarshal(b []byte) error {
@@ -318,7 +395,7 @@ func (m *GetStatusResponse) Reset()         { *m = GetStatusResponse{} }
 func (m *GetStatusResponse) String() string { return proto.CompactTextString(m) }
 func (*GetStatusResponse) ProtoMessage()    {}
 func (*GetStatusResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d156d5389f4d1cd6, []int{6}
+	return fileDescriptor_d156d5389f4d1cd6, []int{8}
 }
 
 func (m *GetStatusResponse) XXX_Unmarshal(b []byte) error {
@@ -357,7 +434,7 @@ func (m *SandboxStatus) Reset()         { *m = SandboxStatus{} }
 func (m *SandboxStatus) String() string { return proto.CompactTextString(m) }
 func (*SandboxStatus) ProtoMessage()    {}
 func (*SandboxStatus) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d156d5389f4d1cd6, []int{7}
+	return fileDescriptor_d156d5389f4d1cd6, []int{9}
 }
 
 func (m *SandboxStatus) XXX_Unmarshal(b []byte) error {
@@ -396,7 +473,7 @@ func (m *ServiceStatus) Reset()         { *m = ServiceStatus{} }
 func (m *ServiceStatus) String() string { return proto.CompactTextString(m) }
 func (*ServiceStatus) ProtoMessage()    {}
 func (*ServiceStatus) Descriptor() ([]byte, []int) {
-	return fileDescriptor_d156d5389f4d1cd6, []int{8}
+	return fileDescriptor_d156d5389f4d1cd6, []int{10}
 }
 
 func (m *ServiceStatus) XXX_Unmarshal(b []byte) error {
@@ -425,12 +502,14 @@ func (m *ServiceStatus) GetPhase() string {
 }
 
 func init() {
-	proto.RegisterType((*BootRequest)(nil), "blimp.cluster.v0.BootRequest")
-	proto.RegisterMapType((map[string]string)(nil), "blimp.cluster.v0.BootRequest.BuiltImagesEntry")
-	proto.RegisterType((*BootResponse)(nil), "blimp.cluster.v0.BootResponse")
+	proto.RegisterType((*CreateSandboxRequest)(nil), "blimp.cluster.v0.CreateSandboxRequest")
+	proto.RegisterType((*CreateSandboxResponse)(nil), "blimp.cluster.v0.CreateSandboxResponse")
+	proto.RegisterType((*DeployRequest)(nil), "blimp.cluster.v0.DeployRequest")
+	proto.RegisterMapType((map[string]string)(nil), "blimp.cluster.v0.DeployRequest.BuiltImagesEntry")
+	proto.RegisterType((*DeployResponse)(nil), "blimp.cluster.v0.DeployResponse")
 	proto.RegisterType((*KubeCredentials)(nil), "blimp.cluster.v0.KubeCredentials")
-	proto.RegisterType((*DeleteRequest)(nil), "blimp.cluster.v0.DeleteRequest")
-	proto.RegisterType((*DeleteResponse)(nil), "blimp.cluster.v0.DeleteResponse")
+	proto.RegisterType((*DeleteSandboxRequest)(nil), "blimp.cluster.v0.DeleteSandboxRequest")
+	proto.RegisterType((*DeleteSandboxResponse)(nil), "blimp.cluster.v0.DeleteSandboxResponse")
 	proto.RegisterType((*GetStatusRequest)(nil), "blimp.cluster.v0.GetStatusRequest")
 	proto.RegisterType((*GetStatusResponse)(nil), "blimp.cluster.v0.GetStatusResponse")
 	proto.RegisterType((*SandboxStatus)(nil), "blimp.cluster.v0.SandboxStatus")
@@ -443,43 +522,44 @@ func init() {
 }
 
 var fileDescriptor_d156d5389f4d1cd6 = []byte{
-	// 568 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x54, 0x5d, 0x6f, 0xd3, 0x30,
-	0x14, 0x25, 0xeb, 0x5a, 0xe8, 0x0d, 0xdd, 0x8a, 0x35, 0xa1, 0x2a, 0x1a, 0xa3, 0x04, 0x0d, 0xf5,
-	0x61, 0x4b, 0xaa, 0x22, 0x04, 0xe2, 0x01, 0x89, 0x8e, 0x31, 0x4d, 0x63, 0x12, 0x6a, 0x25, 0x90,
-	0x26, 0x5e, 0x9c, 0xf4, 0xaa, 0x8d, 0x9a, 0xc4, 0x21, 0x76, 0x2a, 0xf6, 0xb3, 0x78, 0xe3, 0x8f,
-	0x20, 0xfe, 0x0e, 0x8a, 0xed, 0xb6, 0x69, 0xda, 0x95, 0x17, 0xde, 0x7c, 0x7d, 0xcf, 0x39, 0x39,
-	0xf7, 0x23, 0x86, 0x23, 0x2f, 0x0c, 0xa2, 0xc4, 0xf5, 0xc3, 0x8c, 0x0b, 0x4c, 0xdd, 0x59, 0xd7,
-	0x8d, 0x68, 0x4c, 0xc7, 0x98, 0x3a, 0x49, 0xca, 0x04, 0x23, 0x4d, 0x99, 0x77, 0x74, 0xde, 0x99,
-	0x75, 0xad, 0x43, 0xc5, 0xc0, 0x34, 0x65, 0x29, 0xcf, 0x09, 0xea, 0xa4, 0xf0, 0xf6, 0x1f, 0x03,
-	0xcc, 0x3e, 0x63, 0x62, 0x80, 0xdf, 0x33, 0xe4, 0x82, 0x1c, 0x40, 0x55, 0xb0, 0x29, 0xc6, 0x2d,
-	0xa3, 0x6d, 0x74, 0xea, 0x03, 0x15, 0x90, 0x36, 0x98, 0x3e, 0x8b, 0x12, 0xc6, 0xf1, 0x63, 0x10,
-	0x62, 0x6b, 0x47, 0xe6, 0x8a, 0x57, 0xe4, 0x33, 0x98, 0x5e, 0x16, 0x84, 0xe2, 0x32, 0xa2, 0x63,
-	0xe4, 0xad, 0x4a, 0xbb, 0xd2, 0x31, 0x7b, 0x8e, 0x53, 0x76, 0xe3, 0x14, 0xbe, 0xe5, 0xf4, 0x97,
-	0x84, 0xf3, 0x58, 0xa4, 0xb7, 0x83, 0xa2, 0x84, 0xf5, 0x0e, 0x9a, 0x65, 0x00, 0x69, 0x42, 0x65,
-	0x8a, 0xb7, 0xda, 0x5b, 0x7e, 0xcc, 0xfd, 0xce, 0x68, 0x98, 0xcd, 0x3d, 0xa9, 0xe0, 0xed, 0xce,
-	0x1b, 0xc3, 0xfe, 0x69, 0xc0, 0x43, 0xf5, 0x35, 0x9e, 0xb0, 0x98, 0x23, 0x39, 0x81, 0xaa, 0x2c,
-	0x5d, 0xd2, 0xcd, 0xde, 0x63, 0x6d, 0x4e, 0xb7, 0x63, 0xd6, 0x75, 0xce, 0xf3, 0xd3, 0x40, 0x81,
-	0xc8, 0x0b, 0xd8, 0x1b, 0xd2, 0x78, 0xe4, 0xb1, 0x1f, 0xef, 0x47, 0xa3, 0x14, 0x39, 0xd7, 0x5f,
-	0x28, 0xdd, 0x92, 0x2b, 0xd8, 0x9f, 0x66, 0x1e, 0x9e, 0xa5, 0x38, 0xc2, 0x58, 0x04, 0x34, 0xcc,
-	0x8b, 0xcf, 0xf5, 0x9f, 0xad, 0x17, 0x7f, 0xb5, 0x0a, 0x1c, 0x94, 0x99, 0x36, 0x83, 0xfd, 0x12,
-	0x86, 0x10, 0xd8, 0x9d, 0x30, 0x2e, 0x74, 0xcd, 0xf2, 0x9c, 0x17, 0xed, 0xd3, 0xb3, 0x54, 0xcc,
-	0x8b, 0x96, 0xc1, 0x72, 0x74, 0x95, 0xe2, 0xe8, 0x0e, 0xa1, 0x1e, 0xd3, 0x08, 0x79, 0x42, 0x7d,
-	0x6c, 0xed, 0xca, 0xcc, 0xf2, 0xc2, 0x3e, 0x86, 0xc6, 0x07, 0x0c, 0x51, 0xe0, 0xd6, 0xf9, 0xdb,
-	0x4d, 0xd8, 0x9b, 0xc3, 0x54, 0x33, 0xed, 0x0e, 0x34, 0x2f, 0x50, 0x0c, 0x05, 0x15, 0x19, 0xdf,
-	0xce, 0xfd, 0x04, 0x8f, 0x0a, 0x48, 0x3d, 0x8b, 0xd7, 0x50, 0xe3, 0xf2, 0x46, 0x0f, 0xe3, 0xe9,
-	0x7a, 0xb3, 0x74, 0x9f, 0x35, 0x51, 0xc3, 0xed, 0x5f, 0x06, 0x34, 0x56, 0x32, 0xe4, 0x12, 0x1e,
-	0x70, 0x4c, 0x67, 0x81, 0x8f, 0xb9, 0x58, 0xbe, 0x76, 0xa7, 0xff, 0x10, 0x73, 0x86, 0x1a, 0xaf,
-	0xb6, 0x6e, 0x41, 0xb7, 0xbe, 0x41, 0x63, 0x25, 0xb5, 0x61, 0xdf, 0x5e, 0x15, 0xf7, 0x6d, 0xb3,
-	0x6f, 0xa5, 0xa0, 0x7d, 0x17, 0x16, 0xf2, 0x78, 0xa1, 0xae, 0x9d, 0x1f, 0x40, 0x35, 0x99, 0x50,
-	0x8e, 0xf3, 0x7e, 0xc9, 0xa0, 0xf7, 0x7b, 0x07, 0xee, 0x5f, 0xab, 0x7f, 0x9a, 0x5c, 0xc0, 0x6e,
-	0xbe, 0xc2, 0xe4, 0xc9, 0xd6, 0x1f, 0xc9, 0x3a, 0xba, 0x2b, 0xad, 0x87, 0x75, 0x8f, 0x5c, 0x43,
-	0x4d, 0x0d, 0x90, 0x6c, 0x70, 0xbc, 0xb2, 0x01, 0x56, 0xfb, 0x6e, 0xc0, 0x42, 0xee, 0x0b, 0xd4,
-	0x17, 0x33, 0x25, 0xf6, 0x3a, 0xa1, 0xbc, 0x1a, 0xd6, 0xf3, 0xad, 0x98, 0x85, 0xee, 0x0d, 0x98,
-	0x5f, 0xa9, 0xf0, 0x27, 0xff, 0x5d, 0xb9, 0x6b, 0xf4, 0x9d, 0x9b, 0x93, 0x71, 0x20, 0x26, 0x99,
-	0xe7, 0xf8, 0x2c, 0x72, 0xa7, 0x18, 0x8e, 0xe8, 0x69, 0x10, 0xfb, 0xae, 0x7a, 0x1e, 0x93, 0xe9,
-	0xd8, 0x95, 0x2f, 0xe2, 0xfc, 0x69, 0xf5, 0x6a, 0x32, 0x7c, 0xf9, 0x37, 0x00, 0x00, 0xff, 0xff,
-	0xb0, 0xeb, 0xf8, 0x42, 0x72, 0x05, 0x00, 0x00,
+	// 591 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x55, 0xc1, 0x6e, 0xd3, 0x40,
+	0x10, 0xc5, 0x4d, 0x5b, 0xc8, 0x58, 0x69, 0xc2, 0x2a, 0x15, 0x51, 0x84, 0x68, 0x30, 0xa2, 0xe4,
+	0xd0, 0xda, 0x51, 0x10, 0x02, 0x71, 0x40, 0xa2, 0x29, 0xa0, 0xaa, 0xc0, 0x21, 0x41, 0x20, 0x55,
+	0x5c, 0xd6, 0xce, 0x28, 0xb1, 0x62, 0x7b, 0x8d, 0x77, 0x1d, 0x91, 0x3f, 0xe3, 0x4b, 0xb8, 0x20,
+	0xfe, 0x05, 0xd9, 0x5e, 0x3b, 0xb6, 0x63, 0x12, 0x0e, 0xdc, 0x3c, 0xb3, 0x6f, 0xde, 0x3c, 0xcd,
+	0xbc, 0xf5, 0xc2, 0x03, 0xd3, 0xb1, 0x5d, 0xdf, 0xb0, 0x9c, 0x90, 0x0b, 0x0c, 0x8c, 0xe5, 0xc0,
+	0x70, 0xa9, 0x47, 0x67, 0x18, 0xe8, 0x7e, 0xc0, 0x04, 0x23, 0xad, 0xf8, 0x5c, 0x97, 0xe7, 0xfa,
+	0x72, 0xa0, 0x9d, 0x41, 0x7b, 0x14, 0x20, 0x15, 0x38, 0xa1, 0xde, 0xd4, 0x64, 0xdf, 0xc7, 0xf8,
+	0x2d, 0x44, 0x2e, 0x48, 0x1b, 0x0e, 0x04, 0x5b, 0xa0, 0xd7, 0x51, 0x7a, 0x4a, 0xbf, 0x3e, 0x4e,
+	0x02, 0xed, 0xa7, 0x02, 0xc7, 0x25, 0x38, 0xf7, 0x99, 0xc7, 0x91, 0x9c, 0xc2, 0x91, 0x4c, 0xbd,
+	0x9e, 0x4e, 0x03, 0xe4, 0x5c, 0x16, 0x96, 0xb2, 0xa4, 0x07, 0xaa, 0xcc, 0x8c, 0x30, 0x10, 0x9d,
+	0xbd, 0x18, 0x94, 0x4f, 0x91, 0x6b, 0x68, 0x2e, 0x42, 0x13, 0x47, 0x01, 0x4e, 0xd1, 0x13, 0x36,
+	0x75, 0x78, 0xa7, 0xd6, 0x53, 0xfa, 0xea, 0xf0, 0xa1, 0x5e, 0x56, 0xaf, 0x5f, 0x17, 0x81, 0xe3,
+	0x72, 0x65, 0x24, 0xeb, 0xca, 0xa5, 0x33, 0xfc, 0x48, 0x5d, 0xe4, 0x3e, 0xb5, 0xb0, 0xb3, 0x9f,
+	0xc8, 0x2a, 0x66, 0xb5, 0x5f, 0x0a, 0x34, 0x2e, 0xd1, 0x77, 0xd8, 0x6a, 0xeb, 0x00, 0x22, 0xf9,
+	0x16, 0x73, 0x7d, 0xc6, 0xf1, 0xad, 0xed, 0x60, 0x2a, 0x3f, 0x97, 0x22, 0x63, 0x50, 0xcd, 0xd0,
+	0x76, 0x44, 0xdc, 0x20, 0x92, 0x5e, 0xeb, 0xab, 0xc3, 0xc1, 0xa6, 0xf4, 0x42, 0x37, 0xfd, 0x62,
+	0x5d, 0xf2, 0xc6, 0x13, 0xc1, 0x6a, 0x9c, 0x27, 0xe9, 0xbe, 0x82, 0x56, 0x19, 0x40, 0x5a, 0x50,
+	0x5b, 0xe0, 0x4a, 0xaa, 0x8b, 0x3e, 0x23, 0xc5, 0x4b, 0xea, 0x84, 0xa9, 0xaa, 0x24, 0x78, 0xb9,
+	0xf7, 0x42, 0xd1, 0x5a, 0x70, 0x94, 0xb6, 0x4b, 0xd6, 0xa5, 0x31, 0x68, 0x96, 0x66, 0x47, 0x08,
+	0xec, 0xcf, 0x19, 0x17, 0x92, 0x31, 0xfe, 0x8e, 0x28, 0x2d, 0x3a, 0xca, 0xf6, 0x94, 0x04, 0xeb,
+	0xd1, 0xd4, 0xf2, 0xa3, 0xb9, 0x0f, 0x75, 0xaf, 0x34, 0xe5, 0x75, 0x22, 0xf2, 0xd9, 0x25, 0x3a,
+	0xf8, 0x8f, 0x3e, 0xbb, 0x07, 0xc7, 0x25, 0xb4, 0xd4, 0xdd, 0x87, 0xd6, 0x3b, 0x14, 0x13, 0x41,
+	0x45, 0xc8, 0xb7, 0x53, 0xbc, 0x87, 0xbb, 0x39, 0xa4, 0x74, 0xe9, 0x73, 0x38, 0xe4, 0x71, 0x26,
+	0xc6, 0xaa, 0xc3, 0x93, 0xcd, 0xbd, 0xc8, 0x8e, 0xb2, 0x50, 0xc2, 0xb5, 0x1f, 0x0a, 0x34, 0x0a,
+	0x27, 0xe4, 0x0a, 0xee, 0x70, 0x0c, 0x96, 0xb6, 0x85, 0x11, 0x59, 0xb4, 0xe4, 0xf3, 0x1d, 0x64,
+	0xfa, 0x44, 0xe2, 0x93, 0x0d, 0x67, 0xe5, 0xdd, 0xaf, 0xd0, 0x28, 0x1c, 0x55, 0xec, 0xf6, 0x59,
+	0x7e, 0xb7, 0xd5, 0xba, 0x13, 0x06, 0xa9, 0x3b, 0xb7, 0xfc, 0xc7, 0x19, 0xbb, 0x54, 0xde, 0x86,
+	0x03, 0x7f, 0x4e, 0x39, 0xa6, 0xf3, 0x8a, 0x83, 0xe1, 0xef, 0x1a, 0xdc, 0xfe, 0x90, 0xfc, 0x2c,
+	0x88, 0x09, 0x8d, 0xc2, 0x2d, 0x27, 0xa7, 0x9b, 0xfd, 0xaa, 0xfe, 0x1a, 0xdd, 0x27, 0x3b, 0x71,
+	0x72, 0x8f, 0xb7, 0xc8, 0x67, 0x68, 0x26, 0x9e, 0xfc, 0xc4, 0xd2, 0x2e, 0x27, 0x3b, 0x6e, 0x49,
+	0xb7, 0xf7, 0x77, 0x40, 0xc6, 0x6b, 0x46, 0x17, 0x39, 0x67, 0x9d, 0x2a, 0xed, 0x55, 0x4e, 0xac,
+	0xd2, 0x5e, 0xed, 0xc1, 0x48, 0x7b, 0x3d, 0xf3, 0x16, 0xd1, 0x36, 0xeb, 0xca, 0x16, 0xed, 0x3e,
+	0xda, 0x8a, 0xc9, 0x78, 0x6f, 0x40, 0xfd, 0x42, 0x85, 0x35, 0xff, 0xef, 0xcc, 0x03, 0xe5, 0x42,
+	0xbf, 0x39, 0x9b, 0xd9, 0x62, 0x1e, 0x9a, 0xba, 0xc5, 0x5c, 0x63, 0x81, 0xce, 0x94, 0x9e, 0xdb,
+	0x9e, 0x65, 0x24, 0x2f, 0x86, 0xbf, 0x98, 0x19, 0xf1, 0x13, 0x91, 0xbe, 0x1d, 0xe6, 0x61, 0x1c,
+	0x3e, 0xfd, 0x13, 0x00, 0x00, 0xff, 0xff, 0x7d, 0x65, 0xf7, 0x7b, 0x53, 0x06, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -494,8 +574,9 @@ const _ = grpc.SupportPackageIsVersion6
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type ManagerClient interface {
-	Boot(ctx context.Context, in *BootRequest, opts ...grpc.CallOption) (*BootResponse, error)
-	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
+	CreateSandbox(ctx context.Context, in *CreateSandboxRequest, opts ...grpc.CallOption) (*CreateSandboxResponse, error)
+	DeployToSandbox(ctx context.Context, in *DeployRequest, opts ...grpc.CallOption) (*DeployResponse, error)
+	DeleteSandbox(ctx context.Context, in *DeleteSandboxRequest, opts ...grpc.CallOption) (*DeleteSandboxResponse, error)
 	GetStatus(ctx context.Context, in *GetStatusRequest, opts ...grpc.CallOption) (*GetStatusResponse, error)
 	WatchStatus(ctx context.Context, in *GetStatusRequest, opts ...grpc.CallOption) (Manager_WatchStatusClient, error)
 }
@@ -508,18 +589,27 @@ func NewManagerClient(cc grpc.ClientConnInterface) ManagerClient {
 	return &managerClient{cc}
 }
 
-func (c *managerClient) Boot(ctx context.Context, in *BootRequest, opts ...grpc.CallOption) (*BootResponse, error) {
-	out := new(BootResponse)
-	err := c.cc.Invoke(ctx, "/blimp.cluster.v0.Manager/Boot", in, out, opts...)
+func (c *managerClient) CreateSandbox(ctx context.Context, in *CreateSandboxRequest, opts ...grpc.CallOption) (*CreateSandboxResponse, error) {
+	out := new(CreateSandboxResponse)
+	err := c.cc.Invoke(ctx, "/blimp.cluster.v0.Manager/CreateSandbox", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *managerClient) Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error) {
-	out := new(DeleteResponse)
-	err := c.cc.Invoke(ctx, "/blimp.cluster.v0.Manager/Delete", in, out, opts...)
+func (c *managerClient) DeployToSandbox(ctx context.Context, in *DeployRequest, opts ...grpc.CallOption) (*DeployResponse, error) {
+	out := new(DeployResponse)
+	err := c.cc.Invoke(ctx, "/blimp.cluster.v0.Manager/DeployToSandbox", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *managerClient) DeleteSandbox(ctx context.Context, in *DeleteSandboxRequest, opts ...grpc.CallOption) (*DeleteSandboxResponse, error) {
+	out := new(DeleteSandboxResponse)
+	err := c.cc.Invoke(ctx, "/blimp.cluster.v0.Manager/DeleteSandbox", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -569,8 +659,9 @@ func (x *managerWatchStatusClient) Recv() (*GetStatusResponse, error) {
 
 // ManagerServer is the server API for Manager service.
 type ManagerServer interface {
-	Boot(context.Context, *BootRequest) (*BootResponse, error)
-	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
+	CreateSandbox(context.Context, *CreateSandboxRequest) (*CreateSandboxResponse, error)
+	DeployToSandbox(context.Context, *DeployRequest) (*DeployResponse, error)
+	DeleteSandbox(context.Context, *DeleteSandboxRequest) (*DeleteSandboxResponse, error)
 	GetStatus(context.Context, *GetStatusRequest) (*GetStatusResponse, error)
 	WatchStatus(*GetStatusRequest, Manager_WatchStatusServer) error
 }
@@ -579,11 +670,14 @@ type ManagerServer interface {
 type UnimplementedManagerServer struct {
 }
 
-func (*UnimplementedManagerServer) Boot(ctx context.Context, req *BootRequest) (*BootResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Boot not implemented")
+func (*UnimplementedManagerServer) CreateSandbox(ctx context.Context, req *CreateSandboxRequest) (*CreateSandboxResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateSandbox not implemented")
 }
-func (*UnimplementedManagerServer) Delete(ctx context.Context, req *DeleteRequest) (*DeleteResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
+func (*UnimplementedManagerServer) DeployToSandbox(ctx context.Context, req *DeployRequest) (*DeployResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeployToSandbox not implemented")
+}
+func (*UnimplementedManagerServer) DeleteSandbox(ctx context.Context, req *DeleteSandboxRequest) (*DeleteSandboxResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteSandbox not implemented")
 }
 func (*UnimplementedManagerServer) GetStatus(ctx context.Context, req *GetStatusRequest) (*GetStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetStatus not implemented")
@@ -596,38 +690,56 @@ func RegisterManagerServer(s *grpc.Server, srv ManagerServer) {
 	s.RegisterService(&_Manager_serviceDesc, srv)
 }
 
-func _Manager_Boot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BootRequest)
+func _Manager_CreateSandbox_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateSandboxRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ManagerServer).Boot(ctx, in)
+		return srv.(ManagerServer).CreateSandbox(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blimp.cluster.v0.Manager/Boot",
+		FullMethod: "/blimp.cluster.v0.Manager/CreateSandbox",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ManagerServer).Boot(ctx, req.(*BootRequest))
+		return srv.(ManagerServer).CreateSandbox(ctx, req.(*CreateSandboxRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Manager_Delete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteRequest)
+func _Manager_DeployToSandbox_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeployRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ManagerServer).Delete(ctx, in)
+		return srv.(ManagerServer).DeployToSandbox(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/blimp.cluster.v0.Manager/Delete",
+		FullMethod: "/blimp.cluster.v0.Manager/DeployToSandbox",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ManagerServer).Delete(ctx, req.(*DeleteRequest))
+		return srv.(ManagerServer).DeployToSandbox(ctx, req.(*DeployRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Manager_DeleteSandbox_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteSandboxRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ManagerServer).DeleteSandbox(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/blimp.cluster.v0.Manager/DeleteSandbox",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ManagerServer).DeleteSandbox(ctx, req.(*DeleteSandboxRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -676,12 +788,16 @@ var _Manager_serviceDesc = grpc.ServiceDesc{
 	HandlerType: (*ManagerServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Boot",
-			Handler:    _Manager_Boot_Handler,
+			MethodName: "CreateSandbox",
+			Handler:    _Manager_CreateSandbox_Handler,
 		},
 		{
-			MethodName: "Delete",
-			Handler:    _Manager_Delete_Handler,
+			MethodName: "DeployToSandbox",
+			Handler:    _Manager_DeployToSandbox_Handler,
+		},
+		{
+			MethodName: "DeleteSandbox",
+			Handler:    _Manager_DeleteSandbox_Handler,
 		},
 		{
 			MethodName: "GetStatus",

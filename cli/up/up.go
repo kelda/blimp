@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
-	"crypto/sha1"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,7 +21,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh/terminal"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/encoding/gzip"
 
 	"github.com/kelda-inc/blimp/cli/authstore"
 	"github.com/kelda-inc/blimp/cli/util"
@@ -32,8 +30,6 @@ import (
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
 	"github.com/kelda-inc/blimp/pkg/tunnel"
 )
-
-const registry = "gcr.io/kevin-230505"
 
 func New() *cobra.Command {
 	return &cobra.Command{
@@ -60,8 +56,15 @@ func New() *cobra.Command {
 			if err == nil {
 				cmd.dockerClient = dockerClient
 			} else {
-				log.WithError(err).Warn("Failed to connect to local Docker daemon. Builds won't work.")
+				log.WithError(err).Warn("Failed to connect to local Docker daemon. " +
+					"Building images won't work, but all other features will.")
 			}
+
+			if err := cmd.createSandbox(); err != nil {
+				panic(err)
+			}
+			defer cmd.clusterManager.Close()
+			defer cmd.sandboxManager.Close()
 
 			if err := cmd.run(); err != nil {
 				util.HandleFatalError("Unexpected error", err)
@@ -71,9 +74,55 @@ func New() *cobra.Command {
 }
 
 type up struct {
-	auth         authstore.Store
-	composePath  string
-	dockerClient *client.Client
+	auth           authstore.Store
+	composePath    string
+	dockerClient   *client.Client
+	imageNamespace string
+
+	clusterManager managerClient
+	sandboxManager sandboxClient
+}
+
+type managerClient struct {
+	cluster.ManagerClient
+	*grpc.ClientConn
+}
+
+type sandboxClient struct {
+	sandbox.ControllerClient
+	*grpc.ClientConn
+}
+
+func (cmd *up) createSandbox() error {
+	clusterConn, err := util.Dial(util.ManagerHost, auth.ClusterManagerCert)
+	if err != nil {
+		return err
+	}
+	cmd.clusterManager = managerClient{cluster.NewManagerClient(clusterConn), clusterConn}
+
+	createSandboxResp, err := cmd.clusterManager.CreateSandbox(context.TODO(),
+		&cluster.CreateSandboxRequest{Token: cmd.auth.AuthToken})
+	if err != nil {
+		return err
+	}
+	cmd.imageNamespace = createSandboxResp.ImageNamespace
+
+	// Save the Kubernetes API credentials for use by other Blimp commands.
+	kubeCreds := createSandboxResp.GetKubeCredentials()
+	cmd.auth.KubeToken = kubeCreds.Token
+	cmd.auth.KubeHost = kubeCreds.Host
+	cmd.auth.KubeCACrt = kubeCreds.CaCrt
+	cmd.auth.KubeNamespace = kubeCreds.Namespace
+	if err := cmd.auth.Save(); err != nil {
+		return err
+	}
+
+	sandboxConn, err := util.Dial(createSandboxResp.SandboxAddress, createSandboxResp.SandboxCert)
+	if err != nil {
+		return err
+	}
+	cmd.sandboxManager = sandboxClient{sandbox.NewControllerClient(sandboxConn), sandboxConn}
+	return nil
 }
 
 func (cmd *up) run() error {
@@ -91,29 +140,14 @@ func (cmd *up) run() error {
 		return err
 	}
 
-	// Send the boot request to the cluster manager.
-	// TODO: Use TLS
-	conn, err := grpc.Dial(util.ManagerHost,
-		grpc.WithInsecure(),
-		grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
-	user, err := auth.ParseIDToken(cmd.auth.AuthToken)
-	if err != nil {
-		return err
-	}
-
 	// TODO: Does Docker rebuild images when files change?
-	builtImages, err := cmd.buildImages(dnsCompliantHash(user.ID), parsedCompose)
+	builtImages, err := cmd.buildImages(parsedCompose)
 	if err != nil {
 		return err
 	}
 
-	clusterManager := cluster.NewManagerClient(conn)
-	bootResp, err := clusterManager.Boot(context.Background(), &cluster.BootRequest{
+	// Send the boot request to the cluster manager.
+	_, err = cmd.clusterManager.DeployToSandbox(context.Background(), &cluster.DeployRequest{
 		Token:       cmd.auth.AuthToken,
 		ComposeFile: string(rawCompose),
 		BuiltImages: builtImages,
@@ -122,29 +156,10 @@ func (cmd *up) run() error {
 		return err
 	}
 
-	// Save the Kubernetes API credentials for use by other Blimp commands.
-	kubeCreds := bootResp.GetKubeCredentials()
-	cmd.auth.KubeToken = kubeCreds.Token
-	cmd.auth.KubeHost = kubeCreds.Host
-	cmd.auth.KubeCACrt = kubeCreds.CaCrt
-	cmd.auth.KubeNamespace = kubeCreds.Namespace
-	if err := cmd.auth.Save(); err != nil {
-		return err
-	}
-
-	sandboxConn, err := grpc.Dial(bootResp.SandboxAddress,
-		grpc.WithInsecure(),
-		grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
-	if err != nil {
-		return err
-	}
-	defer sandboxConn.Close()
-	scc := sandbox.NewControllerClient(sandboxConn)
-
 	// Start the tunnels.
 	for name, svc := range parsedCompose.Services {
 		for _, mapping := range svc.PortMappings {
-			go startTunnel(scc, name, mapping)
+			go startTunnel(cmd.sandboxManager, name, mapping)
 		}
 	}
 	log.Info("Established Localhost Tunnels")
@@ -169,7 +184,7 @@ func startTunnel(scc sandbox.ControllerClient, name string,
 			"error":   err,
 			"address": addr,
 			"network": "tcp",
-		}).Fatal("faield ot listen for connections")
+		}).Fatal("faield to listen for connections")
 		return
 	}
 
@@ -182,12 +197,12 @@ func startTunnel(scc sandbox.ControllerClient, name string,
 			"error":   err,
 			"address": addr,
 			"network": "tcp",
-		}).Fatal("failed ot listen for connections")
+		}).Fatal("failed to listen for connections")
 		return
 	}
 }
 
-func (cmd *up) buildImages(namespace string, composeFile dockercompose.Config) (map[string]string, error) {
+func (cmd *up) buildImages(composeFile dockercompose.Config) (map[string]string, error) {
 	if cmd.dockerClient == nil {
 		return nil, errors.New("no docker client")
 	}
@@ -199,7 +214,7 @@ func (cmd *up) buildImages(namespace string, composeFile dockercompose.Config) (
 		}
 
 		// TODO: namespace images via registry/namespace/image:tag.
-		imageName, err := cmd.buildImage(*svc.Build, fmt.Sprintf("%s/%s-%s", registry, namespace, svcName))
+		imageName, err := cmd.buildImage(*svc.Build, fmt.Sprintf("%s:%s", cmd.imageNamespace, svcName))
 		if err != nil {
 			return nil, fmt.Errorf("build %s: %w", svcName, err)
 		}
@@ -244,9 +259,8 @@ func (cmd *up) buildImage(spec dockercompose.Build, tag string) (string, error) 
 		}
 	}
 
-	stderr := os.Stderr
-	isTerminal := terminal.IsTerminal(int(stderr.Fd()))
-	err = jsonmessage.DisplayJSONMessagesStream(buildResp.Body, stderr, stderr.Fd(), isTerminal, callback)
+	isTerminal := terminal.IsTerminal(int(os.Stderr.Fd()))
+	err = jsonmessage.DisplayJSONMessagesStream(buildResp.Body, os.Stderr, os.Stderr.Fd(), isTerminal, callback)
 	if err != nil {
 		return "", fmt.Errorf("build image: %w", err)
 	}
@@ -256,7 +270,7 @@ func (cmd *up) buildImage(spec dockercompose.Build, tag string) (string, error) 
 	}
 
 	// TODO: Auth
-	pp := util.NewProgressPrinter(stderr, "Pushing image..")
+	pp := util.NewProgressPrinter(os.Stderr, "Pushing image..")
 	go pp.Run()
 	defer pp.StopWithPrint(" Done\n")
 
@@ -317,13 +331,4 @@ func makeTar(dir string) (io.Reader, error) {
 		return nil
 	})
 	return &out, err
-}
-
-// TODO: Repeated
-// dnsCompliantHash hashes the given string and encodes it into base16.
-func dnsCompliantHash(str string) string {
-	// TODO: sha1 is insecure.
-	h := sha1.New()
-	h.Write([]byte(str))
-	return fmt.Sprintf("%x", h.Sum(nil))
 }

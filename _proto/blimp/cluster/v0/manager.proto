@@ -2,27 +2,34 @@ syntax = "proto3";
 
 package blimp.cluster.v0;
 
-import "blimp/errors/v0/errors.proto";
-
 option go_package = "github.com/kelda-inc/blimp/pkg/proto/cluster";
 
 service Manager {
-  rpc Boot(BootRequest) returns (BootResponse) {}
-  rpc Delete(DeleteRequest) returns (DeleteResponse) {}
+  rpc CreateSandbox(CreateSandboxRequest) returns (CreateSandboxResponse) {}
+  rpc DeployToSandbox(DeployRequest) returns (DeployResponse) {}
+  rpc DeleteSandbox(DeleteSandboxRequest) returns (DeleteSandboxResponse) {}
   rpc GetStatus(GetStatusRequest) returns (GetStatusResponse) {}
   rpc WatchStatus(GetStatusRequest) returns (stream GetStatusResponse) {}
 }
 
-message BootRequest {
+message CreateSandboxRequest {
+  string token = 1;
+}
+
+message CreateSandboxResponse {
+  string SandboxAddress = 1;
+  string SandboxCert = 2;
+  KubeCredentials kubeCredentials = 3;
+  string ImageNamespace = 4;
+}
+
+message DeployRequest {
   string token = 1;
   string composeFile = 2;
   map<string, string> builtImages = 3;
 }
 
-message BootResponse {
-  blimp.errors.v0.Error error = 1;
-  string SandboxAddress = 2;
-  KubeCredentials kubeCredentials = 3;
+message DeployResponse {
 }
 
 message KubeCredentials {
@@ -32,11 +39,11 @@ message KubeCredentials {
   string namespace = 4;
 }
 
-message DeleteRequest {
+message DeleteSandboxRequest {
   string token = 1;
 }
 
-message DeleteResponse {
+message DeleteSandboxResponse {
 }
 
 message GetStatusRequest {

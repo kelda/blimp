@@ -43,6 +43,14 @@ const (
 }`
 )
 
+var (
+	// The base64 encoded certificate for the cluster manager. This is set at build time.
+	ClusterManagerCertBase64 string
+
+	// The PEM-encoded certificate for the cluster manager.
+	ClusterManagerCert = mustDecodeBase64(ClusterManagerCertBase64)
+)
+
 var RegistryAuth = registryAuth()
 
 var Endpoint = oauth2.Endpoint{
@@ -81,4 +89,12 @@ func registryAuth() string {
 	}
 
 	return base64.URLEncoding.EncodeToString(authJSON)
+}
+
+func mustDecodeBase64(encoded string) string {
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		panic(err)
+	}
+	return string(decoded)
 }

@@ -1,17 +1,26 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha1"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
+	"encoding/pem"
 	"errors"
+	"flag"
 	"fmt"
+	"math/big"
 	"net"
 	"os"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -35,6 +44,12 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 )
 
+type server struct {
+	kubeClient        kubernetes.Interface
+	restConfig        *rest.Config
+	certPath, keyPath string
+}
+
 const (
 	Port        = 9000
 	SandboxPort = 9001
@@ -47,7 +62,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	s := &server{kubeClient, restConfig}
+	certPath := flag.String("tls-cert", "", "The path to the PEM-encoded certificate used for encrypting gRPC")
+	keyPath := flag.String("tls-key", "", "The path to the PEM-encoded private key used for encrypting gRPC")
+	flag.Parse()
+
+	if *certPath == "" || *keyPath == "" {
+		log.Fatal("The TLS cert and key are required")
+	}
+
+	s := &server{
+		kubeClient: kubeClient,
+		restConfig: restConfig,
+		certPath:   *certPath,
+		keyPath:    *keyPath,
+	}
 	addr := fmt.Sprintf("0.0.0.0:%d", Port)
 
 	if err := s.listenAndServe(addr); err != nil {
@@ -62,63 +90,80 @@ func (s *server) listenAndServe(address string) error {
 		return err
 	}
 
+	creds, err := credentials.NewServerTLSFromFile(s.certPath, s.keyPath)
+	if err != nil {
+		return fmt.Errorf("parse cert: %w", err)
+	}
+
 	log.WithField("address", address).Info("Listening for connections..")
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.Creds(creds))
 	cluster.RegisterManagerServer(grpcServer, s)
 	return grpcServer.Serve(lis)
 }
 
-type server struct {
-	kubeClient kubernetes.Interface
-	restConfig *rest.Config
-}
-
-func (s *server) Boot(ctx context.Context, req *cluster.BootRequest) (*cluster.BootResponse, error) {
+func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRequest) (*cluster.CreateSandboxResponse, error) {
 	// Validate that the user logged in, and get their information.
 	user, err := auth.ParseIDToken(req.GetToken())
 	if err != nil {
-		return &cluster.BootResponse{}, err
+		return &cluster.CreateSandboxResponse{}, err
+	}
+
+	namespace := dnsCompliantHash(user.ID)
+	if err := s.createNamespace(namespace); err != nil {
+		return &cluster.CreateSandboxResponse{}, fmt.Errorf("create namespace: %w", err)
+	}
+
+	if err := s.createSyncthing(namespace); err != nil {
+		return &cluster.CreateSandboxResponse{}, fmt.Errorf("deploy syncthing: %w", err)
+	}
+
+	// TODO: Block until sandbox manager boots.
+	sandboxManagerIP, sandboxCert, err := s.createSandboxManager(namespace)
+	if err != nil {
+		return &cluster.CreateSandboxResponse{}, fmt.Errorf("deploy customer manager: %w", err)
+	}
+
+	if err := s.createPodRunnerServiceAccount(namespace); err != nil {
+		return &cluster.CreateSandboxResponse{}, fmt.Errorf("create pod runner service account: %w", err)
+	}
+
+	cliCreds, err := s.createCLICreds(namespace)
+	if err != nil {
+		return &cluster.CreateSandboxResponse{}, fmt.Errorf("get kube credentials: %w", err)
+	}
+
+	return &cluster.CreateSandboxResponse{
+		SandboxAddress:  fmt.Sprintf("%s:%d", sandboxManagerIP, SandboxPort),
+		SandboxCert:     sandboxCert,
+		ImageNamespace:  fmt.Sprintf("gcr.io/kevin-230505/%s", namespace),
+		KubeCredentials: &cliCreds,
+	}, nil
+}
+
+func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest) (*cluster.DeployResponse, error) {
+	// Validate that the user logged in, and get their information.
+	user, err := auth.ParseIDToken(req.GetToken())
+	if err != nil {
+		return &cluster.DeployResponse{}, err
 	}
 
 	dcCfg, err := dockercompose.Parse([]byte(req.GetComposeFile()))
 	if err != nil {
 		// TODO: Error within response.
-		return &cluster.BootResponse{}, err
+		return &cluster.DeployResponse{}, err
 	}
 
 	namespace := dnsCompliantHash(user.ID)
-	if err := s.createNamespace(namespace); err != nil {
-		return &cluster.BootResponse{}, fmt.Errorf("create namespace: %w", err)
-	}
-
-	if err := s.createSyncthing(namespace); err != nil {
-		return &cluster.BootResponse{}, fmt.Errorf("deploy syncthing: %w", err)
-	}
-
-	customerManagerIP, dnsIP, err := s.createCustomerManager(namespace)
+	dnsIP, err := s.getDNSIP(namespace)
 	if err != nil {
-		return &cluster.BootResponse{}, fmt.Errorf("deploy customer manager: %w", err)
+		return &cluster.DeployResponse{}, fmt.Errorf("get dns server's IP: %w", err)
 	}
 
-	if err := s.createPodRunnerServiceAccount(namespace); err != nil {
-		return &cluster.BootResponse{}, fmt.Errorf("create pod runner service account: %w", err)
-	}
-
-	// TODO: Delete pods.
 	customerPods := toPods(namespace, dnsIP, dcCfg, req.BuiltImages)
 	if err := s.deployCustomerPods(namespace, customerPods); err != nil {
-		return &cluster.BootResponse{}, fmt.Errorf("boot customer pods: %w", err)
+		return &cluster.DeployResponse{}, fmt.Errorf("boot customer pods: %w", err)
 	}
-
-	cliCreds, err := s.createCLICreds(namespace)
-	if err != nil {
-		return &cluster.BootResponse{}, fmt.Errorf("get kube credentials: %w", err)
-	}
-
-	return &cluster.BootResponse{
-		SandboxAddress:  fmt.Sprintf("%s:%d", customerManagerIP, SandboxPort),
-		KubeCredentials: &cliCreds,
-	}, nil
+	return &cluster.DeployResponse{}, nil
 }
 
 func (s *server) createNamespace(namespace string) error {
@@ -136,10 +181,18 @@ func (s *server) createNamespace(namespace string) error {
 	return err
 }
 
-func (s *server) createCustomerManager(namespace string) (publicIP, internalIP string, err error) {
+func (s *server) getDNSIP(namespace string) (string, error) {
+	pod, err := s.kubeClient.CoreV1().Pods(namespace).Get("sandbox-manager", metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("get pod: %w", err)
+	}
+	return pod.Status.PodIP, nil
+}
+
+func (s *server) createSandboxManager(namespace string) (publicIP, certPEM string, err error) {
 	serviceAccount := corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "customer-manager",
+			Name:      "sandbox-manager",
 			Namespace: namespace,
 		},
 	}
@@ -147,7 +200,7 @@ func (s *server) createCustomerManager(namespace string) (publicIP, internalIP s
 	role := rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
-			Name:      "customer-manager-role",
+			Name:      "sandbox-manager-role",
 		},
 		Rules: []rbacv1.PolicyRule{
 			// TODO: Limit access.
@@ -162,15 +215,15 @@ func (s *server) createCustomerManager(namespace string) (publicIP, internalIP s
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
-			Name:      "customer-manager",
+			Name:      "sandbox-manager",
 			Labels: map[string]string{
-				"service": "customer-manager",
+				"service": "sandbox-manager",
 			},
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
 				{
-					Name:            "customer-manager",
+					Name:            "sandbox-manager",
 					Image:           version.SandboxControllerImage,
 					ImagePullPolicy: "Always",
 					Env: []corev1.EnvVar{
@@ -181,6 +234,22 @@ func (s *server) createCustomerManager(namespace string) (publicIP, internalIP s
 									FieldPath: "metadata.namespace",
 								},
 							},
+						},
+					},
+					VolumeMounts: []corev1.VolumeMount{
+						{
+							Name:      "cert",
+							MountPath: "/etc/blimp/certs",
+						},
+					},
+				},
+			},
+			Volumes: []corev1.Volume{
+				{
+					Name: "cert",
+					VolumeSource: corev1.VolumeSource{
+						Secret: &corev1.SecretVolumeSource{
+							SecretName: "sandbox-cert",
 						},
 					},
 				},
@@ -203,37 +272,14 @@ func (s *server) createCustomerManager(namespace string) (publicIP, internalIP s
 		},
 	}
 
-	if err := s.createServiceAccount(serviceAccount, role); err != nil {
-		return "", "", err
-	}
-
-	if err := s.deployPod(pod); err != nil {
-		return "", "", fmt.Errorf("deploy: %w", err)
-	}
-
-	// TODO: Update
+	// Create the Service first so that we can generate a certificate for the
+	// sandbox's public IP.
 	servicesClient := s.kubeClient.CoreV1().Services(namespace)
 	if _, err := servicesClient.Get(service.Name, metav1.GetOptions{}); err != nil {
 		_, err := servicesClient.Create(service)
 		if err != nil {
 			return "", "", fmt.Errorf("create service: %w", err)
 		}
-	}
-
-	err = waitForObject(
-		podGetter(s.kubeClient, namespace, pod.Name),
-		s.kubeClient.CoreV1().Pods(namespace).Watch,
-		func(podIntf interface{}) bool {
-			pod := podIntf.(*corev1.Pod)
-
-			if pod.Status.PodIP != "" {
-				internalIP = pod.Status.PodIP
-				return true
-			}
-			return false
-		})
-	if err != nil {
-		return "", "", fmt.Errorf("wait for pod internal IP: %w", err)
 	}
 
 	err = waitForObject(
@@ -253,7 +299,87 @@ func (s *server) createCustomerManager(namespace string) (publicIP, internalIP s
 		return "", "", fmt.Errorf("wait for public IP: %w", err)
 	}
 
-	return publicIP, internalIP, nil
+	// Generate new certificates for the sandbox controller if it's the first
+	// time deploying the controller.
+	secretsClient := s.kubeClient.CoreV1().Secrets(namespace)
+	certSecret, err := secretsClient.Get("sandbox-cert", metav1.GetOptions{})
+	if err != nil {
+		cert, key, err := newSelfSignedCert(publicIP)
+		if err != nil {
+			return "", "", fmt.Errorf("generate cert: %s", err)
+		}
+
+		certSecret = &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "sandbox-cert",
+				Namespace: namespace,
+			},
+			Data: map[string][]byte{
+				"cert.pem": cert,
+				"key.pem":  key,
+			},
+		}
+		if _, err := secretsClient.Create(certSecret); err != nil {
+			return "", "", fmt.Errorf("create cert secret: %s", err)
+		}
+	}
+
+	if err := s.createServiceAccount(serviceAccount, role); err != nil {
+		return "", "", err
+	}
+
+	if err := s.deployPod(pod); err != nil {
+		return "", "", fmt.Errorf("deploy: %w", err)
+	}
+
+	return publicIP, string(certSecret.Data["cert.pem"]), nil
+}
+
+func newSelfSignedCert(ip string) (pemCert, pemKey []byte, err error) {
+	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, nil, fmt.Errorf("create private key: %w", err)
+	}
+
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	if err != nil {
+		return nil, nil, fmt.Errorf("generate serial number: %w", err)
+	}
+
+	template := x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject: pkix.Name{
+			Organization: []string{"Kelda Blimp Sandbox Controller"},
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(365 * time.Hour * 24),
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IPAddresses:           []net.IP{net.ParseIP(ip)},
+	}
+
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+	if err != nil {
+		return nil, nil, fmt.Errorf("create certificate: %w", err)
+	}
+
+	var certOut bytes.Buffer
+	if err := pem.Encode(&certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
+		return nil, nil, fmt.Errorf("pem encode certificate: %w", err)
+	}
+
+	var keyOut bytes.Buffer
+	privBytes, err := x509.MarshalPKCS8PrivateKey(priv)
+	if err != nil {
+		return nil, nil, fmt.Errorf("marshal private key: %w", err)
+	}
+	if err := pem.Encode(&keyOut, &pem.Block{Type: "PRIVATE KEY", Bytes: privBytes}); err != nil {
+		return nil, nil, fmt.Errorf("pem encode private key: %w", err)
+	}
+
+	return certOut.Bytes(), keyOut.Bytes(), nil
 }
 
 func (s *server) createSyncthing(namespace string) error {
@@ -554,17 +680,17 @@ func (s *server) deletePod(namespace, name string) error {
 	return nil
 }
 
-func (s *server) Delete(ctx context.Context, req *cluster.DeleteRequest) (*cluster.DeleteResponse, error) {
+func (s *server) DeleteSandbox(ctx context.Context, req *cluster.DeleteSandboxRequest) (*cluster.DeleteSandboxResponse, error) {
 	user, err := auth.ParseIDToken(req.GetToken())
 	if err != nil {
-		return &cluster.DeleteResponse{}, err
+		return &cluster.DeleteSandboxResponse{}, err
 	}
 
 	namespace := dnsCompliantHash(user.ID)
 	if err := s.kubeClient.CoreV1().Namespaces().Delete(namespace, nil); err != nil {
-		return &cluster.DeleteResponse{}, err
+		return &cluster.DeleteSandboxResponse{}, err
 	}
-	return &cluster.DeleteResponse{}, nil
+	return &cluster.DeleteSandboxResponse{}, nil
 }
 
 func (s *server) GetStatus(ctx context.Context, req *cluster.GetStatusRequest) (*cluster.GetStatusResponse, error) {

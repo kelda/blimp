@@ -8,6 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -21,7 +22,11 @@ import (
 	_ "google.golang.org/grpc/encoding/gzip"
 )
 
-const Port = 9001
+const (
+	Port     = 9001
+	CertPath = "/etc/blimp/certs/cert.pem"
+	KeyPath  = "/etc/blimp/certs/key.pem"
+)
 
 func main() {
 	namespace := os.Getenv("NAMESPACE")
@@ -59,8 +64,13 @@ func (s *server) listenAndServe(address string) error {
 		return err
 	}
 
+	creds, err := credentials.NewServerTLSFromFile(CertPath, KeyPath)
+	if err != nil {
+		return fmt.Errorf("parse cert: %w", err)
+	}
+
 	log.WithField("address", address).Info("Listening for connections..")
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.Creds(creds))
 	sandbox.RegisterControllerServer(grpcServer, s)
 	return grpcServer.Serve(lis)
 }
