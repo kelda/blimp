@@ -459,12 +459,9 @@ func (s *server) deployCustomerPods(namespace string, desired []corev1.Pod) erro
 }
 
 func (s *server) deployPod(pod corev1.Pod) error {
-	podClient := s.kubeClient.CoreV1().Pods(pod.Namespace)
-	curr, err := podClient.Get(pod.Name, metav1.GetOptions{})
-	if err != nil && !kerrors.IsNotFound(err) {
-		return fmt.Errorf("get pod: %w", err)
-	}
-
+	// Add an annotation to track the spec that was used to deploy the pod.
+	// This way, we can avoid recreating pods when the underlying spec hasn't
+	// changed.
 	applyAnnotation, err := runtime.Encode(unstructured.UnstructuredJSONScheme, &pod)
 	if err != nil {
 		return fmt.Errorf("make apply annotation: %w", err)
@@ -475,14 +472,22 @@ func (s *server) deployPod(pod corev1.Pod) error {
 	}
 	pod.Annotations["blimp.appliedObject"] = string(applyAnnotation)
 
+	// Get the current pod, if it exists.
+	podClient := s.kubeClient.CoreV1().Pods(pod.Namespace)
+	curr, err := podClient.Get(pod.Name, metav1.GetOptions{})
+	if err != nil && !kerrors.IsNotFound(err) {
+		return fmt.Errorf("get pod: %w", err)
+	}
+
+	// If the pod already exists.
 	if err == nil {
 		// If the currently deployed pod is already up to date, we don't have
 		// to do anything.
-		if curr.Annotations["blimp.appliedObject"] == string(applyAnnotation) {
+		if curr.Annotations["blimp.appliedObject"] == pod.Annotations["blimp.appliedObject"] {
 			return nil
 		}
 
-		// Delete the existing pod, and before we recreate it.
+		// Delete the existing pod before we recreate it.
 		if err := s.deletePod(pod.Namespace, pod.Name); err != nil {
 			return fmt.Errorf("delete pod: %w", err)
 		}
