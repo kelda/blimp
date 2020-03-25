@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -213,8 +214,7 @@ func (cmd *up) buildImages(composeFile dockercompose.Config) (map[string]string,
 			continue
 		}
 
-		// TODO: namespace images via registry/namespace/image:tag.
-		imageName, err := cmd.buildImage(*svc.Build, fmt.Sprintf("%s:%s", cmd.imageNamespace, svcName))
+		imageName, err := cmd.buildImage(*svc.Build, fmt.Sprintf("%s/%s", cmd.imageNamespace, svcName))
 		if err != nil {
 			return nil, fmt.Errorf("build %s: %w", svcName, err)
 		}
@@ -269,13 +269,12 @@ func (cmd *up) buildImage(spec dockercompose.Build, tag string) (string, error) 
 		return "", fmt.Errorf("tag image: %w", err)
 	}
 
-	// TODO: Auth
 	pp := util.NewProgressPrinter(os.Stderr, "Pushing image..")
 	go pp.Run()
 	defer pp.StopWithPrint(" Done\n")
 
 	pushResp, err := cmd.dockerClient.ImagePush(context.TODO(), tag, types.ImagePushOptions{
-		RegistryAuth: auth.RegistryAuth,
+		RegistryAuth: registryAuth(cmd.auth.AuthToken),
 	})
 	if err != nil {
 		return "", fmt.Errorf("start image push: %w", err)
@@ -331,4 +330,16 @@ func makeTar(dir string) (io.Reader, error) {
 		return nil
 	})
 	return &out, err
+}
+
+func registryAuth(idToken string) string {
+	authJSON, err := json.Marshal(types.AuthConfig{
+		Username: "ignored",
+		Password: idToken,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	return base64.URLEncoding.EncodeToString(authJSON)
 }

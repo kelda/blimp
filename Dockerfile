@@ -7,4 +7,4 @@ RUN go mod download
 ADD . .
 ARG COMPILE_FLAGS
 
-RUN go install -ldflags "${COMPILE_FLAGS}" ./sandbox-controller ./cluster-controller
+RUN CGO_ENABLED=0 go install -ldflags "${COMPILE_FLAGS}" ./sandbox-controller ./cluster-controller ./registry

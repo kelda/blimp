@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha1"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
@@ -54,6 +53,9 @@ const (
 	Port        = 9000
 	SandboxPort = 9001
 )
+
+// Set by make.
+var RegistryHostname string
 
 func main() {
 	kubeClient, restConfig, err := getKubeClient()
@@ -108,7 +110,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, err
 	}
 
-	namespace := dnsCompliantHash(user.ID)
+	namespace := user.Namespace
 	if err := s.createNamespace(namespace); err != nil {
 		return &cluster.CreateSandboxResponse{}, fmt.Errorf("create namespace: %w", err)
 	}
@@ -123,7 +125,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, fmt.Errorf("deploy customer manager: %w", err)
 	}
 
-	if err := s.createPodRunnerServiceAccount(namespace); err != nil {
+	if err := s.createPodRunnerServiceAccount(namespace, req.GetToken()); err != nil {
 		return &cluster.CreateSandboxResponse{}, fmt.Errorf("create pod runner service account: %w", err)
 	}
 
@@ -135,7 +137,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 	return &cluster.CreateSandboxResponse{
 		SandboxAddress:  fmt.Sprintf("%s:%d", sandboxManagerIP, SandboxPort),
 		SandboxCert:     sandboxCert,
-		ImageNamespace:  fmt.Sprintf("gcr.io/kevin-230505/%s", namespace),
+		ImageNamespace:  fmt.Sprintf("%s/%s", RegistryHostname, namespace),
 		KubeCredentials: &cliCreds,
 	}, nil
 }
@@ -153,7 +155,7 @@ func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest
 		return &cluster.DeployResponse{}, err
 	}
 
-	namespace := dnsCompliantHash(user.ID)
+	namespace := user.Namespace
 	dnsIP, err := s.getDNSIP(namespace)
 	if err != nil {
 		return &cluster.DeployResponse{}, fmt.Errorf("get dns server's IP: %w", err)
@@ -469,7 +471,7 @@ func (s *server) createCLICreds(namespace string) (cluster.KubeCredentials, erro
 	}, nil
 }
 
-func (s *server) createPodRunnerServiceAccount(namespace string) error {
+func (s *server) createPodRunnerServiceAccount(namespace, idToken string) error {
 	secret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			// TODO: Variable, shared with toPods.
@@ -478,7 +480,9 @@ func (s *server) createPodRunnerServiceAccount(namespace string) error {
 		},
 		Type: corev1.SecretTypeDockerConfigJson,
 		StringData: map[string]string{
-			corev1.DockerConfigJsonKey: fmt.Sprintf(`{"auths":{"https://gcr.io":{"username":"_json_key","password":%q}}}`, auth.RegistryKey),
+			corev1.DockerConfigJsonKey: fmt.Sprintf(
+				`{"auths":{"https://%s":{"username":"ignored","password":%q}}}`,
+				RegistryHostname, idToken),
 		},
 	}
 
@@ -631,6 +635,7 @@ func (s *server) deployPod(pod corev1.Pod) error {
 	if err == nil {
 		// If the currently deployed pod is already up to date, we don't have
 		// to do anything.
+		// TODO: What if image changes.. the name currently doesn't change so new image won't get redeployed.
 		if curr.Annotations["blimp.appliedObject"] == pod.Annotations["blimp.appliedObject"] {
 			return nil
 		}
@@ -686,8 +691,7 @@ func (s *server) DeleteSandbox(ctx context.Context, req *cluster.DeleteSandboxRe
 		return &cluster.DeleteSandboxResponse{}, err
 	}
 
-	namespace := dnsCompliantHash(user.ID)
-	if err := s.kubeClient.CoreV1().Namespaces().Delete(namespace, nil); err != nil {
+	if err := s.kubeClient.CoreV1().Namespaces().Delete(user.Namespace, nil); err != nil {
 		return &cluster.DeleteSandboxResponse{}, err
 	}
 	return &cluster.DeleteSandboxResponse{}, nil
@@ -699,8 +703,7 @@ func (s *server) GetStatus(ctx context.Context, req *cluster.GetStatusRequest) (
 		return &cluster.GetStatusResponse{}, err
 	}
 
-	namespace := dnsCompliantHash(user.ID)
-	status, err := s.getSandboxStatus(namespace)
+	status, err := s.getSandboxStatus(user.Namespace)
 	if err != nil {
 		return &cluster.GetStatusResponse{}, err
 	}
@@ -714,8 +717,7 @@ func (s *server) WatchStatus(req *cluster.GetStatusRequest, stream cluster.Manag
 		return err
 	}
 
-	namespace := dnsCompliantHash(user.ID)
-	watcher, err := s.kubeClient.CoreV1().Pods(namespace).Watch(metav1.ListOptions{})
+	watcher, err := s.kubeClient.CoreV1().Pods(user.Namespace).Watch(metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -723,7 +725,7 @@ func (s *server) WatchStatus(req *cluster.GetStatusRequest, stream cluster.Manag
 
 	trig := watcher.ResultChan()
 	for {
-		status, err := s.getSandboxStatus(namespace)
+		status, err := s.getSandboxStatus(user.Namespace)
 		if err != nil {
 			return err
 		}
@@ -865,14 +867,6 @@ func mustDecodeBase64(encoded string) []byte {
 		panic(err)
 	}
 	return decoded
-}
-
-// dnsCompliantHash hashes the given string and encodes it into base16.
-func dnsCompliantHash(str string) string {
-	// TODO: sha1 is insecure.
-	h := sha1.New()
-	h.Write([]byte(str))
-	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
 func waitForObject(

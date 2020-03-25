@@ -33,3 +33,31 @@ is run, again to avoid a MITM attack.
 The certs for local development are stored in `./certs`. They are generated
 with `make certs`, which is automatically run if certificates don't already
 exist.
+
+# Registry
+
+The registry needs a DNS name, even during development. To deploy it:
+
+1. Create a static IP address:
+
+    ```
+	gcloud compute addresses create registry --region us-west1
+	gcloud compute addresses list
+	```
+
+1. Add an [A record](https://domains.google.com/m/registrar/kelda.io/dns) for
+   the static IP to `dev-<your name>-blimp-registry.kelda.io`.
+
+1. Create a `local.mk` file so that `make` deploys to your hostname.
+
+    ```
+    cat <<EOF > local.mk
+    REGISTRY_HOSTNAME = dev-kevin-blimp-registry.kelda.io
+    REGISTRY_IP = 34.83.86.50
+    EOF
+    ```
+
+1. Deploy the registry with `make deploy-registry`
+
+1. Running `make run-cluster-controller` will automatically cause your images
+   to get pushed to the registry running in your cluster.

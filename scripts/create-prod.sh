@@ -9,6 +9,10 @@ function _gcloud_kube() {
 
 PROJECT="kelda-blimp"
 
+# TODO
+_gcloud compute addresses create registry
+_gcloud compute addresses create manager
+
 _gcloud_kube create customer -m e2-standard-2 --num-nodes=2 --no-enable-autoupgrade
 _gcloud_kube get-credentials customer
 ./scripts/make-kubeconfig.sh > /tmp/customer-cluster-kubeconfig
