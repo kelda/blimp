@@ -4,4 +4,5 @@ var (
 	Version                = ""
 	SandboxControllerImage = ""
 	DependsOnImage         = ""
+	SyncthingImage         = ""
 )

@@ -91,6 +91,10 @@ func (s *server) Boot(ctx context.Context, req *cluster.BootRequest) (*cluster.B
 		return &cluster.BootResponse{}, fmt.Errorf("create namespace: %w", err)
 	}
 
+	if err := s.createSyncthing(namespace); err != nil {
+		return &cluster.BootResponse{}, fmt.Errorf("deploy syncthing: %w", err)
+	}
+
 	customerManagerIP, dnsIP, err := s.createCustomerManager(namespace)
 	if err != nil {
 		return &cluster.BootResponse{}, fmt.Errorf("deploy customer manager: %w", err)
@@ -250,6 +254,24 @@ func (s *server) createCustomerManager(namespace string) (publicIP, internalIP s
 	}
 
 	return publicIP, internalIP, nil
+}
+
+func (s *server) createSyncthing(namespace string) error {
+	pod := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      "syncthing",
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{
+				Name:            "syncthing",
+				Image:           version.SyncthingImage,
+				ImagePullPolicy: "Always",
+			}},
+		},
+	}
+
+	return s.deployPod(pod)
 }
 
 func (s *server) createCLICreds(namespace string) (cluster.KubeCredentials, error) {
