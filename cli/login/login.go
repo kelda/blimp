@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os/exec"
+	"runtime"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -78,7 +80,10 @@ func getAuthToken() (string, error) {
 		oauth2.SetAuthURLParam("code_challenge", challenge),
 		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
 	)
-	fmt.Printf("Open the following URL in your browser: %s\n", authURL)
+	fmt.Printf("Your browser has been opened to visit:\n\n%s\n\n", authURL)
+	if err := openBrowser(authURL); err != nil {
+		log.WithError(err).Warn("Failed to open browser. Please open the link manually.")
+	}
 
 	codeResp := <-codeRespChan
 
@@ -123,4 +128,18 @@ func makeVerifier() (challenge string, verifier string, err error) {
 
 func base64Encode(buf []byte) string {
 	return strings.Replace(base64.URLEncoding.EncodeToString(buf), "=", "", -1)
+}
+
+func openBrowser(url string) (err error) {
+	switch runtime.GOOS {
+	case "linux":
+		err = exec.Command("xdg-open", url).Start()
+	case "windows":
+		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+	case "darwin":
+		err = exec.Command("open", url).Start()
+	default:
+		err = fmt.Errorf("unsupported platform")
+	}
+	return err
 }
