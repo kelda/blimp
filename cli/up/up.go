@@ -38,8 +38,7 @@ func New() *cobra.Command {
 		Run: func(_ *cobra.Command, _ []string) {
 			auth, err := authstore.New()
 			if err != nil {
-				panic(err)
-				//return fmt.Errorf("parse auth config: %w", err)
+				log.WithError(err).Fatal("Failed to parse local authentication store")
 			}
 
 			// TODO: Prompt to login again if token is expired.
@@ -62,7 +61,7 @@ func New() *cobra.Command {
 			}
 
 			if err := cmd.run(); err != nil {
-				util.HandleFatalError("Unexpected error", err)
+				log.Fatal(err)
 			}
 		},
 	}
@@ -273,8 +272,13 @@ func (cmd *up) buildImage(spec dockercompose.Build, tag string) (string, error) 
 	go pp.Run()
 	defer pp.StopWithPrint(" Done\n")
 
+	registryAuth, err := makeRegistryAuthHeader(cmd.auth.AuthToken)
+	if err != nil {
+		return "", fmt.Errorf("make registry auth header: %w", err)
+	}
+
 	pushResp, err := cmd.dockerClient.ImagePush(context.TODO(), tag, types.ImagePushOptions{
-		RegistryAuth: registryAuth(cmd.auth.AuthToken),
+		RegistryAuth: registryAuth,
 	})
 	if err != nil {
 		return "", fmt.Errorf("start image push: %w", err)
@@ -332,14 +336,14 @@ func makeTar(dir string) (io.Reader, error) {
 	return &out, err
 }
 
-func registryAuth(idToken string) string {
+func makeRegistryAuthHeader(idToken string) (string, error) {
 	authJSON, err := json.Marshal(types.AuthConfig{
 		Username: "ignored",
 		Password: idToken,
 	})
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 
-	return base64.URLEncoding.EncodeToString(authJSON)
+	return base64.URLEncoding.EncodeToString(authJSON), nil
 }

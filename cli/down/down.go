@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/kelda-inc/blimp/cli/authstore"
@@ -19,8 +20,7 @@ func New() *cobra.Command {
 		Run: func(_ *cobra.Command, args []string) {
 			auth, err := authstore.New()
 			if err != nil {
-				panic(err)
-				//return fmt.Errorf("parse auth config: %w", err)
+				log.WithError(err).Fatal("Failed to parse local authentication store")
 			}
 
 			// TODO: Prompt to login again if token is expired.
@@ -30,7 +30,7 @@ func New() *cobra.Command {
 			}
 
 			if err := run(auth.AuthToken); err != nil {
-				util.HandleFatalError("Unexpected error", err)
+				log.Fatal(err)
 			}
 		},
 	}

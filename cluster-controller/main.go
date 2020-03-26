@@ -7,7 +7,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/base64"
 	"encoding/pem"
 	"errors"
 	"flag"
@@ -873,14 +872,6 @@ func toPods(namespace, dnsServer string, cfg dockercompose.Config, builtImages m
 	}
 
 	return pods
-}
-
-func mustDecodeBase64(encoded string) []byte {
-	decoded, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		panic(err)
-	}
-	return decoded
 }
 
 func waitForObject(

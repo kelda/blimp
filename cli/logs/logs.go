@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -20,11 +21,12 @@ func New() *cobra.Command {
 		Use: "logs",
 		Run: func(_ *cobra.Command, args []string) {
 			if len(args) != 1 {
-				panic("a service is required")
+				fmt.Fprintf(os.Stderr, "Exactly one service is required")
+				os.Exit(1)
 			}
 
 			if err := run(args[0], opts); err != nil {
-				panic(err)
+				log.Fatal(err)
 			}
 		},
 	}
@@ -56,7 +58,7 @@ func run(svc string, opts corev1.PodLogOptions) error {
 	pod, err := kubeClient.CoreV1().Pods(auth.KubeNamespace).Get(svc, metav1.GetOptions{})
 	if err != nil {
 		if kerrors.IsNotFound(err) {
-			return errors.New("no service")
+			return fmt.Errorf("No service named %q. Check the output of `blimp ps` for a list of available services.", svc)
 		}
 		return fmt.Errorf("get service: %w", err)
 	}

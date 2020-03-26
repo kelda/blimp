@@ -10,13 +10,12 @@ import (
 	"net/http"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
 
-	"github.com/kelda-inc/blimp/cli/util"
-	"github.com/kelda-inc/blimp/pkg/auth"
-	// TODO: Rename
 	"github.com/kelda-inc/blimp/cli/authstore"
+	"github.com/kelda-inc/blimp/pkg/auth"
 )
 
 func New() *cobra.Command {
@@ -25,19 +24,19 @@ func New() *cobra.Command {
 		Run: func(_ *cobra.Command, _ []string) {
 			token, err := getAuthToken()
 			if err != nil {
-				util.HandleFatalError("Failed to login", err)
+				log.WithError(err).Fatal("Failed to login")
 			}
 			fmt.Println("Successfully logged in")
 
 			// TODO: Store in OS's encrypted storage rather than in regular file.
 			store, err := authstore.New()
 			if err != nil {
-				util.HandleFatalError("Failed to parse existing Kelda Blimp credentials", err)
+				log.WithError(err).Fatal("Failed to parse existing Kelda Blimp credentials")
 			}
 
 			store.AuthToken = token
 			if err := store.Save(); err != nil {
-				util.HandleFatalError("Failed to update local Kelda Blimp credentials", err)
+				log.WithError(err).Fatal("Failed to update local Kelda Blimp credentials")
 			}
 		},
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh/terminal"
 	core "k8s.io/api/core/v1"
@@ -18,11 +19,12 @@ func New() *cobra.Command {
 		Use: "ssh",
 		Run: func(_ *cobra.Command, args []string) {
 			if len(args) != 1 {
-				panic("a service is required")
+				fmt.Fprintf(os.Stderr, "Exactly one service is required")
+				os.Exit(1)
 			}
 
 			if err := run(args[0]); err != nil {
-				panic(err)
+				log.Fatal(err)
 			}
 		},
 	}
