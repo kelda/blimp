@@ -184,11 +184,24 @@ func (s *server) createNamespace(namespace string) error {
 }
 
 func (s *server) getDNSIP(namespace string) (string, error) {
-	pod, err := s.kubeClient.CoreV1().Pods(namespace).Get("sandbox-manager", metav1.GetOptions{})
+	var internalIP string
+	err := waitForObject(
+		podGetter(s.kubeClient, namespace, "sandbox-manager"),
+		s.kubeClient.CoreV1().Pods(namespace).Watch,
+		func(podIntf interface{}) bool {
+			pod := podIntf.(*corev1.Pod)
+
+			if pod.Status.PodIP != "" {
+				internalIP = pod.Status.PodIP
+				return true
+			}
+			return false
+		})
 	if err != nil {
-		return "", fmt.Errorf("get pod: %w", err)
+		return "", err
 	}
-	return pod.Status.PodIP, nil
+
+	return internalIP, nil
 }
 
 func (s *server) createSandboxManager(namespace string) (publicIP, certPEM string, err error) {

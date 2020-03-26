@@ -61,12 +61,6 @@ func New() *cobra.Command {
 					"Building images won't work, but all other features will.")
 			}
 
-			if err := cmd.createSandbox(); err != nil {
-				panic(err)
-			}
-			defer cmd.clusterManager.Close()
-			defer cmd.sandboxManager.Close()
-
 			if err := cmd.run(); err != nil {
 				util.HandleFatalError("Unexpected error", err)
 			}
@@ -79,18 +73,14 @@ type up struct {
 	composePath    string
 	dockerClient   *client.Client
 	imageNamespace string
+	sandboxAddr    string
+	sandboxCert    string
 
 	clusterManager managerClient
-	sandboxManager sandboxClient
 }
 
 type managerClient struct {
 	cluster.ManagerClient
-	*grpc.ClientConn
-}
-
-type sandboxClient struct {
-	sandbox.ControllerClient
 	*grpc.ClientConn
 }
 
@@ -107,6 +97,8 @@ func (cmd *up) createSandbox() error {
 		return err
 	}
 	cmd.imageNamespace = createSandboxResp.ImageNamespace
+	cmd.sandboxAddr = createSandboxResp.SandboxAddress
+	cmd.sandboxCert = createSandboxResp.SandboxCert
 
 	// Save the Kubernetes API credentials for use by other Blimp commands.
 	kubeCreds := createSandboxResp.GetKubeCredentials()
@@ -117,16 +109,17 @@ func (cmd *up) createSandbox() error {
 	if err := cmd.auth.Save(); err != nil {
 		return err
 	}
-
-	sandboxConn, err := util.Dial(createSandboxResp.SandboxAddress, createSandboxResp.SandboxCert)
-	if err != nil {
-		return err
-	}
-	cmd.sandboxManager = sandboxClient{sandbox.NewControllerClient(sandboxConn), sandboxConn}
 	return nil
 }
 
 func (cmd *up) run() error {
+	// Start creating the sandbox immediately so that the systems services
+	// start booting as soon as possible.
+	if err := cmd.createSandbox(); err != nil {
+		log.WithError(err).Fatal("Failed to create development sandbox")
+	}
+	defer cmd.clusterManager.Close()
+
 	rawCompose, err := ioutil.ReadFile(cmd.composePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -157,10 +150,17 @@ func (cmd *up) run() error {
 		return err
 	}
 
+	sandboxConn, err := util.Dial(cmd.sandboxAddr, cmd.sandboxCert)
+	if err != nil {
+		return err
+	}
+	defer sandboxConn.Close()
+
 	// Start the tunnels.
+	sandboxManager := sandbox.NewControllerClient(sandboxConn)
 	for name, svc := range parsedCompose.Services {
 		for _, mapping := range svc.PortMappings {
-			go startTunnel(cmd.sandboxManager, name, mapping)
+			go startTunnel(sandboxManager, name, mapping)
 		}
 	}
 	log.Info("Established Localhost Tunnels")
