@@ -21,7 +21,7 @@ const (
 	AuthHost     = "https://blimp-testing.auth0.com"
 	AuthURL      = AuthHost + "/authorize"
 	TokenURL     = AuthHost + "/oauth/token"
-	RedirectHost = "localhost:8085"
+	RedirectHost = "blimp-oauth.kelda.io:8005"
 	RedirectPath = "/oauth/redirect"
 )
 
