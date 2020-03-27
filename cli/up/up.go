@@ -138,17 +138,20 @@ func (cmd *up) run() error {
 		return err
 	}
 
-	parsedCompose, err := dockercompose.Parse(rawCompose)
-	if err != nil {
-		return err
-	}
-
 	// Start creating the sandbox immediately so that the systems services
 	// start booting as soon as possible.
+	// Also, we ship the Docker Compose file to the cluster as quickly as
+	// possible so that if the parsing fails, we will at least have the compose
+	// file for debugging later.
 	if err := cmd.createSandbox(string(rawCompose)); err != nil {
 		log.WithError(err).Fatal("Failed to create development sandbox")
 	}
 	defer cmd.clusterManager.Close()
+
+	parsedCompose, _, err := dockercompose.Parse(rawCompose)
+	if err != nil {
+		return err
+	}
 
 	// TODO: Does Docker rebuild images when files change?
 	builtImages, err := cmd.buildImages(parsedCompose)
@@ -160,7 +163,7 @@ func (cmd *up) run() error {
 	pp := util.NewProgressPrinter(os.Stderr, "Deploying Docker Compose file to sandbox..")
 	go pp.Run()
 
-	_, err = cmd.clusterManager.DeployToSandbox(context.Background(), &cluster.DeployRequest{
+	deployResp, err := cmd.clusterManager.DeployToSandbox(context.Background(), &cluster.DeployRequest{
 		Token:       cmd.auth.AuthToken,
 		ComposeFile: string(rawCompose),
 		BuiltImages: builtImages,
@@ -168,6 +171,16 @@ func (cmd *up) run() error {
 	pp.StopWithPrint(" Done\n")
 	if err != nil {
 		return err
+	}
+
+	if deployResp.StrictParseError != "" {
+		log.Warn("Docker Compose file failed strict parsing:\n\n" +
+			deployResp.StrictParseError + "\n\n" +
+			"This is usually a sign that you're using an unsupported Docker Compose features.\n" +
+			"To fix this error, please modify your Docker Compose file to " +
+			"use the features described here: <TODO>\n\n" +
+			"We're working on reaching full parity with Docker Compose, so let us know what features you'd like us to prioritize!")
+		log.Info("Blimp will continue to attempt to boot")
 	}
 
 	sandboxConn, err := util.Dial(cmd.sandboxAddr, cmd.sandboxCert)

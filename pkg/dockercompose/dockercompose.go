@@ -13,6 +13,7 @@ import (
 // project (https://github.com/docker/compose/tree/master/compose/config).
 
 type Config struct {
+	Version  string             `json:"version"`
 	Services map[string]Service `json:"services"`
 	Volumes  map[string]Volume  `json:"volumes"`
 }
@@ -198,9 +199,10 @@ func (build *Build) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func Parse(cfg []byte) (parsed Config, err error) {
+func Parse(cfg []byte) (parsed Config, strictErr, fatalErr error) {
+	strictErr = yaml.UnmarshalStrict(cfg, &parsed, yaml.DisallowUnknownFields)
 	if err := yaml.Unmarshal(cfg, &parsed); err != nil {
-		return Config{}, fmt.Errorf("parse: %w", err)
+		return Config{}, strictErr, fmt.Errorf("parse: %w", err)
 	}
 
 	for _, svc := range parsed.Services {
@@ -216,5 +218,5 @@ func Parse(cfg []byte) (parsed Config, err error) {
 			}
 		}
 	}
-	return parsed, nil
+	return parsed, strictErr, nil
 }

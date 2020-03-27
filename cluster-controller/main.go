@@ -112,7 +112,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, err
 	}
 
-	dcCfg, err := dockercompose.Parse([]byte(req.GetComposeFile()))
+	dcCfg, _, err := dockercompose.Parse([]byte(req.GetComposeFile()))
 	if err != nil {
 		return &cluster.CreateSandboxResponse{}, err
 	}
@@ -167,7 +167,7 @@ func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest
 		return &cluster.DeployResponse{}, err
 	}
 
-	dcCfg, err := dockercompose.Parse([]byte(req.GetComposeFile()))
+	dcCfg, strictParseErr, err := dockercompose.Parse([]byte(req.GetComposeFile()))
 	if err != nil {
 		// TODO: Error within response.
 		return &cluster.DeployResponse{}, err
@@ -194,7 +194,15 @@ func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest
 	if err := s.deployCustomerPods(namespace, customerPods); err != nil {
 		return &cluster.DeployResponse{}, fmt.Errorf("boot customer pods: %w", err)
 	}
-	return &cluster.DeployResponse{}, nil
+
+	var strictParseErrStr string
+	if strictParseErr != nil {
+		log.WithError(strictParseErr).
+			WithField("namespace", namespace).
+			Warn("Docker Compose file failed strict parsing")
+		strictParseErrStr = strictParseErr.Error()
+	}
+	return &cluster.DeployResponse{StrictParseError: strictParseErrStr}, nil
 }
 
 func (s *server) createNamespace(namespace string) error {

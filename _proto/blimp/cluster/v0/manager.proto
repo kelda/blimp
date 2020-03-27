@@ -37,6 +37,7 @@ message DeployRequest {
 }
 
 message DeployResponse {
+  string strict_parse_error = 1;
 }
 
 message KubeCredentials {

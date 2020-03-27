@@ -24,7 +24,11 @@ require (
 	github.com/docker/docker-credential-helpers v0.6.3 // indirect
 	github.com/docker/go-connections v0.3.0 // indirect
 	github.com/docker/go-units v0.3.1 // indirect
-	github.com/ghodss/yaml v1.0.0
+
+	// At the moment, the latest release doesn't contain the yaml.UnmarshalStrict
+	// and yaml.DisallowUnknownFields functions. This override vendors the latest
+	// commit on `master`.
+	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
 	github.com/golang/protobuf v1.3.3
 	github.com/googleapis/gnostic v0.4.0 // indirect
 	github.com/gorilla/mux v1.7.4 // indirect
