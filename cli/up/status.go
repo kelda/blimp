@@ -18,11 +18,13 @@ import (
 )
 
 type statusPrinter struct {
-	services   []string
-	tracker    map[string]*tracker
+	services []string
+	tracker  map[string]*tracker
+
 	currStatus map[string]*cluster.ServiceStatus
-	hasPrinted bool
 	sync.Mutex
+
+	prevLinesPrinted int
 }
 
 type tracker struct {
@@ -105,9 +107,11 @@ func (sp *statusPrinter) printStatus() bool {
 	sp.Unlock()
 
 	// Reset the cursor so that we'll write over the previous status update.
-	if sp.hasPrinted {
-		goterm.MoveCursorUp(len(sp.services))
+	// TODO: Doesn't properly work if the previous print spanned multiple lines.
+	for i := 0; i < sp.prevLinesPrinted; i++ {
+		goterm.MoveCursorUp(1)
 		goterm.Flush()
+		fmt.Printf(goterm.ResetLine(""))
 	}
 
 	allReady := true
@@ -124,10 +128,9 @@ func (sp *statusPrinter) printStatus() bool {
 			phaseStr = goterm.Color(tr.phase, goterm.GREEN)
 		}
 
-		line := fmt.Sprintf("%s\t%s", svc, phaseStr)
-		fmt.Fprintln(out, goterm.ResetLine(line))
+		fmt.Fprintf(out, "%s\t%s\n", svc, phaseStr)
 	}
 
-	sp.hasPrinted = true
+	sp.prevLinesPrinted = len(sp.services)
 	return allReady
 }
