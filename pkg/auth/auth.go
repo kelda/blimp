@@ -2,7 +2,7 @@ package auth
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 
@@ -68,9 +68,10 @@ func mustDecodeBase64(encoded string) string {
 	return string(decoded)
 }
 
-// dnsCompliantHash hashes the given string and encodes it into base16.
+// dnsCompliantHash hashes the given string, encodes it into base16, and
+// truncates it to 32 characters.
 func dnsCompliantHash(str string) string {
-	h := sha1.New()
+	h := sha256.New()
 	h.Write([]byte(str))
-	return fmt.Sprintf("%x", h.Sum(nil))
+	return fmt.Sprintf("%x", h.Sum(nil))[:32]
 }
