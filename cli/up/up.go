@@ -85,6 +85,10 @@ type managerClient struct {
 }
 
 func (cmd *up) createSandbox() error {
+	pp := util.NewProgressPrinter(os.Stderr, "Booting development sandbox..")
+	go pp.Run()
+	defer pp.StopWithPrint(" Done\n")
+
 	clusterConn, err := util.Dial(util.ManagerHost, auth.ClusterManagerCert)
 	if err != nil {
 		return err
@@ -141,11 +145,15 @@ func (cmd *up) run() error {
 	}
 
 	// Send the boot request to the cluster manager.
+	pp := util.NewProgressPrinter(os.Stderr, "Deploying Docker Compose file to sandbox..")
+	go pp.Run()
+
 	_, err = cmd.clusterManager.DeployToSandbox(context.Background(), &cluster.DeployRequest{
 		Token:       cmd.auth.AuthToken,
 		ComposeFile: string(rawCompose),
 		BuiltImages: builtImages,
 	})
+	pp.StopWithPrint(" Done\n")
 	if err != nil {
 		return err
 	}
@@ -163,7 +171,11 @@ func (cmd *up) run() error {
 			go startTunnel(sandboxManager, name, mapping)
 		}
 	}
-	log.Info("Established Localhost Tunnels")
+
+	statusPrinter := newStatusPrinter(parsedCompose)
+	if err := statusPrinter.Run(cmd.clusterManager, cmd.auth.AuthToken); err != nil {
+		log.WithError(err).Warn("Failed to show container status")
+	}
 
 	// Block until the user exits.
 	exitSig := make(chan os.Signal, 1)

@@ -14,6 +14,7 @@ replace (
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/Microsoft/go-winio v0.4.13-0.20190408173621-84b4ab48a507 // indirect
+	github.com/buger/goterm v0.0.0-20200322175922-2f3e71b85129
 	github.com/cesanta/docker_auth/auth_server v0.0.0-20200309093330-99bfe0217f59
 	github.com/containerd/containerd v1.3.0-0.20190507210959-7c1e88399ec0 // indirect
 	github.com/coreos/go-oidc v2.2.1+incompatible

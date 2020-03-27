@@ -760,8 +760,18 @@ func (s *server) getSandboxStatus(namespace string) (cluster.SandboxStatus, erro
 
 	services := map[string]*cluster.ServiceStatus{}
 	for _, pod := range pods.Items {
+		phase := string(pod.Status.Phase)
+		if len(pod.Status.ContainerStatuses) == 1 {
+			containerStatus := pod.Status.ContainerStatuses[0]
+			switch {
+			case containerStatus.State.Waiting != nil && containerStatus.State.Waiting.Message != "":
+				phase += ": " + containerStatus.State.Waiting.Message
+			case containerStatus.State.Terminated != nil && containerStatus.State.Terminated.Message != "":
+				phase += ": " + containerStatus.State.Waiting.Message
+			}
+		}
 		services[pod.Name] = &cluster.ServiceStatus{
-			Phase: string(pod.Status.Phase),
+			Phase: phase,
 		}
 	}
 	return cluster.SandboxStatus{Services: services}, nil
