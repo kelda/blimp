@@ -427,11 +427,15 @@ func (s *server) createCLICreds(namespace string) (cluster.KubeCredentials, erro
 			Name:      "blimp-client",
 		},
 		Rules: []rbacv1.PolicyRule{
-			// TODO: Limit access.
 			{
-				APIGroups: []string{"*"},
-				Resources: []string{"*"},
-				Verbs:     []string{"*"},
+				APIGroups: []string{""},
+				Resources: []string{"pods/log"},
+				Verbs:     []string{"get", "list"},
+			},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"pods/exec"},
+				Verbs:     []string{"create"},
 			},
 		},
 	}
