@@ -3,7 +3,6 @@ package up
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"sort"
 	"strings"
@@ -13,6 +12,8 @@ import (
 
 	"github.com/buger/goterm"
 	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 )
@@ -60,7 +61,7 @@ func (sp *statusPrinter) Run(clusterManager managerClient, authToken string) err
 		for {
 			msg, err := statusStream.Recv()
 			switch {
-			case err == io.EOF:
+			case status.Code(err) == codes.Canceled:
 				return
 			case err != nil:
 				log.WithError(err).Warn("Failed to get status update")
