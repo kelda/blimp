@@ -20,6 +20,8 @@ const Marker = ".kelda_syncthing"
 // aren't possible.
 const Port = 22022
 
+const APIPort = 8834
+
 // XXX:  It's really not good to be hardcoding these certs.  Ideally we would
 // use openssl to generate them, but then we would need to send the device id
 // (based on the public cert) to the other end of the connection.  Since all
@@ -43,6 +45,11 @@ Lao59xVD8GOgBwYFK4EEACKhZANiAAQG0VbGQGvTj1Qihd6JnRlRe/ERDSaog5yn
 rGQDF3ZOuIeJi9F0RrGggLGHORlhAV3yZf97FaAmOKK4+l+co/E7IoZaUftsg6qr
 8MZvkAZ/5Xhhb4W1Ls3rhN5a4Ef4CZE=
 -----END EC PRIVATE KEY-----`
+
+// TODO: Don't hardcode the API key.
+const APIKey = "api-key"
+
+const RemoteDeviceID = "ROHA7NN-4KWKQ3Q-CHJMZBK-6UD7Z6D-ZTWQR5C-TYLN6WG-Q2EQJAI-JU73EQN"
 
 func MapToArgs(m map[string]string) []string {
 	var args []string
@@ -134,12 +141,20 @@ func makeConfig(server bool, folders map[string]string) string {
 		address = fmt.Sprintf("tcp://127.0.0.1:%d", Port)
 	}
 
+	gui := `<gui enabled="false"></gui>`
+	if server {
+		gui = fmt.Sprintf(`<gui enabled="true">
+			<apikey>%s</apikey>
+			<address>0.0.0.0:%d</address>
+		</gui>`, APIKey, APIPort)
+	}
+
 	return fmt.Sprintf(`<configuration version="30">%s
-    <gui enabled="false"></gui>
+    %s
     <device id="K6QHA3P-VGHXBZE-2NILDY3-Y4E2EUU-7DCSOVF-DFVCQRM-P5BVGMB-LDLP6QA" compression="always">
         <address>%s</address>
     </device>
-    <device id="ROHA7NN-4KWKQ3Q-CHJMZBK-6UD7Z6D-ZTWQR5C-TYLN6WG-Q2EQJAI-JU73EQN" compression="always"/>
+    <device id="%s" compression="always"/>
     <options>
         <listenAddress>%s</listenAddress>
         <globalAnnounceEnabled>false</globalAnnounceEnabled>
@@ -159,7 +174,7 @@ func makeConfig(server bool, folders map[string]string) string {
         <crashReportingEnabled>false</crashReportingEnabled>
         <stunServer></stunServer>
     </options>
-</configuration>`, strings.Join(folderStrs, ""), address, listenAddress)
+</configuration>`, strings.Join(folderStrs, ""), gui, address, RemoteDeviceID, listenAddress)
 }
 
 func makeFolder(id, path string) string {

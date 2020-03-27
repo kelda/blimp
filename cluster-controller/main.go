@@ -471,6 +471,9 @@ func (s *server) createSyncthing(namespace string, cfg dockercompose.Config) err
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      "syncthing",
+			Labels: map[string]string{
+				"service": "syncthing",
+			},
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{{
@@ -484,7 +487,32 @@ func (s *server) createSyncthing(namespace string, cfg dockercompose.Config) err
 		},
 	}
 
-	return s.deployPod(pod)
+	service := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "syncthing",
+			Namespace: namespace,
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: pod.Labels,
+			Ports: []corev1.ServicePort{
+				{Port: syncthing.APIPort},
+			},
+		},
+	}
+
+	if err := s.deployPod(pod); err != nil {
+		return fmt.Errorf("deploy pod: %w", err)
+	}
+
+	servicesClient := s.kubeClient.CoreV1().Services(namespace)
+	if _, err := servicesClient.Get(service.Name, metav1.GetOptions{}); err != nil {
+		_, err := servicesClient.Create(service)
+		if err != nil {
+			return fmt.Errorf("create service: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (s *server) createCLICreds(namespace string) (cluster.KubeCredentials, error) {
@@ -924,7 +952,17 @@ func toPods(namespace, managerIP string, cfg dockercompose.Config, builtImages m
 		// volume into the pod's init container. The init container passes it
 		// to the sandbox controller, which blocks boot until the requirements
 		// are met.
-		waitSpec, err := proto.Marshal(&sandbox.WaitSpec{DependsOn: svc.DependsOn})
+
+		waitSpec := &sandbox.WaitSpec{DependsOn: svc.DependsOn}
+		for _, v := range svc.Volumes {
+			if v.Type != "bind" {
+				continue
+			}
+
+			waitSpec.SyncthingFolders = append(waitSpec.SyncthingFolders, v.Id(namespace))
+		}
+
+		waitSpecBytes, err := proto.Marshal(waitSpec)
 		if err != nil {
 			return nil, nil, fmt.Errorf("marshal wait spec: %w", err)
 		}
@@ -935,7 +973,7 @@ func toPods(namespace, managerIP string, cfg dockercompose.Config, builtImages m
 				Name:      fmt.Sprintf("wait-spec-%s", name),
 			},
 			BinaryData: map[string][]byte{
-				"wait-spec": waitSpec,
+				"wait-spec": waitSpecBytes,
 			},
 		}
 		configMaps = append(configMaps, waitSpecConfigMap)

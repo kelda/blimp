@@ -53,18 +53,18 @@ func runOnce(sandboxManagerHost string, waitSpec sandbox.WaitSpec) error {
 
 	// Poll the sandbox manager until we're allowed to boot.
 	for {
-		ready, err := client.CheckReady(context.TODO(), &sandbox.CheckReadyRequest{
+		isReady, err := client.CheckReady(context.TODO(), &sandbox.CheckReadyRequest{
 			WaitSpec: &waitSpec,
 		})
 		if err != nil {
 			return err
 		}
 
-		if ready.Ready {
+		if isReady.Ready {
 			return nil
 		}
 
-		log.Info("Not ready to boot yet... Will check again in one second")
+		log.WithField("reason", isReady.Reason).Info("Not ready to boot yet... Will check again in one second")
 		time.Sleep(1 * time.Second)
 	}
 }

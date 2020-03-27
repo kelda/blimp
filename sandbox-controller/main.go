@@ -15,6 +15,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
+	"github.com/kelda-inc/blimp/pkg/syncthing"
 	"github.com/kelda-inc/blimp/pkg/tunnel"
 	"github.com/kelda-inc/blimp/sandbox-controller/dns"
 	"github.com/kelda-inc/blimp/sandbox-controller/wait"
@@ -48,9 +49,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	syncthingClient := syncthing.APIClient{
+		APIKey:        syncthing.APIKey,
+		ServerAddress: fmt.Sprintf("syncthing:%d", syncthing.APIPort),
+	}
+
 	// TODO: Remove need for kubeClient and just query local Docker daemon.
 	go dns.Run(kubeClient, namespace)
-	go wait.Run(kubeClient, namespace)
+	go wait.Run(kubeClient, namespace, syncthingClient)
 
 	s := &server{kubeClient: kubeClient, namespace: namespace}
 	addr := fmt.Sprintf("0.0.0.0:%d", Port)

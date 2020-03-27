@@ -13,6 +13,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
+	"github.com/kelda-inc/blimp/pkg/syncthing"
 
 	// Install the gzip compressor.
 	_ "google.golang.org/grpc/encoding/gzip"
@@ -20,11 +21,13 @@ import (
 
 const Port = 9002
 
-func Run(kubeClient kubernetes.Interface, namespace string) {
+func Run(kubeClient kubernetes.Interface, namespace string, syncthingClient syncthing.APIClient) {
 	s := &server{
-		kubeClient: kubeClient,
-		namespace:  namespace,
+		kubeClient:      kubeClient,
+		namespace:       namespace,
+		syncthingClient: syncthingClient,
 	}
+
 	addr := fmt.Sprintf("0.0.0.0:%d", Port)
 	if err := s.listenAndServe(addr); err != nil {
 		log.WithError(err).Error("Unexpected error")
@@ -33,8 +36,9 @@ func Run(kubeClient kubernetes.Interface, namespace string) {
 }
 
 type server struct {
-	kubeClient kubernetes.Interface
-	namespace  string
+	kubeClient      kubernetes.Interface
+	namespace       string
+	syncthingClient syncthing.APIClient
 }
 
 func (s *server) listenAndServe(address string) error {
@@ -43,7 +47,7 @@ func (s *server) listenAndServe(address string) error {
 		return err
 	}
 
-	log.WithField("address", address).Info("Listening for connections..")
+	log.WithField("address", address).Info("Listening for connections to boot blocking manager")
 	grpcServer := grpc.NewServer()
 	sandbox.RegisterBootWaiterServer(grpcServer, s)
 	return grpcServer.Serve(lis)
@@ -55,13 +59,37 @@ func (s *server) CheckReady(ctx context.Context, req *sandbox.CheckReadyRequest)
 	for _, dep := range req.GetWaitSpec().GetDependsOn() {
 		isBooted, err := s.isBooted(dep)
 		if err != nil {
-			return &sandbox.CheckReadyResponse{Ready: false}, err
+			return &sandbox.CheckReadyResponse{
+				Ready:  false,
+				Reason: fmt.Sprintf("failed to get pod status: %s", err),
+			}, nil
 		}
 
 		if !isBooted {
-			return &sandbox.CheckReadyResponse{Ready: false}, nil
+			return &sandbox.CheckReadyResponse{
+				Ready:  false,
+				Reason: fmt.Sprintf("service %s is not running yet", dep),
+			}, nil
 		}
 	}
+
+	for _, folder := range req.GetWaitSpec().GetSyncthingFolders() {
+		completion, err := s.syncthingClient.GetCompletion(syncthing.RemoteDeviceID, folder)
+		if err != nil {
+			return &sandbox.CheckReadyResponse{
+				Ready:  false,
+				Reason: fmt.Sprintf("failed to get sync status: %s", err),
+			}, nil
+		}
+
+		if completion.Completion != 100 {
+			return &sandbox.CheckReadyResponse{
+				Ready:  false,
+				Reason: fmt.Sprintf("folder %s is %d%% synced", folder, completion.Completion),
+			}, nil
+		}
+	}
+
 	return &sandbox.CheckReadyResponse{Ready: true}, nil
 }
 
