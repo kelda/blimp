@@ -78,7 +78,7 @@ func (s *server) listenAndServe(address string) error {
 }
 
 func (s *server) Tunnel(nsrv sandbox.Controller_TunnelServer) error {
-	name, port, err := tunnel.ServerHeader(nsrv)
+	name, port, err := tunnel.ServerHeader(s.namespace, nsrv)
 	if err != nil {
 		return err
 	}

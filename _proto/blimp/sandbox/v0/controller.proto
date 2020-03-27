@@ -11,6 +11,7 @@ service Controller {
 message TunnelHeader{
     string name = 1;
     uint32 port = 2; // Unused for volume streams
+    string token = 3;
 }
 
 message EOF {}

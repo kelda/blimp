@@ -180,7 +180,7 @@ func (cmd *up) run() error {
 	sandboxManager := sandbox.NewControllerClient(sandboxConn)
 	for name, svc := range parsedCompose.Services {
 		for _, mapping := range svc.PortMappings {
-			go startTunnel(sandboxManager, name, mapping)
+			go startTunnel(sandboxManager, cmd.auth.AuthToken, name, mapping)
 		}
 	}
 
@@ -201,7 +201,7 @@ func (cmd *up) run() error {
 	}.Run()
 }
 
-func startTunnel(scc sandbox.ControllerClient, name string,
+func startTunnel(scc sandbox.ControllerClient, token, name string,
 	mapping dockercompose.PortMapping) {
 
 	addr := fmt.Sprintf("127.0.0.1:%d", mapping.HostPort)
@@ -218,7 +218,7 @@ func startTunnel(scc sandbox.ControllerClient, name string,
 		return
 	}
 
-	err = tunnel.Client(scc, ln, name, mapping.ContainerPort)
+	err = tunnel.Client(scc, ln, token, name, mapping.ContainerPort)
 	if err != nil {
 		// TODO.  Same question about Fatal.  Also if accept errors
 		// maybe wes hould have retried inside accept tunnels instead of
