@@ -7,6 +7,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"flag"
@@ -131,7 +132,16 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, fmt.Errorf("deploy customer manager: %w", err)
 	}
 
-	if err := s.createPodRunnerServiceAccount(namespace, req.GetToken()); err != nil {
+	creds := req.GetRegistryCredentials()
+	if creds == nil {
+		creds = map[string]*cluster.RegistryCredential{}
+	}
+
+	creds[RegistryHostname] = &cluster.RegistryCredential{
+		Username: "_blimp_access_token",
+		Password: req.GetToken(),
+	}
+	if err := s.createPodRunnerServiceAccount(namespace, creds); err != nil {
 		return &cluster.CreateSandboxResponse{}, fmt.Errorf("create pod runner service account: %w", err)
 	}
 
@@ -494,7 +504,28 @@ func (s *server) createCLICreds(namespace string) (cluster.KubeCredentials, erro
 	}, nil
 }
 
-func (s *server) createPodRunnerServiceAccount(namespace, idToken string) error {
+// toDockerAuthConfig converts the given registry credentials into the
+// dockerconfig format that's used by Kubernetes image pull secrets.
+func toDockerAuthConfig(creds map[string]*cluster.RegistryCredential) (string, error) {
+	type credential struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	auths := map[string]credential{}
+	for host, cred := range creds {
+		auths[host] = credential{cred.Username, cred.Password}
+	}
+
+	dockerConfig, err := json.Marshal(map[string]map[string]credential{"auths": auths})
+	return string(dockerConfig), err
+}
+
+func (s *server) createPodRunnerServiceAccount(namespace string, registryCredentials map[string]*cluster.RegistryCredential) error {
+	dockerAuthConfig, err := toDockerAuthConfig(registryCredentials)
+	if err != nil {
+		return fmt.Errorf("marshal docker auth config: %w", err)
+	}
+
 	secret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			// TODO: Variable, shared with toPods.
@@ -503,9 +534,7 @@ func (s *server) createPodRunnerServiceAccount(namespace, idToken string) error 
 		},
 		Type: corev1.SecretTypeDockerConfigJson,
 		StringData: map[string]string{
-			corev1.DockerConfigJsonKey: fmt.Sprintf(
-				`{"auths":{"https://%s":{"username":"ignored","password":%q}}}`,
-				RegistryHostname, idToken),
+			corev1.DockerConfigJsonKey: string(dockerAuthConfig),
 		},
 	}
 

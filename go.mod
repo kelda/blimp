@@ -19,7 +19,9 @@ require (
 	github.com/containerd/containerd v1.3.0-0.20190507210959-7c1e88399ec0 // indirect
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/docker/cli v0.0.0-20200320120634-22acbbcc4b3f
 	github.com/docker/docker v1.14.0-0.20190319215453-e7b5f7dbe98c
+	github.com/docker/docker-credential-helpers v0.6.3 // indirect
 	github.com/docker/go-connections v0.3.0 // indirect
 	github.com/docker/go-units v0.3.1 // indirect
 	github.com/ghodss/yaml v1.0.0
@@ -32,6 +34,7 @@ require (
 	github.com/morikuni/aec v0.0.0-20170113033406-39771216ff4c // indirect
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
+	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/pkg/errors v0.8.1 // indirect
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
 	github.com/sirupsen/logrus v1.4.2

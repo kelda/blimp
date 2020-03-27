@@ -15,6 +15,12 @@ service Manager {
 message CreateSandboxRequest {
   string token = 1;
   string composeFile = 2;
+  map<string, RegistryCredential> registryCredentials = 3;
+}
+
+message RegistryCredential {
+  string username = 1;
+  string password = 2;
 }
 
 message CreateSandboxResponse {

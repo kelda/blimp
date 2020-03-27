@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/docker/cli/cli/config"
+	clitypes "github.com/docker/cli/cli/config/types"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
@@ -96,10 +98,16 @@ func (cmd *up) createSandbox(rawCompose string) error {
 	}
 	cmd.clusterManager = managerClient{cluster.NewManagerClient(clusterConn), clusterConn}
 
+	registryCredentials, err := getLocalRegistryCredentials()
+	if err != nil {
+		return fmt.Errorf("get local registry credentials: %w", err)
+	}
+
 	createSandboxResp, err := cmd.clusterManager.CreateSandbox(context.TODO(),
 		&cluster.CreateSandboxRequest{
-			Token:       cmd.auth.AuthToken,
-			ComposeFile: rawCompose,
+			Token:               cmd.auth.AuthToken,
+			ComposeFile:         rawCompose,
+			RegistryCredentials: registryCredentials,
 		})
 	if err != nil {
 		return err
@@ -368,4 +376,36 @@ func makeRegistryAuthHeader(idToken string) (string, error) {
 	}
 
 	return base64.URLEncoding.EncodeToString(authJSON), nil
+}
+
+// getLocalRegistryCredentials reads the user's registry credentials from their
+// local machine.
+func getLocalRegistryCredentials() (map[string]*cluster.RegistryCredential, error) {
+	cfg, err := config.Load(config.Dir())
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the insecure credentials that were saved directly to
+	// the auths section of ~/.docker/config.json.
+	creds := map[string]*cluster.RegistryCredential{}
+	addCredentials := func(authConfigs map[string]clitypes.AuthConfig) {
+		for host, cred := range authConfigs {
+			creds[host] = &cluster.RegistryCredential{
+				Username: cred.Username,
+				Password: cred.Password,
+			}
+		}
+	}
+	addCredentials(cfg.GetAuthConfigs())
+
+	// Get the secure credentials that are set via credHelpers and credsStore.
+	// These credentials take preference over any insecure credentials.
+	credHelpers, err := cfg.GetAllCredentials()
+	if err != nil {
+		return nil, err
+	}
+	addCredentials(credHelpers)
+
+	return creds, nil
 }
