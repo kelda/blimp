@@ -85,7 +85,7 @@ type managerClient struct {
 	*grpc.ClientConn
 }
 
-func (cmd *up) createSandbox() error {
+func (cmd *up) createSandbox(rawCompose string) error {
 	pp := util.NewProgressPrinter(os.Stderr, "Booting cloud sandbox..")
 	go pp.Run()
 	defer pp.StopWithPrint(" Done\n")
@@ -97,7 +97,10 @@ func (cmd *up) createSandbox() error {
 	cmd.clusterManager = managerClient{cluster.NewManagerClient(clusterConn), clusterConn}
 
 	createSandboxResp, err := cmd.clusterManager.CreateSandbox(context.TODO(),
-		&cluster.CreateSandboxRequest{Token: cmd.auth.AuthToken})
+		&cluster.CreateSandboxRequest{
+			Token:       cmd.auth.AuthToken,
+			ComposeFile: rawCompose,
+		})
 	if err != nil {
 		return err
 	}
@@ -118,13 +121,6 @@ func (cmd *up) createSandbox() error {
 }
 
 func (cmd *up) run() error {
-	// Start creating the sandbox immediately so that the systems services
-	// start booting as soon as possible.
-	if err := cmd.createSandbox(); err != nil {
-		log.WithError(err).Fatal("Failed to create development sandbox")
-	}
-	defer cmd.clusterManager.Close()
-
 	rawCompose, err := ioutil.ReadFile(cmd.composePath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -138,6 +134,13 @@ func (cmd *up) run() error {
 	if err != nil {
 		return err
 	}
+
+	// Start creating the sandbox immediately so that the systems services
+	// start booting as soon as possible.
+	if err := cmd.createSandbox(string(rawCompose)); err != nil {
+		log.WithError(err).Fatal("Failed to create development sandbox")
+	}
+	defer cmd.clusterManager.Close()
 
 	// TODO: Does Docker rebuild images when files change?
 	builtImages, err := cmd.buildImages(parsedCompose)

@@ -14,6 +14,7 @@ service Manager {
 
 message CreateSandboxRequest {
   string token = 1;
+  string composeFile = 2;
 }
 
 message CreateSandboxResponse {

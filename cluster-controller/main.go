@@ -109,6 +109,14 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, err
 	}
 
+	dcCfg, err := dockercompose.Parse([]byte(req.GetComposeFile()))
+	if err != nil {
+		return &cluster.CreateSandboxResponse{}, err
+	}
+
+	// TODO: Ignore unused variable error. Ethan should remove once he actually uses value.
+	_ = dcCfg
+
 	namespace := user.Namespace
 	if err := s.createNamespace(namespace); err != nil {
 		return &cluster.CreateSandboxResponse{}, fmt.Errorf("create namespace: %w", err)
