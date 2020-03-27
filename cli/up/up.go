@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -213,7 +214,7 @@ func (cmd *up) buildImages(composeFile dockercompose.Config) (map[string]string,
 			continue
 		}
 
-		imageName, err := cmd.buildImage(*svc.Build, fmt.Sprintf("%s/%s", cmd.imageNamespace, svcName))
+		imageName, err := cmd.buildImage(*svc.Build, svcName)
 		if err != nil {
 			return nil, fmt.Errorf("build %s: %w", svcName, err)
 		}
@@ -223,8 +224,7 @@ func (cmd *up) buildImages(composeFile dockercompose.Config) (map[string]string,
 	return images, nil
 }
 
-// TODO: Generate `tag` in this function so that we can make sure it's unique.
-func (cmd *up) buildImage(spec dockercompose.Build, tag string) (string, error) {
+func (cmd *up) buildImage(spec dockercompose.Build, svc string) (string, error) {
 	opts := types.ImageBuildOptions{
 		Dockerfile: spec.Dockerfile,
 	}
@@ -264,11 +264,12 @@ func (cmd *up) buildImage(spec dockercompose.Build, tag string) (string, error) 
 		return "", fmt.Errorf("build image: %w", err)
 	}
 
-	if err := cmd.dockerClient.ImageTag(context.TODO(), imageID, tag); err != nil {
+	name := fmt.Sprintf("%s/%s:%s", cmd.imageNamespace, svc, strings.TrimPrefix(imageID, "sha256:"))
+	if err := cmd.dockerClient.ImageTag(context.TODO(), imageID, name); err != nil {
 		return "", fmt.Errorf("tag image: %w", err)
 	}
 
-	pp := util.NewProgressPrinter(os.Stderr, "Pushing image..")
+	pp := util.NewProgressPrinter(os.Stderr, fmt.Sprintf("Pushing image for %s..", svc))
 	go pp.Run()
 	defer pp.StopWithPrint(" Done\n")
 
@@ -277,7 +278,7 @@ func (cmd *up) buildImage(spec dockercompose.Build, tag string) (string, error) 
 		return "", fmt.Errorf("make registry auth header: %w", err)
 	}
 
-	pushResp, err := cmd.dockerClient.ImagePush(context.TODO(), tag, types.ImagePushOptions{
+	pushResp, err := cmd.dockerClient.ImagePush(context.TODO(), name, types.ImagePushOptions{
 		RegistryAuth: registryAuth,
 	})
 	if err != nil {
@@ -289,7 +290,7 @@ func (cmd *up) buildImage(spec dockercompose.Build, tag string) (string, error) 
 	if err != nil {
 		return "", fmt.Errorf("push image: %w", err)
 	}
-	return tag, nil
+	return name, nil
 }
 
 func makeTar(dir string) (io.Reader, error) {

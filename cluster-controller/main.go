@@ -118,7 +118,6 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, fmt.Errorf("deploy syncthing: %w", err)
 	}
 
-	// TODO: Block until sandbox manager boots.
 	sandboxManagerIP, sandboxCert, err := s.createSandboxManager(namespace)
 	if err != nil {
 		return &cluster.CreateSandboxResponse{}, fmt.Errorf("deploy customer manager: %w", err)
@@ -647,7 +646,6 @@ func (s *server) deployPod(pod corev1.Pod) error {
 	if err == nil {
 		// If the currently deployed pod is already up to date, we don't have
 		// to do anything.
-		// TODO: What if image changes.. the name currently doesn't change so new image won't get redeployed.
 		if curr.Annotations["blimp.appliedObject"] == pod.Annotations["blimp.appliedObject"] {
 			return nil
 		}
