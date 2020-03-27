@@ -86,7 +86,7 @@ type managerClient struct {
 }
 
 func (cmd *up) createSandbox() error {
-	pp := util.NewProgressPrinter(os.Stderr, "Booting development sandbox..")
+	pp := util.NewProgressPrinter(os.Stderr, "Booting cloud sandbox..")
 	go pp.Run()
 	defer pp.StopWithPrint(" Done\n")
 
