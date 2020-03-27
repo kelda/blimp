@@ -17,6 +17,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -34,6 +35,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/auth"
 	"github.com/kelda-inc/blimp/pkg/dockercompose"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
+	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
 	"github.com/kelda-inc/blimp/pkg/version"
 
 	// Install the gzip compressor.
@@ -172,12 +174,23 @@ func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest
 	}
 
 	namespace := user.Namespace
-	dnsIP, err := s.getDNSIP(namespace)
+	sandboxControllerIP, err := s.getSandboxControllerIP(namespace)
 	if err != nil {
-		return &cluster.DeployResponse{}, fmt.Errorf("get dns server's IP: %w", err)
+		return &cluster.DeployResponse{}, fmt.Errorf("get sandbox controller's internal IP: %w", err)
 	}
 
-	customerPods := toPods(namespace, dnsIP, dcCfg, req.BuiltImages)
+	customerPods, configMaps, err := toPods(namespace, sandboxControllerIP, dcCfg, req.BuiltImages)
+	if err != nil {
+		return &cluster.DeployResponse{}, fmt.Errorf("make pod specs: %w", err)
+	}
+
+	// TODO: Garbage collect config maps.
+	for _, configMap := range configMaps {
+		if err := s.updateConfigMap(configMap); err != nil {
+			return &cluster.DeployResponse{}, fmt.Errorf("create configmap: %w", err)
+		}
+	}
+
 	if err := s.deployCustomerPods(namespace, customerPods); err != nil {
 		return &cluster.DeployResponse{}, fmt.Errorf("boot customer pods: %w", err)
 	}
@@ -199,7 +212,7 @@ func (s *server) createNamespace(namespace string) error {
 	return err
 }
 
-func (s *server) getDNSIP(namespace string) (string, error) {
+func (s *server) getSandboxControllerIP(namespace string) (string, error) {
 	var internalIP string
 	err := waitForObject(
 		podGetter(s.kubeClient, namespace, "sandbox-manager"),
@@ -520,6 +533,22 @@ func toDockerAuthConfig(creds map[string]*cluster.RegistryCredential) (string, e
 	return string(dockerConfig), err
 }
 
+func (s *server) updateConfigMap(configMap corev1.ConfigMap) error {
+	configMapClient := s.kubeClient.CoreV1().ConfigMaps(configMap.Namespace)
+	currConfigMap, err := configMapClient.Get(configMap.Name, metav1.GetOptions{})
+	if err == nil {
+		configMap.ResourceVersion = currConfigMap.ResourceVersion
+		if _, err := configMapClient.Update(&configMap); err != nil {
+			return fmt.Errorf("update configMap: %w", err)
+		}
+	} else {
+		if _, err := configMapClient.Create(&configMap); err != nil {
+			return fmt.Errorf("create configMap: %w", err)
+		}
+	}
+	return nil
+}
+
 func (s *server) createPodRunnerServiceAccount(namespace string, registryCredentials map[string]*cluster.RegistryCredential) error {
 	dockerAuthConfig, err := toDockerAuthConfig(registryCredentials)
 	if err != nil {
@@ -819,16 +848,46 @@ func (s *server) getSandboxStatus(namespace string) (cluster.SandboxStatus, erro
 	return cluster.SandboxStatus{Services: services}, nil
 }
 
-func toPods(namespace, dnsServer string, cfg dockercompose.Config, builtImages map[string]string) (pods []corev1.Pod) {
+func toPods(namespace, managerIP string, cfg dockercompose.Config, builtImages map[string]string) (pods []corev1.Pod, configMaps []corev1.ConfigMap, err error) {
 	for name, svc := range cfg.Services {
-		image := svc.Image
-		if svc.Build != nil {
-			image = builtImages[name]
-			// TODO: Error if image DNE.
+		// Each pod has a corresponding ConfigMap containing the dependencies
+		// it requires before it should boot. This ConfigMap is mounted as a
+		// volume into the pod's init container. The init container passes it
+		// to the sandbox controller, which blocks boot until the requirements
+		// are met.
+		waitSpec, err := proto.Marshal(&sandbox.WaitSpec{DependsOn: svc.DependsOn})
+		if err != nil {
+			return nil, nil, fmt.Errorf("marshal wait spec: %w", err)
+		}
+
+		waitSpecConfigMap := corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      fmt.Sprintf("wait-spec-%s", name),
+			},
+			BinaryData: map[string][]byte{
+				"wait-spec": waitSpec,
+			},
+		}
+		configMaps = append(configMaps, waitSpecConfigMap)
+
+		volumes := []corev1.Volume{
+			{
+				Name: "wait-spec",
+				VolumeSource: corev1.VolumeSource{
+					ConfigMap: &corev1.ConfigMapVolumeSource{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: waitSpecConfigMap.Name,
+						},
+						Items: []corev1.KeyToPath{
+							{Key: "wait-spec", Path: "wait-spec"},
+						},
+					},
+				},
+			},
 		}
 
 		// Volumes are backed by a directory on the node's filesystem.
-		var volumes []corev1.Volume
 		var volumeMounts []corev1.VolumeMount
 		for _, desired := range svc.Volumes {
 			if desired.Type != "volume" {
@@ -863,6 +922,12 @@ func toPods(namespace, dnsServer string, cfg dockercompose.Config, builtImages m
 			})
 		}
 
+		image := svc.Image
+		if svc.Build != nil {
+			image = builtImages[name]
+			// TODO: Error if image DNE.
+		}
+
 		// TODO: Resources
 		pod := corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
@@ -877,9 +942,20 @@ func toPods(namespace, dnsServer string, cfg dockercompose.Config, builtImages m
 			Spec: corev1.PodSpec{
 				InitContainers: []corev1.Container{
 					{
-						Name:  "depends-on-waiter",
-						Image: version.DependsOnImage,
-						Args:  svc.DependsOn,
+						Name:  "boot-waiter",
+						Image: version.BootWaiterImage,
+						Env: []corev1.EnvVar{
+							{
+								Name:  "SANDBOX_MANAGER_HOST",
+								Value: managerIP,
+							},
+						},
+						VolumeMounts: []corev1.VolumeMount{
+							{
+								Name:      "wait-spec",
+								MountPath: "/etc/blimp",
+							},
+						},
 					},
 				},
 				Containers: []corev1.Container{
@@ -894,7 +970,7 @@ func toPods(namespace, dnsServer string, cfg dockercompose.Config, builtImages m
 				},
 				DNSPolicy: corev1.DNSNone,
 				DNSConfig: &corev1.PodDNSConfig{
-					Nameservers: []string{dnsServer},
+					Nameservers: []string{managerIP},
 					// TODO: There's Searches and Options, look into how to replicate these.
 				},
 				ImagePullSecrets: []corev1.LocalObjectReference{
@@ -921,7 +997,7 @@ func toPods(namespace, dnsServer string, cfg dockercompose.Config, builtImages m
 		pods = append(pods, pod)
 	}
 
-	return pods
+	return pods, configMaps, nil
 }
 
 func waitForObject(

@@ -17,6 +17,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
 	"github.com/kelda-inc/blimp/pkg/tunnel"
 	"github.com/kelda-inc/blimp/sandbox-controller/dns"
+	"github.com/kelda-inc/blimp/sandbox-controller/wait"
 
 	// Install the gzip compressor.
 	_ "google.golang.org/grpc/encoding/gzip"
@@ -49,6 +50,7 @@ func main() {
 
 	// TODO: Remove need for kubeClient and just query local Docker daemon.
 	go dns.Run(kubeClient, namespace)
+	go wait.Run(kubeClient, namespace)
 
 	s := &server{kubeClient: kubeClient, namespace: namespace}
 	addr := fmt.Sprintf("0.0.0.0:%d", Port)

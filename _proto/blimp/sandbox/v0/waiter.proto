@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package blimp.sandbox.v0;
+
+option go_package = "github.com/kelda-inc/blimp/pkg/proto/sandbox";
+
+service BootWaiter {
+  rpc CheckReady(CheckReadyRequest) returns (CheckReadyResponse) {}
+}
+
+message CheckReadyRequest {
+    WaitSpec wait_spec = 1;
+}
+
+message WaitSpec {
+	repeated string depends_on = 1;
+}
+
+message CheckReadyResponse {
+    bool ready = 1;
+}

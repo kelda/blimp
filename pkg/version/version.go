@@ -3,6 +3,6 @@ package version
 var (
 	Version                = ""
 	SandboxControllerImage = ""
-	DependsOnImage         = ""
+	BootWaiterImage        = ""
 	SyncthingImage         = ""
 )

@@ -7,7 +7,7 @@ MANAGER_KEY_PATH = "./certs/cluster-manager.key.pem"
 MANAGER_CERT_PATH = "./certs/cluster-manager.crt.pem"
 LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
 	   -X github.com/kelda-inc/blimp/pkg/version.SandboxControllerImage=${SANDBOX_CONTROLLER_IMAGE} \
-	   -X github.com/kelda-inc/blimp/pkg/version.DependsOnImage=${DEPENDS_ON_IMAGE} \
+	   -X github.com/kelda-inc/blimp/pkg/version.BootWaiterImage=${BOOT_WAITER_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/version.SyncthingImage=${SYNCTHING_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/auth.ClusterManagerCertBase64=$(shell base64 ${MANAGER_CERT_PATH}) \
 	   -X main.RegistryHostname=${REGISTRY_HOSTNAME}"
@@ -17,10 +17,11 @@ include $(wildcard *.mk)
 
 # Default target for local development.  Just builds binaries
 install: certs
-	CGO_ENABLED=0 go install -ldflags $(LD_FLAGS) ./cli ./cluster-controller ./sandbox-controller ./registry
+	CGO_ENABLED=0 go install -ldflags $(LD_FLAGS) ./cli ./cluster-controller ./sandbox-controller ./registry ./boot-waiter
 
 generate:
 	protoc -I _proto _proto/blimp/sandbox/v0/controller.proto --go_out=plugins=grpc:$$GOPATH/src
+	protoc -I _proto _proto/blimp/sandbox/v0/waiter.proto --go_out=plugins=grpc:$$GOPATH/src
 	protoc -I _proto _proto/blimp/cluster/v0/manager.proto --go_out=plugins=grpc:$$GOPATH/src
 	protoc _proto/blimp/errors/v0/errors.proto --go_out=plugins=grpc:$$GOPATH/src
 
@@ -49,7 +50,7 @@ build-circle-image:
 
 SANDBOX_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-sandbox-controller:${VERSION}
 CLUSTER_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-cluster-controller:${VERSION}
-DEPENDS_ON_IMAGE = ${DOCKER_REPO}/blimp-depends-on-waiter:${VERSION}
+BOOT_WAITER_IMAGE = ${DOCKER_REPO}/blimp-boot-waiter:${VERSION}
 SYNCTHING_IMAGE = ${DOCKER_REPO}/blimp-syncthing:${VERSION}
 DOCKER_AUTH_IMAGE = ${DOCKER_REPO}/blimp-docker-auth:${VERSION}
 
@@ -58,14 +59,14 @@ build-docker:
 	docker build -t ${CLUSTER_CONTROLLER_IMAGE} -f ./cluster-controller/Dockerfile .
 	docker build -t ${SANDBOX_CONTROLLER_IMAGE} -f ./sandbox-controller/Dockerfile .
 	docker build -t ${SYNCTHING_IMAGE} -f ./syncthing/Dockerfile ./syncthing
-	docker build -t ${DEPENDS_ON_IMAGE} -f ./depends-on-waiter/Dockerfile ./depends-on-waiter
+	docker build -t ${BOOT_WAITER_IMAGE} -f ./boot-waiter/Dockerfile ./boot-waiter
 	docker build -t ${DOCKER_AUTH_IMAGE} -f ./registry/Dockerfile .
 
 push-docker: build-docker
 	docker push ${SANDBOX_CONTROLLER_IMAGE}
 	docker push ${CLUSTER_CONTROLLER_IMAGE}
 	docker push ${SYNCTHING_IMAGE}
-	docker push ${DEPENDS_ON_IMAGE}
+	docker push ${BOOT_WAITER_IMAGE}
 	docker push ${DOCKER_AUTH_IMAGE}
 
 deploy-registry: push-docker
