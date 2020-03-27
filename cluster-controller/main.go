@@ -602,6 +602,7 @@ func (s *server) deployCustomerPods(namespace string, desired []corev1.Pod) erro
 		return fmt.Errorf("list: %w", err)
 	}
 
+	// TODO: Parallelize
 	desiredNames := map[string]struct{}{}
 	for _, pod := range desired {
 		if err := s.deployPod(pod); err != nil {
