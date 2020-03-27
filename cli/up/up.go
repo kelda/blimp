@@ -12,7 +12,6 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
 
@@ -23,8 +22,10 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh/terminal"
 	"google.golang.org/grpc"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/kelda-inc/blimp/cli/authstore"
+	"github.com/kelda-inc/blimp/cli/logs"
 	"github.com/kelda-inc/blimp/cli/util"
 	"github.com/kelda-inc/blimp/pkg/auth"
 	"github.com/kelda-inc/blimp/pkg/dockercompose"
@@ -172,16 +173,21 @@ func (cmd *up) run() error {
 		}
 	}
 
-	statusPrinter := newStatusPrinter(parsedCompose)
+	var services []string
+	for name := range parsedCompose.Services {
+		services = append(services, name)
+	}
+
+	statusPrinter := newStatusPrinter(services)
 	if err := statusPrinter.Run(cmd.clusterManager, cmd.auth.AuthToken); err != nil {
 		log.WithError(err).Warn("Failed to show container status")
 	}
 
-	// Block until the user exits.
-	exitSig := make(chan os.Signal, 1)
-	signal.Notify(exitSig, os.Interrupt)
-	<-exitSig
-	return nil
+	return logs.LogsCommand{
+		Containers: services,
+		Opts:       corev1.PodLogOptions{Follow: true},
+		Auth:       cmd.auth,
+	}.Run()
 }
 
 func startTunnel(scc sandbox.ControllerClient, name string,

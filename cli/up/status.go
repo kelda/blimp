@@ -14,7 +14,6 @@ import (
 	"github.com/buger/goterm"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/kelda-inc/blimp/pkg/dockercompose"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 )
 
@@ -31,13 +30,14 @@ type tracker struct {
 	timer int
 }
 
-func newStatusPrinter(dc dockercompose.Config) *statusPrinter {
-	sp := &statusPrinter{tracker: map[string]*tracker{}}
-	for svc := range dc.Services {
-		sp.services = append(sp.services, svc)
+func newStatusPrinter(services []string) *statusPrinter {
+	sp := &statusPrinter{tracker: map[string]*tracker{}, services: services}
+	sort.Strings(sp.services)
+
+	for _, svc := range services {
+		// TODO: This must match the initial state sent by the cluster.
 		sp.tracker[svc] = &tracker{phase: "Pending"}
 	}
-	sort.Strings(sp.services)
 
 	return sp
 }

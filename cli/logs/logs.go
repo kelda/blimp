@@ -20,16 +20,14 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
 
 	"github.com/kelda-inc/blimp/cli/authstore"
 )
 
-type logsCommand struct {
-	kubeClient kubernetes.Interface
-	containers []string
-	opts       corev1.PodLogOptions
-	auth       authstore.Store
+type LogsCommand struct {
+	Containers []string
+	Opts       corev1.PodLogOptions
+	Auth       authstore.Store
 }
 
 type rawLogLine struct {
@@ -60,7 +58,7 @@ type parsedLogLine struct {
 }
 
 func New() *cobra.Command {
-	cmd := &logsCommand{}
+	cmd := &LogsCommand{}
 
 	cobraCmd := &cobra.Command{
 		Use: "logs",
@@ -75,34 +73,33 @@ func New() *cobra.Command {
 				return
 			}
 
-			kubeClient, _, err := auth.KubeClient()
-			if err != nil {
-				log.WithError(err).Fatal("Failed to connect to cluster")
-			}
-
 			if len(args) == 0 {
 				fmt.Fprintf(os.Stderr, "At least one container is required")
 				os.Exit(1)
 			}
 
-			cmd.auth = auth
-			cmd.containers = args
-			cmd.kubeClient = kubeClient
-			if err := cmd.run(); err != nil {
+			cmd.Auth = auth
+			cmd.Containers = args
+			if err := cmd.Run(); err != nil {
 				log.Fatal(err)
 			}
 		},
 	}
 
-	cobraCmd.Flags().BoolVarP(&cmd.opts.Follow, "follow", "f", false,
+	cobraCmd.Flags().BoolVarP(&cmd.Opts.Follow, "follow", "f", false,
 		"Specify if the logs should be streamed.")
-	cobraCmd.Flags().BoolVarP(&cmd.opts.Previous, "previous", "p", false,
+	cobraCmd.Flags().BoolVarP(&cmd.Opts.Previous, "previous", "p", false,
 		"If true, print the logs for the previous instance of the container if it crashed.")
 
 	return cobraCmd
 }
 
-func (cmd logsCommand) run() error {
+func (cmd LogsCommand) Run() error {
+	kubeClient, _, err := cmd.Auth.KubeClient()
+	if err != nil {
+		return fmt.Errorf("connect to cluster: %w", err)
+	}
+
 	// Exit gracefully when the user Ctrl-C's.
 	// The `printLogs` function will return when the context is cancelled,
 	// which allows functions defered in this method to run.
@@ -115,13 +112,13 @@ func (cmd logsCommand) run() error {
 	}()
 
 	var wg sync.WaitGroup
-	combinedLogs := make(chan rawLogLine, len(cmd.containers)*32)
-	for _, container := range cmd.containers {
+	combinedLogs := make(chan rawLogLine, len(cmd.Containers)*32)
+	for _, container := range cmd.Containers {
 		// Enable timestamps so that `forwardLogs` can parse the logs.
-		cmd.opts.Timestamps = true
-		logsReq := cmd.kubeClient.CoreV1().
-			Pods(cmd.auth.KubeNamespace).
-			GetLogs(container, &cmd.opts)
+		cmd.Opts.Timestamps = true
+		logsReq := kubeClient.CoreV1().
+			Pods(cmd.Auth.KubeNamespace).
+			GetLogs(container, &cmd.Opts)
 
 		logsStream, err := logsReq.Stream()
 		if err != nil {
@@ -143,7 +140,7 @@ func (cmd logsCommand) run() error {
 		close(combinedLogs)
 	}()
 
-	noColor := len(cmd.containers) == 1
+	noColor := len(cmd.Containers) == 1
 	return printLogs(ctx, combinedLogs, noColor)
 }
 
