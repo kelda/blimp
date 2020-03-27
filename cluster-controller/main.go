@@ -498,7 +498,7 @@ func (s *server) createPodRunnerServiceAccount(namespace, idToken string) error 
 	secret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			// TODO: Variable, shared with toPods.
-			Name:      "build-registry-auth",
+			Name:      "registry-auth",
 			Namespace: namespace,
 		},
 		Type: corev1.SecretTypeDockerConfigJson,
@@ -869,7 +869,7 @@ func toPods(namespace, dnsServer string, cfg dockercompose.Config, builtImages m
 					// TODO: There's Searches and Options, look into how to replicate these.
 				},
 				ImagePullSecrets: []corev1.LocalObjectReference{
-					{Name: "build-registry-auth"},
+					{Name: "registry-auth"},
 				},
 				Volumes:            volumes,
 				ServiceAccountName: "pod-runner",
