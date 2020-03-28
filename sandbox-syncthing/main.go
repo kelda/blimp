@@ -23,7 +23,7 @@ func main() {
 		panic(err)
 	}
 
-	cmd := exec.Command("/bin/syncthing", "-home", "/var/syncthing/config")
+	cmd := exec.Command("/bin/syncthing", "-verbose", "-home", "/var/syncthing/config")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {

@@ -126,7 +126,7 @@ func Run(folders map[string]string) error {
 		return fmt.Errorf("open logfile error: %w", err)
 	}
 
-	cmd := exec.Command(stbinPath, "-home", cfgdir.Expand(""))
+	cmd := exec.Command(stbinPath, "-verbose", "-home", cfgdir.Expand(""))
 	cmd.Stdout = f
 	return cmd.Run()
 }
