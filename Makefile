@@ -62,7 +62,7 @@ certs:
 build-cli-linux: syncthing-linux
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LD_FLAGS) -o blimp-linux ./cli
 	cp syncthing-linux ./pkg/syncthing/stbin
-	rice append -i ./pkg/syncthing --exec blimp-osx
+	rice append -i ./pkg/syncthing --exec blimp-linux
 	rm ./pkg/syncthing/stbin
 
 build-cli-osx: syncthing-macos
