@@ -32,6 +32,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/kelda-inc/blimp/pkg/analytics"
 	"github.com/kelda-inc/blimp/pkg/auth"
 	"github.com/kelda-inc/blimp/pkg/dockercompose"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
@@ -106,11 +107,15 @@ func (s *server) listenAndServe(address string) error {
 }
 
 func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRequest) (*cluster.CreateSandboxResponse, error) {
+	log.Info("CreateSandbox called")
+
 	// Validate that the user logged in, and get their information.
 	user, err := auth.ParseIDToken(req.GetToken())
 	if err != nil {
 		return &cluster.CreateSandboxResponse{}, err
 	}
+
+	analytics.Log.WithField("namespace", user.Namespace).WithField("composeFile", req.GetComposeFile()).Info("Booted Blimp")
 
 	dcCfg, _, err := dockercompose.Parse([]byte(req.GetComposeFile()))
 	if err != nil {
