@@ -18,7 +18,8 @@ import (
 
 func New() *cobra.Command {
 	return &cobra.Command{
-		Use: "ps",
+		Use:   "ps",
+		Short: "Print the status of services in the cloud sandbox",
 		Run: func(_ *cobra.Command, args []string) {
 			auth, err := authstore.New()
 			if err != nil {

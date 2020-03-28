@@ -16,7 +16,11 @@ import (
 
 func New() *cobra.Command {
 	return &cobra.Command{
-		Use: "down",
+		Use:   "down",
+		Short: "Delete your cloud sandbox",
+		Long: `Delete your cloud sandbox.
+
+All containers and volumes are removed.`,
 		Run: func(_ *cobra.Command, args []string) {
 			auth, err := authstore.New()
 			if err != nil {

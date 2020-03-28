@@ -61,7 +61,10 @@ func New() *cobra.Command {
 	cmd := &LogsCommand{}
 
 	cobraCmd := &cobra.Command{
-		Use: "logs",
+		Use:   "logs SERVICE ...",
+		Short: "Print the logs for the given services",
+		Long: "Print the logs for the given services.\n\n" +
+			"If multiple services are provided, the log output is interleaved.",
 		Run: func(_ *cobra.Command, args []string) {
 			auth, err := authstore.New()
 			if err != nil {

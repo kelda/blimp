@@ -22,7 +22,11 @@ import (
 
 func New() *cobra.Command {
 	return &cobra.Command{
-		Use: "login",
+		Use:   "login",
+		Short: "Log in to Kelda Blimp",
+		Long: `Log in to Kelda Blimp.
+
+Kelda Blimp only uses your login to identify you, and doesn't pull any other information.`,
 		Run: func(_ *cobra.Command, _ []string) {
 			token, err := getAuthToken()
 			if err != nil {
@@ -51,7 +55,6 @@ func getAuthToken() (string, error) {
 		RedirectURL: fmt.Sprintf("http://%s%s", auth.RedirectHost, auth.RedirectPath),
 		Scopes: []string{
 			"openid",
-			"email",
 		},
 	}
 

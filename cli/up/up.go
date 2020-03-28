@@ -38,7 +38,8 @@ import (
 
 func New() *cobra.Command {
 	return &cobra.Command{
-		Use: "up",
+		Use:   "up",
+		Short: "Create and start containers",
 		Run: func(_ *cobra.Command, _ []string) {
 			auth, err := authstore.New()
 			if err != nil {

@@ -16,7 +16,8 @@ import (
 
 func New() *cobra.Command {
 	return &cobra.Command{
-		Use: "ssh",
+		Use:   "ssh SERVICE",
+		Short: "Get a shell in a service",
 		Run: func(_ *cobra.Command, args []string) {
 			if len(args) != 1 {
 				fmt.Fprintf(os.Stderr, "Exactly one service is required")
