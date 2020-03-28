@@ -14,12 +14,19 @@ import (
 	"github.com/kelda-inc/blimp/cli/ps"
 	"github.com/kelda-inc/blimp/cli/ssh"
 	"github.com/kelda-inc/blimp/cli/up"
+	"github.com/kelda-inc/blimp/pkg/cfgdir"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func main() {
 	// By default, the random number generator is seeded to 1, so the resulting
 	// numbers aren't actually different unless we explicitly seed it.
 	rand.Seed(time.Now().UnixNano())
+
+	if err := cfgdir.Create(); err != nil {
+		log.WithError(err).Fatal("failed to create config directory")
+	}
 
 	rootCmd := &cobra.Command{
 		Use: "blimp",

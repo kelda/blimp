@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/ghodss/yaml"
-	homedir "github.com/mitchellh/go-homedir"
+	"github.com/kelda-inc/blimp/pkg/cfgdir"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -37,11 +37,7 @@ func (store Store) KubeClient() (kubernetes.Interface, *rest.Config, error) {
 }
 
 func (store Store) Save() error {
-	configPath, err := getStorePath()
-	if err != nil {
-		return fmt.Errorf("expand config path: %w", err)
-	}
-
+	configPath := getStorePath()
 	configBytes, err := yaml.Marshal(store)
 	if err != nil {
 		return fmt.Errorf("marshal yaml: %w", err)
@@ -54,11 +50,7 @@ func (store Store) Save() error {
 }
 
 func New() (store Store, err error) {
-	configPath, err := getStorePath()
-	if err != nil {
-		return store, fmt.Errorf("expand config path: %w", err)
-	}
-
+	configPath := getStorePath()
 	configBytes, err := ioutil.ReadFile(configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -72,7 +64,6 @@ func New() (store Store, err error) {
 	}
 	return store, nil
 }
-
-func getStorePath() (string, error) {
-	return homedir.Expand("~/.blimp.yaml")
+func getStorePath() string {
+	return cfgdir.Expand("auth.yaml")
 }

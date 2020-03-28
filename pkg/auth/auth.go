@@ -2,11 +2,12 @@ package auth
 
 import (
 	"context"
-	"crypto/sha256"
+
 	"encoding/base64"
 	"fmt"
 
 	"github.com/coreos/go-oidc"
+	"github.com/kelda-inc/blimp/pkg/hash"
 	"golang.org/x/oauth2"
 )
 
@@ -56,7 +57,7 @@ func ParseIDToken(token string) (User, error) {
 		return User{}, fmt.Errorf("parse claims: %w", err)
 	}
 
-	user.Namespace = dnsCompliantHash(user.ID)
+	user.Namespace = hash.DnsCompliant(user.ID)
 	return user, nil
 }
 
@@ -66,12 +67,4 @@ func mustDecodeBase64(encoded string) string {
 		panic(err)
 	}
 	return string(decoded)
-}
-
-// dnsCompliantHash hashes the given string, encodes it into base16, and
-// truncates it to 32 characters.
-func dnsCompliantHash(str string) string {
-	h := sha256.New()
-	h.Write([]byte(str))
-	return fmt.Sprintf("%x", h.Sum(nil))[:32]
 }
