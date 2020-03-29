@@ -7,8 +7,8 @@ manager_key_path="$2"
 mkdir -p certs
 
 if [[ -n "${MANAGER_CERT_BASE64}" ]]  && [[ -n "${MANAGER_KEY_BASE64}" ]]; then
-	base64 -D <<< "${MANAGER_CERT_BASE64}" > ${manager_cert_path}
-	base64 -D <<< "${MANAGER_KEY_BASE64}" > ${manager_key_path}
+	base64 -d <<< "${MANAGER_CERT_BASE64}" > ${manager_cert_path}
+	base64 -d <<< "${MANAGER_KEY_BASE64}" > ${manager_key_path}
 else
 	openssl req \
 		-x509 \
