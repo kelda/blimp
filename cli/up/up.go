@@ -41,6 +41,7 @@ func New() *cobra.Command {
 	return &cobra.Command{
 		Use:   "up",
 		Short: "Create and start containers",
+		Long:  "Create and start containers\n\nDeploys the docker-compose.yml in the current directory.",
 		Run: func(_ *cobra.Command, _ []string) {
 			auth, err := authstore.New()
 			if err != nil {
