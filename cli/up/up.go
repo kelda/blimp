@@ -211,9 +211,7 @@ func (cmd *up) run() {
 	}
 
 	statusPrinter := newStatusPrinter(services)
-	if err := statusPrinter.Run(cmd.clusterManager, cmd.auth.AuthToken); err != nil {
-		log.WithError(err).Warn("Failed to show container status")
-	}
+	statusPrinter.Run(cmd.clusterManager, cmd.auth.AuthToken)
 
 	err = logs.LogsCommand{
 		Containers: services,

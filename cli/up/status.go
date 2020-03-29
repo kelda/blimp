@@ -2,6 +2,7 @@ package up
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -38,48 +39,66 @@ func newStatusPrinter(services []string) *statusPrinter {
 	sort.Strings(sp.services)
 
 	for _, svc := range services {
-		// TODO: This must match the initial state sent by the cluster.
 		sp.tracker[svc] = &tracker{phase: "Pending"}
 	}
 
 	return sp
 }
 
-func (sp *statusPrinter) Run(clusterManager managerClient, authToken string) error {
+func (sp *statusPrinter) Run(clusterManager managerClient, authToken string) {
 	// Stop watching the status after we're done printing the status.
 	ctx, cancelFn := context.WithCancel(context.Background())
 	defer cancelFn()
 
-	statusStream, err := clusterManager.WatchStatus(ctx, &cluster.GetStatusRequest{
-		Token: authToken,
-	})
-	if err != nil {
-		return fmt.Errorf("watch status: %w", err)
-	}
+	go sp.syncStatus(ctx, clusterManager, authToken)
 
-	go func() {
+	for {
+		if sp.printStatus() {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+	fmt.Println(goterm.Color("All containers successfully started", goterm.GREEN))
+}
+
+func (sp *statusPrinter) syncStatus(ctx context.Context, clusterManager managerClient, authToken string) {
+	syncStream := func(stream cluster.Manager_WatchStatusClient) error {
 		for {
-			msg, err := statusStream.Recv()
+			msg, err := stream.Recv()
 			switch {
 			case status.Code(err) == codes.Canceled:
-				return
+				select {
+				case <-ctx.Done():
+					return nil
+				default:
+					return errors.New("unexpected stream termination")
+				}
 			case err != nil:
-				log.WithError(err).Warn("Failed to get status update")
-				return
+				return fmt.Errorf("read stream: %w", err)
 			}
 
 			sp.Lock()
 			sp.currStatus = msg.Status.Services
 			sp.Unlock()
 		}
-	}()
+	}
 
 	for {
-		if sp.printStatus() {
-			fmt.Println(goterm.Color("All containers successfully started", goterm.GREEN))
-			return nil
+		statusStream, err := clusterManager.WatchStatus(ctx, &cluster.GetStatusRequest{
+			Token: authToken,
+		})
+		if err != nil {
+			log.WithError(err).Warn("Failed to start status watch")
+			time.Sleep(5 * time.Second)
+			continue
 		}
-		time.Sleep(1 * time.Second)
+
+		if err := syncStream(statusStream); err == nil {
+			return
+		}
+
+		log.WithError(err).Warn("Failed to read status stream")
+		time.Sleep(5 * time.Second)
 	}
 }
 
