@@ -10,7 +10,7 @@ LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
 	   -X github.com/kelda-inc/blimp/pkg/version.SandboxControllerImage=${SANDBOX_CONTROLLER_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/version.BootWaiterImage=${BOOT_WAITER_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/version.SyncthingImage=${SYNCTHING_IMAGE} \
-	   -X github.com/kelda-inc/blimp/pkg/auth.ClusterManagerCertBase64=$(shell base64 ${MANAGER_CERT_PATH}) \
+	   -X github.com/kelda-inc/blimp/pkg/auth.ClusterManagerCertBase64=$(shell base64 ${MANAGER_CERT_PATH} | tr -d "\n") \
 	   -X main.RegistryHostname=${REGISTRY_HOSTNAME}"
 
 # Include override variables. The production Makefile takes precendence if it exists.
