@@ -87,12 +87,12 @@ func MakeServer(folders map[string]string) string {
 	return makeConfig(true, folders)
 }
 
-func Run(folders map[string]string) error {
+func Run(folders map[string]string) ([]byte, error) {
 	box := rice.MustFindBox("stbin")
 
 	err := MakeMarkers(folders)
 	if err != nil {
-		return fmt.Errorf("making syncthing markers: %w", err)
+		return nil, fmt.Errorf("making syncthing markers: %w", err)
 	}
 
 	stbinBytes, err := box.Bytes("")
@@ -106,7 +106,7 @@ func Run(folders map[string]string) error {
 	stbinPath := cfgdir.Expand("stbin")
 	err = ioutil.WriteFile(stbinPath, stbinBytes, 0755)
 	if err != nil {
-		return fmt.Errorf("write stbin error: %w", err)
+		return nil, fmt.Errorf("write stbin error: %w", err)
 	}
 
 	fileMap := map[string]string{
@@ -118,12 +118,12 @@ func Run(folders map[string]string) error {
 	for path, data := range fileMap {
 		err := ioutil.WriteFile(cfgdir.Expand(path), []byte(data), 0666)
 		if err != nil {
-			return fmt.Errorf("write config file error: %w", err)
+			return nil, fmt.Errorf("write config file error: %w", err)
 		}
 	}
 
 	return exec.Command(stbinPath, "-verbose", "-home", cfgdir.Expand(""),
-		"-logfile", cfgdir.Expand("syncthing.log")).Run()
+		"-logfile", cfgdir.Expand("syncthing.log")).CombinedOutput()
 }
 
 func makeConfig(server bool, folders map[string]string) string {

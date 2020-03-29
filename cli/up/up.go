@@ -364,7 +364,7 @@ func (cmd *up) bootSyncthing(dcCfg dockercompose.Config) bool {
 	go func() {
 		err := syncthing.Run(idPathMap)
 		if err != nil {
-			log.WithError(err).Warn("syncthing error")
+			log.WithError(err).WithField("output", string(output)).Warn("syncthing error")
 		}
 	}()
 
