@@ -1,6 +1,7 @@
 DOCKER_REPO = ${BLIMP_DOCKER_REPO}
 REGISTRY_HOSTNAME ?= blimp-registry.kelda.io
 REGISTRY_IP ?= 8.8.8.8
+REGISTRY_SIZE ?= "5Gi"
 #VERSION?=$(shell ./scripts/dev_version.sh)
 VERSION?=latest
 MANAGER_KEY_PATH = "./certs/cluster-manager.key.pem"
@@ -12,8 +13,9 @@ LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
 	   -X github.com/kelda-inc/blimp/pkg/auth.ClusterManagerCertBase64=$(shell base64 ${MANAGER_CERT_PATH}) \
 	   -X main.RegistryHostname=${REGISTRY_HOSTNAME}"
 
-# Include all .mk files so you can have your own local configurations
-include $(wildcard *.mk)
+# Include override variables. The production Makefile takes precendence if it exists.
+-include local.mk
+-include prod.mk
 
 # Default target for local development.  Just builds binaries for now assumes
 # OSX
@@ -49,15 +51,7 @@ generate:
 	protoc _proto/blimp/errors/v0/errors.proto --go_out=plugins=grpc:$$GOPATH/src
 
 certs:
-	mkdir certs
-	openssl req \
-		-x509 \
-		-newkey rsa:4096 \
-		-keyout ${MANAGER_KEY_PATH} \
-		-out ${MANAGER_CERT_PATH} \
-		-days 365 \
-		-nodes \
-		-subj "/C=US/ST=California/L=Berkeley/O=Kelda Inc/OU=Kelda Blimp Manager/CN=localhost"
+	./scripts/make-manager-cert.sh ${MANAGER_CERT_PATH} ${MANAGER_KEY_PATH}
 
 build-cli-linux: syncthing-linux
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LD_FLAGS) -o blimp-linux ./cli
@@ -98,9 +92,13 @@ push-docker: build-docker
 	docker push ${BOOT_WAITER_IMAGE}
 	docker push ${DOCKER_AUTH_IMAGE}
 
-deploy-registry: push-docker
+deploy-registry:
 	sed -i '' 's|<DOCKER_AUTH_IMAGE>|${DOCKER_AUTH_IMAGE}|' ./registry/kube/registry-deployment.yaml
 	sed -i '' 's|<REGISTRY_HOSTNAME>|${REGISTRY_HOSTNAME}|' ./registry/kube/registry-deployment.yaml
 	sed -i '' 's|<REGISTRY_IP>|${REGISTRY_IP}|' ./registry/kube/registry-service.yaml
-	sed -i '' 's|storage: 500Gi|storage: 5Gi|' ./registry/kube/registry-pvc.yaml
+	sed -i '' 's|<REGISTRY_STORAGE>|storage: ${REGISTRY_STORAGE}|' ./registry/kube/registry-pvc.yaml
 	kubectl apply -f ./registry/kube
+
+deploy-manager:
+	sed -i '' 's|<CLUSTER_MANAGER_IMAGE>|${CLUSTER_CONTROLLER_IMAGE}|' ./cluster-controller/kube/manager-deployment.yaml
+	kubectl apply -f ./cluster-controller/kube

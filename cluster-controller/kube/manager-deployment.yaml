@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: manager
-        image: gcr.io/kelda-blimp/blimp-cluster-controller:0.1.0
+        image: <CLUSTER_MANAGER_IMAGE>
         imagePullPolicy: Always
         volumeMounts:
         - name: kubeconfig

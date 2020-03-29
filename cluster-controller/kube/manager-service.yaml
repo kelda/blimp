@@ -11,3 +11,4 @@ spec:
   type: LoadBalancer
   selector:
     service: manager
+  loadBalancerIP: 34.82.73.248

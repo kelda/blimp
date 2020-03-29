@@ -62,3 +62,20 @@ The registry needs a DNS name, even during development. To deploy it:
 
 1. Running `make run-cluster-controller` will automatically cause your images
    to get pushed to the registry running in your cluster.
+
+# Updating Prod
+
+1. Build new versions of the CLI and Docker images.
+
+	```
+	git tag 0.2.0
+	git push upstream 0.2.0
+	```
+
+1. Deploy the latest images to the manager cluster.
+
+	```
+	./scripts/update-prod.sh <version>
+	```
+
+1. Update the install script to point to the new version in `kelda.io/install-blimp.sh`

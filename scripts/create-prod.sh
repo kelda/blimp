@@ -3,15 +3,14 @@ set -e
 
 # This script should be invoked from the root of the Kelda Blimp repo.
 
+PROJECT="kelda-blimp"
+
 function _gcloud_kube() {
     gcloud container clusters --project "${PROJECT}" --zone us-west1-a $@
 }
 
-PROJECT="kelda-blimp"
-
-# TODO
-_gcloud compute addresses create registry
-_gcloud compute addresses create manager
+gcloud compute addresses --project kelda-blimp create registry --region us-west1
+gcloud compute addresses --project kelda-blimp create manager --region us-west1
 
 _gcloud_kube create customer -m e2-standard-2 --num-nodes=2 --no-enable-autoupgrade
 _gcloud_kube get-credentials customer
