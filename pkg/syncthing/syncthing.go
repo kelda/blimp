@@ -115,20 +115,8 @@ func Run(folders map[string]string) error {
 		}
 	}
 
-	f, err := os.OpenFile(cfgdir.Expand("syncthing.log"),
-		os.O_RDWR|os.O_CREATE, 0755)
-	if err != nil {
-		return fmt.Errorf("open logfile error: %w", err)
-	}
-
-	err = f.Truncate(0)
-	if err != nil {
-		return fmt.Errorf("open logfile error: %w", err)
-	}
-
-	cmd := exec.Command(stbinPath, "-verbose", "-home", cfgdir.Expand(""))
-	cmd.Stdout = f
-	return cmd.Run()
+	return exec.Command(stbinPath, "-verbose", "-home", cfgdir.Expand(""),
+		"-logfile", cfgdir.Expand("syncthing.log")).Run()
 }
 
 func makeConfig(server bool, folders map[string]string) string {
