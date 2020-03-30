@@ -9,8 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/kelda-inc/blimp/cli/authstore"
-	"github.com/kelda-inc/blimp/cli/util"
-	"github.com/kelda-inc/blimp/pkg/auth"
+	"github.com/kelda-inc/blimp/cli/manager"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 )
 
@@ -41,14 +40,13 @@ All containers and volumes are removed.`,
 }
 
 func run(authToken string) error {
-	conn, err := util.Dial(util.ManagerHost, auth.ClusterManagerCert)
+	conn, err := manager.Dial()
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
-	clusterManager := cluster.NewManagerClient(conn)
-	_, err = clusterManager.DeleteSandbox(context.Background(), &cluster.DeleteSandboxRequest{
+	_, err = conn.DeleteSandbox(context.Background(), &cluster.DeleteSandboxRequest{
 		Token: authToken,
 	})
 	if err == nil {

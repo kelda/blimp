@@ -10,6 +10,21 @@ service Manager {
   rpc DeleteSandbox(DeleteSandboxRequest) returns (DeleteSandboxResponse) {}
   rpc GetStatus(GetStatusRequest) returns (GetStatusResponse) {}
   rpc WatchStatus(GetStatusRequest) returns (stream GetStatusResponse) {}
+  rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}
+}
+
+message CheckVersionRequest {
+  string version = 1;
+}
+
+message CheckVersionResponse {
+  string Version = 1;
+  string DisplayMessage = 2;
+  enum Action {
+    OK = 0;
+    EXIT = 1;
+  }
+  Action action = 3;
 }
 
 message CreateSandboxRequest {

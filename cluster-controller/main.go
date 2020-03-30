@@ -107,6 +107,15 @@ func (s *server) listenAndServe(address string) error {
 	return grpcServer.Serve(lis)
 }
 
+func (s *server) CheckVersion(ctx context.Context, req *cluster.CheckVersionRequest) (
+	*cluster.CheckVersionResponse, error) {
+	return &cluster.CheckVersionResponse{
+		Version:        version.Version,
+		DisplayMessage: "",
+		Action:         cluster.CheckVersionResponse_OK,
+	}, nil
+}
+
 func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRequest) (*cluster.CreateSandboxResponse, error) {
 	log.Info("CreateSandbox called")
 

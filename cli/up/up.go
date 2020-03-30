@@ -23,13 +23,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh/terminal"
-	"google.golang.org/grpc"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/kelda-inc/blimp/cli/authstore"
 	"github.com/kelda-inc/blimp/cli/logs"
+	"github.com/kelda-inc/blimp/cli/manager"
 	"github.com/kelda-inc/blimp/cli/util"
-	"github.com/kelda-inc/blimp/pkg/auth"
 	"github.com/kelda-inc/blimp/pkg/dockercompose"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
@@ -95,24 +94,13 @@ type up struct {
 	sandboxAddr    string
 	sandboxCert    string
 
-	clusterManager managerClient
-}
-
-type managerClient struct {
-	cluster.ManagerClient
-	*grpc.ClientConn
+	clusterManager manager.Client
 }
 
 func (cmd *up) createSandbox(rawCompose string) error {
 	pp := util.NewProgressPrinter(os.Stderr, "Booting cloud sandbox..")
 	go pp.Run()
 	defer pp.StopWithPrint(" Done\n")
-
-	clusterConn, err := util.Dial(util.ManagerHost, auth.ClusterManagerCert)
-	if err != nil {
-		return err
-	}
-	cmd.clusterManager = managerClient{cluster.NewManagerClient(clusterConn), clusterConn}
 
 	registryCredentials, err := getLocalRegistryCredentials()
 	if err != nil {
@@ -149,6 +137,11 @@ func (cmd *up) createSandbox(rawCompose string) error {
 
 func (cmd *up) run() error {
 	rawCompose, err := ioutil.ReadFile(cmd.composePath)
+	if err != nil {
+		return err
+	}
+
+	cmd.clusterManager, err = manager.Dial()
 	if err != nil {
 		return err
 	}

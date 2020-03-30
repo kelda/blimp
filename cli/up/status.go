@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/kelda-inc/blimp/cli/manager"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 )
 
@@ -45,7 +46,7 @@ func newStatusPrinter(services []string) *statusPrinter {
 	return sp
 }
 
-func (sp *statusPrinter) Run(clusterManager managerClient, authToken string) {
+func (sp *statusPrinter) Run(clusterManager manager.Client, authToken string) {
 	// Stop watching the status after we're done printing the status.
 	ctx, cancelFn := context.WithCancel(context.Background())
 	defer cancelFn()
@@ -61,7 +62,8 @@ func (sp *statusPrinter) Run(clusterManager managerClient, authToken string) {
 	fmt.Println(goterm.Color("All containers successfully started", goterm.GREEN))
 }
 
-func (sp *statusPrinter) syncStatus(ctx context.Context, clusterManager managerClient, authToken string) {
+func (sp *statusPrinter) syncStatus(ctx context.Context,
+	clusterManager manager.Client, authToken string) {
 	syncStream := func(stream cluster.Manager_WatchStatusClient) error {
 		for {
 			msg, err := stream.Recv()

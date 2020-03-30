@@ -11,8 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/kelda-inc/blimp/cli/authstore"
-	"github.com/kelda-inc/blimp/cli/util"
-	"github.com/kelda-inc/blimp/pkg/auth"
+	"github.com/kelda-inc/blimp/cli/manager"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 )
 
@@ -40,14 +39,13 @@ func New() *cobra.Command {
 }
 
 func run(authToken string) error {
-	conn, err := util.Dial(util.ManagerHost, auth.ClusterManagerCert)
+	conn, err := manager.Dial()
 	if err != nil {
 		return err
 	}
 	defer conn.Close()
 
-	clusterManager := cluster.NewManagerClient(conn)
-	status, err := clusterManager.GetStatus(context.Background(), &cluster.GetStatusRequest{
+	status, err := conn.GetStatus(context.Background(), &cluster.GetStatusRequest{
 		Token: authToken,
 	})
 	if err != nil {
