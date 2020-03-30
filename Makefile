@@ -96,7 +96,7 @@ deploy-registry:
 	sed -i '' 's|<DOCKER_AUTH_IMAGE>|${DOCKER_AUTH_IMAGE}|' ./registry/kube/registry-deployment.yaml
 	sed -i '' 's|<REGISTRY_HOSTNAME>|${REGISTRY_HOSTNAME}|' ./registry/kube/registry-deployment.yaml
 	sed -i '' 's|<REGISTRY_IP>|${REGISTRY_IP}|' ./registry/kube/registry-service.yaml
-	sed -i '' 's|<REGISTRY_STORAGE>|storage: ${REGISTRY_STORAGE}|' ./registry/kube/registry-pvc.yaml
+	sed -i '' 's|<REGISTRY_STORAGE>|${REGISTRY_STORAGE}|' ./registry/kube/registry-pvc.yaml
 	kubectl apply -f ./registry/kube
 
 deploy-manager:
