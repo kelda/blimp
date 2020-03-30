@@ -67,6 +67,19 @@ func New() *cobra.Command {
 					"Building images won't work, but all other features will.")
 			}
 
+			// Convert the compose path to an absolute path so that the code
+			// that makes identifiers for bind volumes are unique for relative
+			// paths.
+			absComposePath, err := filepath.Abs(cmd.composePath)
+			if err != nil {
+				if os.IsNotExist(err) {
+					fmt.Fprintf(os.Stderr, "Docker compose file not found: %s\n", cmd.composePath)
+					os.Exit(1)
+				}
+				log.WithError(err).Fatal("Failed to get absolute path to Compose file")
+			}
+
+			cmd.composePath = absComposePath
 			if err := cmd.run(); err != nil {
 				log.Fatal(err)
 			}
@@ -108,8 +121,11 @@ func (cmd *up) createSandbox(rawCompose string) error {
 
 	createSandboxResp, err := cmd.clusterManager.CreateSandbox(context.TODO(),
 		&cluster.CreateSandboxRequest{
-			Token:               cmd.auth.AuthToken,
-			ComposeFile:         rawCompose,
+			Token: cmd.auth.AuthToken,
+			ComposeFile: &cluster.ComposeFile{
+				Path:     cmd.composePath,
+				Contents: rawCompose,
+			},
 			RegistryCredentials: registryCredentials,
 		})
 	if err != nil {
@@ -134,10 +150,6 @@ func (cmd *up) createSandbox(rawCompose string) error {
 func (cmd *up) run() error {
 	rawCompose, err := ioutil.ReadFile(cmd.composePath)
 	if err != nil {
-		if os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "Docker compose file not found: %s\n", cmd.composePath)
-			return nil
-		}
 		return err
 	}
 
@@ -151,7 +163,7 @@ func (cmd *up) run() error {
 	}
 	defer cmd.clusterManager.Close()
 
-	parsedCompose, _, err := dockercompose.Parse(rawCompose)
+	parsedCompose, _, err := dockercompose.Parse(cmd.composePath, rawCompose)
 	if err != nil {
 		return err
 	}
@@ -169,8 +181,11 @@ func (cmd *up) run() error {
 	go pp.Run()
 
 	deployResp, err := cmd.clusterManager.DeployToSandbox(context.Background(), &cluster.DeployRequest{
-		Token:       cmd.auth.AuthToken,
-		ComposeFile: string(rawCompose),
+		Token: cmd.auth.AuthToken,
+		ComposeFile: &cluster.ComposeFile{
+			Path:     cmd.composePath,
+			Contents: string(rawCompose),
+		},
 		BuiltImages: builtImages,
 	})
 	pp.StopWithPrint(" Done\n")

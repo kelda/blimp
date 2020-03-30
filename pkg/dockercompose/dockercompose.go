@@ -3,6 +3,7 @@ package dockercompose
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -198,7 +199,7 @@ func (build *Build) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func Parse(cfg []byte) (parsed Config, strictErr, fatalErr error) {
+func Parse(path string, cfg []byte) (parsed Config, strictErr, fatalErr error) {
 	strictErr = yaml.UnmarshalStrict(cfg, &parsed, yaml.DisallowUnknownFields)
 	if err := yaml.Unmarshal(cfg, &parsed); err != nil {
 		return Config{}, strictErr, fmt.Errorf("parse: %w", err)
@@ -206,15 +207,21 @@ func Parse(cfg []byte) (parsed Config, strictErr, fatalErr error) {
 
 	for _, svc := range parsed.Services {
 		for i, volume := range svc.Volumes {
-			if !volume.guessType {
-				continue
+			if volume.guessType {
+				if _, ok := parsed.Volumes[volume.Source]; ok {
+					volume.Type = "volume"
+				} else {
+					volume.Type = "bind"
+				}
 			}
 
-			if _, ok := parsed.Volumes[volume.Source]; ok {
-				svc.Volumes[i].Type = "volume"
-			} else {
-				svc.Volumes[i].Type = "bind"
+			// Convert relative paths to absolute paths, so that the volume
+			// identifier is unique.
+			if volume.Type == "bind" && !filepath.IsAbs(volume.Source) {
+				volume.Source = filepath.Clean(filepath.Join(filepath.Dir(path), volume.Source))
 			}
+
+			svc.Volumes[i] = volume
 		}
 	}
 	return parsed, strictErr, nil

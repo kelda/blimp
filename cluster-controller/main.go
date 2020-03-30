@@ -118,7 +118,8 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 
 	analytics.Log.WithField("namespace", user.Namespace).WithField("composeFile", req.GetComposeFile()).Info("Booted Blimp")
 
-	dcCfg, _, err := dockercompose.Parse([]byte(req.GetComposeFile()))
+	composeFile := req.GetComposeFile()
+	dcCfg, _, err := dockercompose.Parse(composeFile.Path, []byte(composeFile.Contents))
 	if err != nil {
 		return &cluster.CreateSandboxResponse{}, err
 	}
@@ -170,7 +171,8 @@ func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest
 		return &cluster.DeployResponse{}, err
 	}
 
-	dcCfg, strictParseErr, err := dockercompose.Parse([]byte(req.GetComposeFile()))
+	composeFile := req.GetComposeFile()
+	dcCfg, strictParseErr, err := dockercompose.Parse(composeFile.Path, []byte(composeFile.Contents))
 	if err != nil {
 		// TODO: Error within response.
 		return &cluster.DeployResponse{}, err
