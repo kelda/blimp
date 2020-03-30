@@ -29,7 +29,7 @@ jobs:
           name: Push Docker image
           command: |
             docker login gcr.io --username _json_key --password "${DOCKER_KEY}"
-            BLIMP_DOCKER_REPO=gcr.io/kelda-blimp VERSION=${CIRCLE_TAG} make push-all
+            BLIMP_DOCKER_REPO=gcr.io/kelda-blimp VERSION=${CIRCLE_TAG} make push-docker
 
   upload-release:
     executor: docker-executor
