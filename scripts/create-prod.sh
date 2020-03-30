@@ -18,7 +18,8 @@ _gcloud_kube get-credentials customer
 
 _gcloud_kube create manager -m e2-standard-2 --num-nodes=1 --no-enable-autoupgrade
 _gcloud_kube get-credentials manager
-kubectl create secret generic customer-cluster-kubeconfig --from-file=config=/tmp/customer-cluster-kubeconfig
+kubectl create secret -n manager generic customer-cluster-kubeconfig --from-file=config=/tmp/customer-cluster-kubeconfig
+kubectl create secret -n manager generic manager-certs --from-file=cert.pem=/Users/kevin/Google\ Drive/blimp-manager-certs/cluster-manager.crt.pem,key.pem=/Users/kevin/Google\ Drive/blimp-manager-certs/cluster-manager.key.pem
 kubectl apply -f ./cluster-controller/kube
 
 echo "Deployed the customer and manager clusters. Run 'kubectl get services' to get the manager's public IP."

@@ -53,13 +53,13 @@ generate:
 certs:
 	./scripts/make-manager-cert.sh ${MANAGER_CERT_PATH} ${MANAGER_KEY_PATH}
 
-build-cli-linux: syncthing-linux
+build-cli-linux: syncthing-linux certs
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LD_FLAGS) -o blimp-linux ./cli
 	cp syncthing-linux ./pkg/syncthing/stbin
 	rice append -i ./pkg/syncthing --exec blimp-linux
 	rm ./pkg/syncthing/stbin
 
-build-cli-osx: syncthing-macos
+build-cli-osx: syncthing-macos certs
 	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LD_FLAGS) -o blimp-osx ./cli
 	cp syncthing-macos ./pkg/syncthing/stbin
 	rice append -i ./pkg/syncthing --exec blimp-osx

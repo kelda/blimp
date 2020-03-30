@@ -19,7 +19,7 @@ function _gcloud_kube() {
 _gcloud_kube get-credentials manager
 
 # Set up the deployment configuration.
-export DOCKER_REPO="gcr.io/kelda-blimp"
+export BLIMP_DOCKER_REPO="gcr.io/kelda-blimp"
 cat <<EOF > prod.mk
 VERSION = ${version}
 REGISTRY_HOSTNAME = blimp-registry.kelda.io
