@@ -198,7 +198,7 @@ func (cmd *up) run() error {
 			deployResp.StrictParseError + "\n\n" +
 			"This is usually a sign that you're using an unsupported Docker Compose features.\n" +
 			"To fix this error, please modify your Docker Compose file to " +
-			"use the features described here: <TODO>\n\n" +
+			"use the features described here: https://kelda.io/blimp/docs/config\n\n" +
 			"We're working on reaching full parity with Docker Compose, so let us know what features you'd like us to prioritize!")
 		log.Info("Blimp will continue to attempt to boot")
 	}
