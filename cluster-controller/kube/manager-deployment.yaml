@@ -16,7 +16,8 @@ spec:
       - name: manager
         image: <CLUSTER_MANAGER_IMAGE>
         imagePullPolicy: Always
-        args:
+        command:
+        - blimp-cluster-controller
         - -tls-cert
         - /etc/blimp/cert.pem
         - -tls-key
