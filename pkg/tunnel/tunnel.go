@@ -54,13 +54,23 @@ func ServerStream(nsrv sandbox.Controller_TunnelServer, stream net.Conn) {
 func Client(scc sandbox.ControllerClient, ln net.Listener, token,
 	name string, port uint32) error {
 
+	fields := log.Fields{
+		"listen": ln.Addr().String(),
+		"name":   name,
+		"port":   port,
+	}
+
 	for {
 		stream, err := ln.Accept()
 		if err != nil {
 			return err
 		}
 
-		go connect(scc, stream, token, name, port)
+		log.WithFields(fields).Debug("new connection")
+		go func() {
+			connect(scc, stream, token, name, port)
+			log.WithFields(fields).Debug("finish connection")
+		}()
 	}
 
 	return nil
@@ -70,14 +80,10 @@ func connect(scc sandbox.ControllerClient, stream net.Conn,
 	token, name string, port uint32) {
 	defer stream.Close()
 
-	fields := log.Fields{"name": name, "port": port}
-	log.WithFields(fields).Debug("new connection")
-	defer log.WithFields(fields).Debug("finish connection")
-
 	ctx, cancel := context.WithCancel(context.Background())
 	tnl, err := scc.Tunnel(ctx)
 	if err != nil {
-		log.WithFields(fields).WithError(err).Error("failed to establish tunnel")
+		log.WithError(err).Error("failed to establish tunnel")
 		return
 	}
 
@@ -88,7 +94,7 @@ func connect(scc sandbox.ControllerClient, stream net.Conn,
 			Port:  port,
 		}}})
 	if err != nil {
-		log.WithFields(fields).WithError(err).Error("failed to send tunnel connect")
+		log.WithError(err).Error("failed to send tunnel connect")
 		tnl.CloseSend()
 		return
 	}

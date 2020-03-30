@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -13,8 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/docker/cli/cli/config"
 	clitypes "github.com/docker/cli/cli/config/types"
@@ -56,11 +55,8 @@ func New() *cobra.Command {
 			}
 
 			cmd := up{
-				auth:           auth,
-				composePath:    "./docker-compose.yml",
-				imageNamespace: make(chan string, 1),
-				builtImages:    make(chan map[string]string, 1),
-				sandboxConn:    make(chan *grpc.ClientConn, 1),
+				auth:        auth,
+				composePath: "./docker-compose.yml",
 			}
 
 			dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
@@ -71,23 +67,20 @@ func New() *cobra.Command {
 					"Building images won't work, but all other features will.")
 			}
 
-			cmd.run()
+			if err := cmd.run(); err != nil {
+				log.Fatal(err)
+			}
 		},
 	}
 }
 
 type up struct {
-	auth         authstore.Store
-	composePath  string
-	dockerClient *client.Client
-
-	// All of these channels are written to exactly once.
-	imageNamespace chan string
-	builtImages    chan map[string]string
-	sandboxConn    chan *grpc.ClientConn
-
-	// Not intended to be access directly
-	imageNamespaceCache string
+	auth           authstore.Store
+	composePath    string
+	dockerClient   *client.Client
+	imageNamespace string
+	sandboxAddr    string
+	sandboxCert    string
 
 	clusterManager managerClient
 }
@@ -97,39 +90,11 @@ type managerClient struct {
 	*grpc.ClientConn
 }
 
-func (cmd *up) createAndDeploySandbox(rawCompose []byte) {
-	// Start creating the sandbox immediately so that the systems services
-	// start booting as soon as possible.  Also, we ship the Docker Compose
-	// file to the cluster as quickly as possible so that if the parsing
-	// fails, we will at least have the compose file for debugging later.
-	fmt.Println("Initializing cloud sandbox")
-	if err := cmd.createSandbox(string(rawCompose)); err != nil {
-		log.WithError(err).Fatal("Failed to create development sandbox")
-	}
-
-	fmt.Println("Booting containers")
-	deployResp, err := cmd.clusterManager.DeployToSandbox(context.Background(), &cluster.DeployRequest{
-		Token:       cmd.auth.AuthToken,
-		ComposeFile: string(rawCompose),
-		BuiltImages: <-cmd.builtImages,
-	})
-	if err != nil {
-		log.WithError(err).Fatal("Failed to deploy compose file to" +
-			" the cloud sandbox")
-	}
-
-	if deployResp.StrictParseError != "" {
-		log.Warn("Docker Compose file failed strict parsing:\n\n" +
-			deployResp.StrictParseError + "\n\n" +
-			"This is usually a sign that you're using an unsupported Docker Compose features.\n" +
-			"To fix this error, please modify your Docker Compose file to " +
-			"use the features described here: <TODO>\n\n" +
-			"We're working on reaching full parity with Docker Compose, so let us know what features you'd like us to prioritize!")
-		log.Info("Blimp will continue to attempt to boot")
-	}
-}
-
 func (cmd *up) createSandbox(rawCompose string) error {
+	pp := util.NewProgressPrinter(os.Stderr, "Booting cloud sandbox..")
+	go pp.Run()
+	defer pp.StopWithPrint(" Done\n")
+
 	clusterConn, err := util.Dial(util.ManagerHost, auth.ClusterManagerCert)
 	if err != nil {
 		return err
@@ -150,7 +115,9 @@ func (cmd *up) createSandbox(rawCompose string) error {
 	if err != nil {
 		return err
 	}
-	cmd.imageNamespace <- createSandboxResp.ImageNamespace
+	cmd.imageNamespace = createSandboxResp.ImageNamespace
+	cmd.sandboxAddr = createSandboxResp.SandboxAddress
+	cmd.sandboxCert = createSandboxResp.SandboxCert
 
 	// Save the Kubernetes API credentials for use by other Blimp commands.
 	kubeCreds := createSandboxResp.GetKubeCredentials()
@@ -161,48 +128,84 @@ func (cmd *up) createSandbox(rawCompose string) error {
 	if err := cmd.auth.Save(); err != nil {
 		return err
 	}
-
-	sandboxConn, err := util.Dial(createSandboxResp.SandboxAddress,
-		createSandboxResp.SandboxCert)
-	if err != nil {
-		log.WithError(err).Fatal("failed to dial cloud sandbox")
-	}
-	cmd.sandboxConn <- sandboxConn
-
 	return nil
 }
 
-func (cmd *up) run() {
+func (cmd *up) run() error {
 	rawCompose, err := ioutil.ReadFile(cmd.composePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			fmt.Fprintf(os.Stderr, "Docker compose file not found: %s\n", cmd.composePath)
-			return
+			return nil
 		}
-		log.WithError(err).Fatal("failed to read docker compose file")
+		return err
 	}
+
+	// Start creating the sandbox immediately so that the systems services
+	// start booting as soon as possible.
+	// Also, we ship the Docker Compose file to the cluster as quickly as
+	// possible so that if the parsing fails, we will at least have the compose
+	// file for debugging later.
+	if err := cmd.createSandbox(string(rawCompose)); err != nil {
+		log.WithError(err).Fatal("Failed to create development sandbox")
+	}
+	defer cmd.clusterManager.Close()
 
 	parsedCompose, _, err := dockercompose.Parse(rawCompose)
 	if err != nil {
-		log.WithError(err).Fatal("failed to parse docker compose file")
+		return err
 	}
 
-	go cmd.createAndDeploySandbox(rawCompose)
-	go cmd.buildImages(parsedCompose)
+	haveSyncthing := cmd.bootSyncthing(parsedCompose)
 
-	sandboxConn := <-cmd.sandboxConn
+	// TODO: Does Docker rebuild images when files change?
+	builtImages, err := cmd.buildImages(parsedCompose)
+	if err != nil {
+		return err
+	}
+
+	// Send the boot request to the cluster manager.
+	pp := util.NewProgressPrinter(os.Stderr, "Deploying Docker Compose file to sandbox..")
+	go pp.Run()
+
+	deployResp, err := cmd.clusterManager.DeployToSandbox(context.Background(), &cluster.DeployRequest{
+		Token:       cmd.auth.AuthToken,
+		ComposeFile: string(rawCompose),
+		BuiltImages: builtImages,
+	})
+	pp.StopWithPrint(" Done\n")
+	if err != nil {
+		return err
+	}
+
+	if deployResp.StrictParseError != "" {
+		log.Warn("Docker Compose file failed strict parsing:\n\n" +
+			deployResp.StrictParseError + "\n\n" +
+			"This is usually a sign that you're using an unsupported Docker Compose features.\n" +
+			"To fix this error, please modify your Docker Compose file to " +
+			"use the features described here: <TODO>\n\n" +
+			"We're working on reaching full parity with Docker Compose, so let us know what features you'd like us to prioritize!")
+		log.Info("Blimp will continue to attempt to boot")
+	}
+
+	sandboxConn, err := util.Dial(cmd.sandboxAddr, cmd.sandboxCert)
+	if err != nil {
+		return err
+	}
 	defer sandboxConn.Close()
+
+	// Start the tunnels.
 	sandboxManager := sandbox.NewControllerClient(sandboxConn)
-
-	// There's no point booting syncthing until the sandbox conn is up as it
-	// won't be able to connect even if the pod is there.
-	cmd.bootSyncthing(parsedCompose, sandboxManager)
-
 	for name, svc := range parsedCompose.Services {
 		for _, mapping := range svc.PortMappings {
-			startTunnel(sandboxManager, cmd.auth.AuthToken, name,
+			go startTunnel(sandboxManager, cmd.auth.AuthToken, name,
 				mapping.HostPort, mapping.ContainerPort)
 		}
+	}
+
+	if haveSyncthing {
+		go startTunnel(sandboxManager, cmd.auth.AuthToken, "syncthing",
+			syncthing.Port, syncthing.Port)
 	}
 
 	var services []string
@@ -213,27 +216,11 @@ func (cmd *up) run() {
 	statusPrinter := newStatusPrinter(services)
 	statusPrinter.Run(cmd.clusterManager, cmd.auth.AuthToken)
 
-	err = logs.LogsCommand{
+	return logs.LogsCommand{
 		Containers: services,
 		Opts:       corev1.PodLogOptions{Follow: true},
 		Auth:       cmd.auth,
 	}.Run()
-	if err != nil {
-		log.WithError(err).Fatal("failed to run command")
-	}
-}
-
-var getImageMux sync.Mutex
-
-func (cmd *up) getImageNamespace() string {
-	getImageMux.Lock()
-	defer getImageMux.Unlock()
-
-	if cmd.imageNamespaceCache == "" {
-		cmd.imageNamespaceCache = <-cmd.imageNamespace
-	}
-
-	return cmd.imageNamespaceCache
 }
 
 func startTunnel(scc sandbox.ControllerClient, token, name string,
@@ -253,25 +240,23 @@ func startTunnel(scc sandbox.ControllerClient, token, name string,
 		return
 	}
 
-	go func() {
-		err = tunnel.Client(scc, ln, token, name, containerPort)
-		if err != nil {
-			// TODO.  Same question about Fatal.  Also if accept
-			// errors maybe wes hould have retried inside accept
-			// tunnels instead of fatal out here?
-			log.WithFields(log.Fields{
-				"error":   err,
-				"address": addr,
-				"network": "tcp",
-			}).Fatal("failed to listen for connections")
-			return
-		}
-	}()
+	err = tunnel.Client(scc, ln, token, name, containerPort)
+	if err != nil {
+		// TODO.  Same question about Fatal.  Also if accept errors
+		// maybe wes hould have retried inside accept tunnels instead of
+		// fatal out here?
+		log.WithFields(log.Fields{
+			"error":   err,
+			"address": addr,
+			"network": "tcp",
+		}).Fatal("failed to listen for connections")
+		return
+	}
 }
 
-func (cmd *up) buildImages(composeFile dockercompose.Config) {
+func (cmd *up) buildImages(composeFile dockercompose.Config) (map[string]string, error) {
 	if cmd.dockerClient == nil {
-		log.Fatal("no docker client")
+		return nil, errors.New("no docker client")
 	}
 
 	images := map[string]string{}
@@ -282,13 +267,12 @@ func (cmd *up) buildImages(composeFile dockercompose.Config) {
 
 		imageName, err := cmd.buildImage(*svc.Build, svcName)
 		if err != nil {
-			log.WithError(err).Fatalf("failed to build image %v", svcName)
+			return nil, fmt.Errorf("build %s: %w", svcName, err)
 		}
 
 		images[svcName] = imageName
 	}
-
-	cmd.builtImages <- images
+	return images, nil
 }
 
 func (cmd *up) buildImage(spec dockercompose.Build, svc string) (string, error) {
@@ -331,7 +315,7 @@ func (cmd *up) buildImage(spec dockercompose.Build, svc string) (string, error) 
 		return "", fmt.Errorf("build image: %w", err)
 	}
 
-	name := fmt.Sprintf("%s/%s:%s", cmd.getImageNamespace(), svc, strings.TrimPrefix(imageID, "sha256:"))
+	name := fmt.Sprintf("%s/%s:%s", cmd.imageNamespace, svc, strings.TrimPrefix(imageID, "sha256:"))
 	if err := cmd.dockerClient.ImageTag(context.TODO(), imageID, name); err != nil {
 		return "", fmt.Errorf("tag image: %w", err)
 	}
@@ -360,8 +344,7 @@ func (cmd *up) buildImage(spec dockercompose.Build, svc string) (string, error) 
 	return name, nil
 }
 
-func (cmd *up) bootSyncthing(dcCfg dockercompose.Config,
-	scc sandbox.ControllerClient) {
+func (cmd *up) bootSyncthing(dcCfg dockercompose.Config) bool {
 	namespace := cmd.auth.KubeNamespace
 	idPathMap := map[string]string{}
 	for _, svc := range dcCfg.Services {
@@ -374,20 +357,17 @@ func (cmd *up) bootSyncthing(dcCfg dockercompose.Config,
 	}
 
 	if len(idPathMap) == 0 {
-		return
+		return false
 	}
 
-	startTunnel(scc, cmd.auth.AuthToken, "syncthing",
-		syncthing.Port, syncthing.Port)
-
 	go func() {
-		// XXX: If we try to establish the tunnel too quickly we get an
-		// unavailable error.  Really, we wshould just retry.
-		time.Sleep(1 * time.Second)
-		if output, err := syncthing.Run(idPathMap); err != nil {
+		output, err := syncthing.Run(idPathMap)
+		if err != nil {
 			log.WithError(err).WithField("output", string(output)).Warn("syncthing error")
 		}
 	}()
+
+	return true
 }
 
 func makeTar(dir string) (io.Reader, error) {
