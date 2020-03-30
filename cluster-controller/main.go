@@ -272,7 +272,8 @@ func (s *server) createSandboxManager(namespace string) (publicIP, certPEM strin
 			Namespace: namespace,
 			Name:      "sandbox-manager",
 			Labels: map[string]string{
-				"service": "sandbox-manager",
+				"service":        "sandbox-manager",
+				"blimp.customer": namespace,
 			},
 		},
 		Spec: corev1.PodSpec{
@@ -309,6 +310,7 @@ func (s *server) createSandboxManager(namespace string) (publicIP, certPEM strin
 					},
 				},
 			},
+			Affinity:           sameNodeAffinity(namespace),
 			ServiceAccountName: serviceAccount.Name,
 		},
 	}
@@ -472,7 +474,8 @@ func (s *server) createSyncthing(namespace string, cfg dockercompose.Config) err
 			Namespace: namespace,
 			Name:      "syncthing",
 			Labels: map[string]string{
-				"service": "syncthing",
+				"service":        "syncthing",
+				"blimp.customer": namespace,
 			},
 		},
 		Spec: corev1.PodSpec{
@@ -483,7 +486,8 @@ func (s *server) createSyncthing(namespace string, cfg dockercompose.Config) err
 				Args:            syncthing.MapToArgs(idPathMap),
 				VolumeMounts:    volumeMounts,
 			}},
-			Volumes: volumes,
+			Volumes:  volumes,
+			Affinity: sameNodeAffinity(namespace),
 		},
 	}
 
@@ -1069,26 +1073,30 @@ func toPods(namespace, managerIP string, cfg dockercompose.Config, builtImages m
 				},
 				Volumes:            volumes,
 				ServiceAccountName: "pod-runner",
-				Affinity: &corev1.Affinity{
-					PodAffinity: &corev1.PodAffinity{
-						RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
-							{
-								LabelSelector: &metav1.LabelSelector{
-									MatchLabels: map[string]string{
-										"blimp.customer": namespace,
-									},
-								},
-								TopologyKey: corev1.LabelHostname,
-							},
-						},
-					},
-				},
+				Affinity:           sameNodeAffinity(namespace),
 			},
 		}
 		pods = append(pods, pod)
 	}
 
 	return pods, configMaps, nil
+}
+
+func sameNodeAffinity(namespace string) *corev1.Affinity {
+	return &corev1.Affinity{
+		PodAffinity: &corev1.PodAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
+				{
+					LabelSelector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"blimp.customer": namespace,
+						},
+					},
+					TopologyKey: corev1.LabelHostname,
+				},
+			},
+		},
+	}
 }
 
 func waitForObject(
