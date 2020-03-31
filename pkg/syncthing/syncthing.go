@@ -3,12 +3,14 @@ package syncthing
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
 
 	rice "github.com/GeertJohan/go.rice"
 	"github.com/kelda-inc/blimp/pkg/cfgdir"
+	"github.com/kelda-inc/blimp/pkg/dockercompose"
 )
 
 const Marker = ".kelda_syncthing"
@@ -92,7 +94,7 @@ func Run(folders map[string]string) ([]byte, error) {
 
 	err := MakeMarkers(folders)
 	if err != nil {
-		return nil, fmt.Errorf("making syncthing markers: %w", err)
+		log.Fatal(dockercompose.FriendlyError(err))
 	}
 
 	stbinBytes, err := box.Bytes("")

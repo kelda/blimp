@@ -1189,15 +1189,5 @@ func getKubeClient() (kubernetes.Interface, *rest.Config, error) {
 }
 
 func parseErrorFriendlyMessage(level string, err error) string {
-	return fmt.Sprintf(`%s: Failed to parse Docker Compose file:
-
-%s
-
-This is usually a sign that you're using an unsupported Docker Compose feature.
-To fix this error, please modify your Docker Compose file to use the features
-described here: https://kelda.io/blimp/docs/config
-
-We're working on reaching full parity with Docker Compose. Ping us in Slack (https://slack.kelda.io)
-if you have any questions, we'd love to help!
-`, level, err)
+	return fmt.Sprintf("%s: %s", level, dockercompose.FriendlyError(err))
 }

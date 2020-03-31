@@ -226,3 +226,17 @@ func Parse(path string, cfg []byte) (parsed Config, strictErr, fatalErr error) {
 	}
 	return parsed, strictErr, nil
 }
+
+func FriendlyError(err error) string {
+	return fmt.Sprintf(`Failed to parse Docker Compose file:
+
+%s
+
+This is usually a sign that you're using an unsupported Docker Compose feature.
+To fix this error, please modify your Docker Compose file to use the features
+described here: https://kelda.io/blimp/docs/config
+
+We're working on reaching full parity with Docker Compose. Ping us in Slack (https://slack.kelda.io)
+if you have any questions, we'd love to help!
+`, err)
+}
