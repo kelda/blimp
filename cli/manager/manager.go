@@ -24,7 +24,7 @@ func getHost() string {
 	if envVal != "" {
 		return envVal
 	}
-	return "blimp-manager.kelda.io:9000"
+	return "blimp-manager.kelda.io:443"
 }
 
 func Dial() (Client, error) {

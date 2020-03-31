@@ -27,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -142,7 +143,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, fmt.Errorf("deploy syncthing: %w", err)
 	}
 
-	sandboxManagerIP, sandboxCert, err := s.createSandboxManager(namespace)
+	sandboxAddress, sandboxCert, err := s.createSandboxManager(namespace)
 	if err != nil {
 		return &cluster.CreateSandboxResponse{}, fmt.Errorf("deploy customer manager: %w", err)
 	}
@@ -166,7 +167,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 	}
 
 	return &cluster.CreateSandboxResponse{
-		SandboxAddress:  fmt.Sprintf("%s:%d", sandboxManagerIP, SandboxPort),
+		SandboxAddress:  sandboxAddress,
 		SandboxCert:     sandboxCert,
 		ImageNamespace:  fmt.Sprintf("%s/%s", RegistryHostname, namespace),
 		KubeCredentials: &cliCreds,
@@ -255,7 +256,7 @@ func (s *server) getSandboxControllerIP(namespace string) (string, error) {
 	return internalIP, nil
 }
 
-func (s *server) createSandboxManager(namespace string) (publicIP, certPEM string, err error) {
+func (s *server) createSandboxManager(namespace string) (sandboxAddr, certPEM string, err error) {
 	serviceAccount := corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "sandbox-manager",
@@ -335,7 +336,10 @@ func (s *server) createSandboxManager(namespace string) (publicIP, certPEM strin
 			Type:     corev1.ServiceTypeLoadBalancer,
 			Selector: pod.Labels,
 			Ports: []corev1.ServicePort{
-				{Port: SandboxPort},
+				{
+					Port:       443,
+					TargetPort: intstr.FromInt(SandboxPort),
+				},
 			},
 		},
 	}
@@ -350,6 +354,7 @@ func (s *server) createSandboxManager(namespace string) (publicIP, certPEM strin
 		}
 	}
 
+	var publicIP string
 	err = waitForObject(
 		serviceGetter(s.kubeClient, namespace, service.Name),
 		s.kubeClient.CoreV1().Services(namespace).Watch,
@@ -400,7 +405,7 @@ func (s *server) createSandboxManager(namespace string) (publicIP, certPEM strin
 		return "", "", fmt.Errorf("deploy: %w", err)
 	}
 
-	return publicIP, string(certSecret.Data["cert.pem"]), nil
+	return fmt.Sprintf("%s:443", publicIP), string(certSecret.Data["cert.pem"]), nil
 }
 
 func newSelfSignedCert(ip string) (pemCert, pemKey []byte, err error) {
