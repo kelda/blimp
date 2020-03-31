@@ -98,9 +98,9 @@ type up struct {
 }
 
 func (cmd *up) createSandbox(rawCompose string) error {
-	pp := util.NewProgressPrinter(os.Stderr, "Booting cloud sandbox..")
+	pp := util.NewProgressPrinter(os.Stderr, "Booting cloud sandbox")
 	go pp.Run()
-	defer pp.StopWithPrint(" Done\n")
+	defer pp.Stop()
 
 	registryCredentials, err := getLocalRegistryCredentials()
 	if err != nil {
@@ -183,7 +183,7 @@ func (cmd *up) run() error {
 	}
 
 	// Send the boot request to the cluster manager.
-	pp := util.NewProgressPrinter(os.Stderr, "Deploying Docker Compose file to sandbox..")
+	pp := util.NewProgressPrinter(os.Stderr, "Deploying Docker Compose file to sandbox")
 	go pp.Run()
 
 	_, err = cmd.clusterManager.DeployToSandbox(context.Background(), &cluster.DeployRequest{
@@ -194,7 +194,7 @@ func (cmd *up) run() error {
 		},
 		BuiltImages: builtImages,
 	})
-	pp.StopWithPrint(" Done\n")
+	pp.Stop()
 	if err != nil {
 		return err
 	}
@@ -331,9 +331,9 @@ func (cmd *up) buildImage(spec dockercompose.Build, svc string) (string, error) 
 		return "", fmt.Errorf("tag image: %w", err)
 	}
 
-	pp := util.NewProgressPrinter(os.Stderr, fmt.Sprintf("Pushing image for %s..", svc))
+	pp := util.NewProgressPrinter(os.Stderr, fmt.Sprintf("Pushing image for %s", svc))
 	go pp.Run()
-	defer pp.StopWithPrint(" Done\n")
+	defer pp.Stop()
 
 	registryAuth, err := makeRegistryAuthHeader(cmd.auth.AuthToken)
 	if err != nil {

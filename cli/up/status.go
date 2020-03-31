@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"sort"
-	"strings"
 	"sync"
 	"text/tabwriter"
 	"time"
@@ -34,6 +33,8 @@ type tracker struct {
 	phase string
 	timer int
 }
+
+var spinnerChars = []string{"/", "-", "\\", "|"}
 
 func newStatusPrinter(services []string) *statusPrinter {
 	sp := &statusPrinter{tracker: map[string]*tracker{}, services: services}
@@ -144,8 +145,8 @@ func (sp *statusPrinter) printStatus() bool {
 		var phaseStr string
 		if tr.phase != donePhase {
 			allReady = false
-			ndots := tr.timer + 2
-			phaseStr = goterm.Color(tr.phase+strings.Repeat(".", ndots), goterm.YELLOW)
+			spinner := spinnerChars[tr.timer%len(spinnerChars)]
+			phaseStr = goterm.Color(tr.phase+" "+spinner, goterm.YELLOW)
 		} else {
 			phaseStr = goterm.Color(tr.phase, goterm.GREEN)
 		}
