@@ -13,18 +13,19 @@ service Manager {
   rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}
 }
 
+enum CLIAction {
+  OK = 0;
+  EXIT = 1;
+}
+
 message CheckVersionRequest {
   string version = 1;
 }
 
 message CheckVersionResponse {
-  string Version = 1;
-  string DisplayMessage = 2;
-  enum Action {
-    OK = 0;
-    EXIT = 1;
-  }
-  Action action = 3;
+  string version = 1;
+  string display_message = 2;
+  CLIAction action = 3;
 }
 
 message CreateSandboxRequest {
@@ -43,6 +44,9 @@ message CreateSandboxResponse {
   string SandboxCert = 2;
   KubeCredentials kubeCredentials = 3;
   string ImageNamespace = 4;
+
+  string message = 5;
+  CLIAction action = 6;
 }
 
 message DeployRequest {
@@ -56,9 +60,7 @@ message ComposeFile {
   string contents = 2;
 }
 
-message DeployResponse {
-  string strict_parse_error = 1;
-}
+message DeployResponse {}
 
 message KubeCredentials {
   string host = 1;

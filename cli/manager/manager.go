@@ -50,8 +50,8 @@ func Dial() (Client, error) {
 	}
 
 	switch resp.Action {
-	case cluster.CheckVersionResponse_OK:
-	case cluster.CheckVersionResponse_EXIT:
+	case cluster.CLIAction_OK:
+	case cluster.CLIAction_EXIT:
 		os.Exit(0)
 	default:
 		os.Exit(0)

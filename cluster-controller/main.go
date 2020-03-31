@@ -113,7 +113,7 @@ func (s *server) CheckVersion(ctx context.Context, req *cluster.CheckVersionRequ
 	return &cluster.CheckVersionResponse{
 		Version:        version.Version,
 		DisplayMessage: "",
-		Action:         cluster.CheckVersionResponse_OK,
+		Action:         cluster.CLIAction_OK,
 	}, nil
 }
 
@@ -129,9 +129,12 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 	analytics.Log.WithField("namespace", user.Namespace).WithField("composeFile", req.GetComposeFile()).Info("Booted Blimp")
 
 	composeFile := req.GetComposeFile()
-	dcCfg, _, err := dockercompose.Parse(composeFile.Path, []byte(composeFile.Contents))
+	dcCfg, strictParseErr, err := dockercompose.Parse(composeFile.Path, []byte(composeFile.Contents))
 	if err != nil {
-		return &cluster.CreateSandboxResponse{}, err
+		return &cluster.CreateSandboxResponse{
+			Message: parseErrorFriendlyMessage("FATAL", err),
+			Action:  cluster.CLIAction_EXIT,
+		}, nil
 	}
 
 	namespace := user.Namespace
@@ -166,11 +169,20 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, fmt.Errorf("get kube credentials: %w", err)
 	}
 
+	var msg string
+	if strictParseErr != nil {
+		log.WithError(strictParseErr).
+			WithField("namespace", namespace).
+			Warn("Docker Compose file failed strict parsing")
+		msg = parseErrorFriendlyMessage("WARNING", strictParseErr)
+	}
+
 	return &cluster.CreateSandboxResponse{
 		SandboxAddress:  sandboxAddress,
 		SandboxCert:     sandboxCert,
 		ImageNamespace:  fmt.Sprintf("%s/%s", RegistryHostname, namespace),
 		KubeCredentials: &cliCreds,
+		Message:         msg,
 	}, nil
 }
 
@@ -182,9 +194,8 @@ func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest
 	}
 
 	composeFile := req.GetComposeFile()
-	dcCfg, strictParseErr, err := dockercompose.Parse(composeFile.Path, []byte(composeFile.Contents))
+	dcCfg, _, err := dockercompose.Parse(composeFile.Path, []byte(composeFile.Contents))
 	if err != nil {
-		// TODO: Error within response.
 		return &cluster.DeployResponse{}, err
 	}
 
@@ -209,15 +220,7 @@ func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest
 	if err := s.deployCustomerPods(namespace, customerPods); err != nil {
 		return &cluster.DeployResponse{}, fmt.Errorf("boot customer pods: %w", err)
 	}
-
-	var strictParseErrStr string
-	if strictParseErr != nil {
-		log.WithError(strictParseErr).
-			WithField("namespace", namespace).
-			Warn("Docker Compose file failed strict parsing")
-		strictParseErrStr = strictParseErr.Error()
-	}
-	return &cluster.DeployResponse{StrictParseError: strictParseErrStr}, nil
+	return &cluster.DeployResponse{}, nil
 }
 
 func (s *server) createNamespace(namespace string) error {
@@ -1183,4 +1186,18 @@ func getKubeClient() (kubernetes.Interface, *rest.Config, error) {
 	}
 
 	return kubeClient, restConfig, nil
+}
+
+func parseErrorFriendlyMessage(level string, err error) string {
+	return fmt.Sprintf(`%s: Failed to parse Docker Compose file:
+
+%s
+
+This is usually a sign that you're using an unsupported Docker Compose feature.
+To fix this error, please modify your Docker Compose file to use the features
+described here: https://kelda.io/blimp/docs/config
+
+We're working on reaching full parity with Docker Compose. Ping us in Slack (https://slack.kelda.io)
+if you have any questions, we'd love to help!
+`, level, err)
 }

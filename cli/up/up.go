@@ -107,7 +107,7 @@ func (cmd *up) createSandbox(rawCompose string) error {
 		return fmt.Errorf("get local registry credentials: %w", err)
 	}
 
-	createSandboxResp, err := cmd.clusterManager.CreateSandbox(context.TODO(),
+	resp, err := cmd.clusterManager.CreateSandbox(context.TODO(),
 		&cluster.CreateSandboxRequest{
 			Token: cmd.auth.AuthToken,
 			ComposeFile: &cluster.ComposeFile{
@@ -119,12 +119,25 @@ func (cmd *up) createSandbox(rawCompose string) error {
 	if err != nil {
 		return err
 	}
-	cmd.imageNamespace = createSandboxResp.ImageNamespace
-	cmd.sandboxAddr = createSandboxResp.SandboxAddress
-	cmd.sandboxCert = createSandboxResp.SandboxCert
+
+	if resp.Message != "" {
+		fmt.Printf("\n" + resp.Message)
+	}
+
+	switch resp.Action {
+	case cluster.CLIAction_OK:
+	case cluster.CLIAction_EXIT:
+		os.Exit(0)
+	default:
+		os.Exit(0)
+	}
+
+	cmd.imageNamespace = resp.ImageNamespace
+	cmd.sandboxAddr = resp.SandboxAddress
+	cmd.sandboxCert = resp.SandboxCert
 
 	// Save the Kubernetes API credentials for use by other Blimp commands.
-	kubeCreds := createSandboxResp.GetKubeCredentials()
+	kubeCreds := resp.GetKubeCredentials()
 	cmd.auth.KubeToken = kubeCreds.Token
 	cmd.auth.KubeHost = kubeCreds.Host
 	cmd.auth.KubeCACrt = kubeCreds.CaCrt
@@ -173,7 +186,7 @@ func (cmd *up) run() error {
 	pp := util.NewProgressPrinter(os.Stderr, "Deploying Docker Compose file to sandbox..")
 	go pp.Run()
 
-	deployResp, err := cmd.clusterManager.DeployToSandbox(context.Background(), &cluster.DeployRequest{
+	_, err = cmd.clusterManager.DeployToSandbox(context.Background(), &cluster.DeployRequest{
 		Token: cmd.auth.AuthToken,
 		ComposeFile: &cluster.ComposeFile{
 			Path:     cmd.composePath,
@@ -184,16 +197,6 @@ func (cmd *up) run() error {
 	pp.StopWithPrint(" Done\n")
 	if err != nil {
 		return err
-	}
-
-	if deployResp.StrictParseError != "" {
-		log.Warn("Docker Compose file failed strict parsing:\n\n" +
-			deployResp.StrictParseError + "\n\n" +
-			"This is usually a sign that you're using an unsupported Docker Compose features.\n" +
-			"To fix this error, please modify your Docker Compose file to " +
-			"use the features described here: https://kelda.io/blimp/docs/config\n\n" +
-			"We're working on reaching full parity with Docker Compose, so let us know what features you'd like us to prioritize!")
-		log.Info("Blimp will continue to attempt to boot")
 	}
 
 	sandboxConn, err := util.Dial(cmd.sandboxAddr, cmd.sandboxCert)
