@@ -38,7 +38,7 @@ message CheckVersionResponse {
 
 message CreateSandboxRequest {
   string token = 1;
-  ComposeFile composeFile = 2;
+  string composeFile = 2;
   map<string, RegistryCredential> registryCredentials = 3;
 }
 
@@ -59,13 +59,8 @@ message CreateSandboxResponse {
 
 message DeployRequest {
   string token = 1;
-  ComposeFile composeFile = 2;
+  string composeFile = 2;
   map<string, string> builtImages = 3;
-}
-
-message ComposeFile {
-  string path = 1;
-  string contents = 2;
 }
 
 message DeployResponse {}

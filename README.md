@@ -91,3 +91,6 @@ enabled. This is done by default in the Makefile.
 
 When adding a new dependency, run `go get` as normal to update the `go.mod`
 files, and commit the files in `vendor` after running `go mod vendor`.
+
+To use `go get` with `github.com/compose-spec/compose-go`
+`GOPRIVATE=github.com/compose-spec/compose-go` must be set.

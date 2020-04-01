@@ -1,230 +1,91 @@
 package dockercompose
 
 import (
-	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/ghodss/yaml"
-	"github.com/kelda-inc/blimp/pkg/volume"
+
+	"github.com/compose-spec/compose-go/loader"
+	"github.com/compose-spec/compose-go/types"
 )
 
-// TODO: Could generate from the schema definitions in the Docker Compose
-// project (https://github.com/docker/compose/tree/master/compose/config).
-
-type Config struct {
-	Version  string             `json:"version"`
-	Services map[string]Service `json:"services"`
-	Volumes  map[string]Volume  `json:"volumes"`
-}
-
-type Service struct {
-	Image string `json:"image"`
-	// TODO: Command and Entrypoint can be specified by a single raw string as well.
-	Command      []string             `json:"command"`
-	Entrypoint   []string             `json:"entrypoint"`
-	PortMappings []PortMapping        `json:"ports"`
-	Build        *Build               `json:"build"`
-	Volumes      []VolumeMount        `json:"volumes"`
-	Environment  EnvironmentVariables `json:"environment"`
-	// TODO: Validate that DependsOn only references declared services.
-	DependsOn []string `json:"depends_on"`
-}
-
-type EnvironmentVariables map[string]string
-
-func (vars *EnvironmentVariables) UnmarshalJSON(b []byte) error {
-	*vars = map[string]string{}
-
-	var intf interface{}
-	if err := yaml.Unmarshal(b, &intf); err != nil {
-		return err
+func Load(path string, b []byte) (types.Config, error) {
+	configIntf, err := loader.ParseYAML(b)
+	if err != nil {
+		return types.Config{}, fmt.Errorf("parse: %w", err)
 	}
 
-	// Environment variables may be expressed as either an array or dictionary.
-	switch varsIntf := intf.(type) {
-	case []interface{}:
-		for _, keyValIntf := range varsIntf {
-			keyValStr, ok := keyValIntf.(string)
-			if !ok {
-				return errors.New("expected a list of strings")
+	env := map[string]string{}
+	for _, e := range os.Environ() {
+		pair := strings.SplitN(e, "=", 2)
+		var val string
+		if len(pair) == 2 {
+			val = pair[1]
+		}
+		env[pair[0]] = val
+	}
+
+	opts := []func(*loader.Options){
+		// Discard env_files references after evaluating them so that the
+		// cluster manager doesn't error when it tries to load the
+		// configuration file.
+		loader.WithDiscardEnvFiles,
+
+		// Skip validation so that the loader doesn't error on non-v3 files.
+		withSkipValidation,
+	}
+
+	cfgPtr, err := loader.Load(types.ConfigDetails{
+		WorkingDir: filepath.Dir(path),
+		ConfigFiles: []types.ConfigFile{
+			{
+				Filename: filepath.Base(path),
+				Config:   configIntf,
+			},
+		},
+		Environment: env,
+	}, opts...)
+	if err != nil {
+		if forbiddenPropertiesErr, ok := err.(*loader.ForbiddenPropertiesError); ok {
+			var tips []string
+			for property, tip := range forbiddenPropertiesErr.Properties {
+				tips = append(tips, fmt.Sprintf("%s: %s", property, tip))
 			}
-
-			keyValParts := strings.SplitN(keyValStr, "=", 2)
-			if len(keyValParts) != 2 {
-				return fmt.Errorf("missing environment variable value: %s", keyValStr)
-			}
-
-			(*vars)[keyValParts[0]] = keyValParts[1]
+			return types.Config{}, fmt.Errorf("Compose File uses forbidden properties. "+
+				"Please upgrade to Compose Spec version 3 (http://link.kelda.io/upgrade-compose).\n\n%s",
+				strings.Join(tips, "\n"))
 		}
-	case map[string]interface{}:
-		for key, valIntf := range varsIntf {
-			valStr, ok := valIntf.(string)
-			if !ok {
-				return fmt.Errorf("environment variable value must be a string: %v", valIntf)
-			}
-
-			(*vars)[key] = valStr
-		}
-	default:
-		return errors.New("unexpected type for environment")
+		return types.Config{}, fmt.Errorf("load: %w", err)
 	}
 
-	return nil
+	return *cfgPtr, nil
 }
 
-type Volume struct{}
+func Unmarshal(b []byte) (parsed types.Config, err error) {
+	configIntf, err := loader.ParseYAML(b)
+	if err != nil {
+		return types.Config{}, fmt.Errorf("parse: %w", err)
+	}
 
-type VolumeMount struct {
-	volume.V
+	cfgPtr, err := loader.Load(types.ConfigDetails{
+		ConfigFiles: []types.ConfigFile{
+			{
+				Config: configIntf,
+			},
+		},
+	}, withSkipValidation)
+	if err != nil {
+		return types.Config{}, fmt.Errorf("load: %w", err)
+	}
 
-	// If the volume mount was defined using the string syntax, the volume's
-	// type can't be inferred until the mount is compared with the volumes
-	// explicitly declared by the Docker Compose file.
-	guessType bool
+	return *cfgPtr, nil
 }
 
-func (mount *VolumeMount) UnmarshalJSON(b []byte) error {
-	var intf interface{}
-	if err := yaml.Unmarshal(b, &intf); err != nil {
-		return err
-	}
-
-	// Volumes may be expressed as a string as passed to `docker run`, or in
-	// full YAML syntax.
-	switch v := intf.(type) {
-	case string:
-		mountParts := strings.Split(v, ":")
-		if len(mountParts) == 1 {
-			mount.Target = mountParts[0]
-		} else {
-			mount.guessType = true
-			mount.Source = mountParts[0]
-			mount.Target = mountParts[1]
-			// TODO: 3rd part is Mode.
-		}
-	case map[string]interface{}:
-		var ok bool
-		mount.Type, ok = v["type"].(string)
-		if !ok {
-			return errors.New("unexpected type for type")
-		}
-
-		mount.Source, ok = v["source"].(string)
-		if !ok {
-			return errors.New("unexpected type for source")
-		}
-
-		mount.Target, ok = v["target"].(string)
-		if !ok {
-			return errors.New("unexpected type for target")
-		}
-	default:
-		return errors.New("unexpected type for mount")
-	}
-
-	return nil
-}
-
-type PortMapping struct {
-	// The port accessed by the user via localhost.
-	HostPort uint32
-
-	// The port inside the container.
-	ContainerPort uint32
-}
-
-func (mapping *PortMapping) UnmarshalJSON(b []byte) error {
-	var mappingStr string
-	if err := yaml.Unmarshal(b, &mappingStr); err != nil {
-		return fmt.Errorf("parse string: %w", err)
-	}
-
-	var mappingParts []uint32
-	// TODO: Port ranges.
-	for _, portStr := range strings.Split(mappingStr, ":") {
-		port, err := strconv.ParseUint(portStr, 10, 32)
-		if err != nil {
-			return fmt.Errorf("parse mapping port: %w", err)
-		}
-		mappingParts = append(mappingParts, uint32(port))
-	}
-
-	switch len(mappingParts) {
-	case 0:
-		return errors.New("malformed port")
-	case 1:
-		mapping.HostPort = mappingParts[0]
-		mapping.ContainerPort = mappingParts[0]
-	case 2:
-		mapping.HostPort = mappingParts[0]
-		mapping.ContainerPort = mappingParts[1]
-	default:
-		return errors.New("malformed port")
-	}
-	return nil
-}
-
-type Build struct {
-	Dockerfile string
-	Context    string
-}
-
-func (build *Build) UnmarshalJSON(b []byte) error {
-	var intf interface{}
-	if err := yaml.Unmarshal(b, &intf); err != nil {
-		return err
-	}
-
-	switch v := intf.(type) {
-	case string:
-		build.Context = v
-	case map[string]interface{}:
-		var ok bool
-		build.Dockerfile, ok = v["dockerfile"].(string)
-		if !ok {
-			return fmt.Errorf("unexpected type for dockerfile")
-		}
-
-		build.Context, ok = v["context"].(string)
-		if !ok {
-			return fmt.Errorf("unexpected type for context")
-		}
-	default:
-		return errors.New("unexpected type for build")
-	}
-
-	return nil
-}
-
-func Parse(path string, cfg []byte) (parsed Config, strictErr, fatalErr error) {
-	strictErr = yaml.UnmarshalStrict(cfg, &parsed, yaml.DisallowUnknownFields)
-	if err := yaml.Unmarshal(cfg, &parsed); err != nil {
-		return Config{}, strictErr, fmt.Errorf("parse: %w", err)
-	}
-
-	for _, svc := range parsed.Services {
-		for i, volume := range svc.Volumes {
-			if volume.guessType {
-				if _, ok := parsed.Volumes[volume.Source]; ok {
-					volume.Type = "volume"
-				} else {
-					volume.Type = "bind"
-				}
-			}
-
-			// Convert relative paths to absolute paths, so that the volume
-			// identifier is unique.
-			if volume.Type == "bind" && !filepath.IsAbs(volume.Source) {
-				volume.Source = filepath.Clean(filepath.Join(filepath.Dir(path), volume.Source))
-			}
-
-			svc.Volumes[i] = volume
-		}
-	}
-	return parsed, strictErr, nil
+func Marshal(cfg types.Config) ([]byte, error) {
+	return yaml.Marshal(cfg)
 }
 
 func FriendlyError(err error) string {
@@ -236,7 +97,11 @@ This is usually a sign that you're using an unsupported Docker Compose feature.
 To fix this error, please modify your Docker Compose file to use the features
 described here: https://kelda.io/blimp/docs/config
 
-We're working on reaching full parity with Docker Compose. Ping us in Slack (https://slack.kelda.io)
+We're working on reaching full parity with Docker Compose. Ping us in Slack (http://slack.kelda.io)
 if you have any questions, we'd love to help!
 `, err)
+}
+
+func withSkipValidation(opts *loader.Options) {
+	opts.SkipValidation = true
 }

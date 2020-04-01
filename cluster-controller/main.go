@@ -17,6 +17,7 @@ import (
 	"os"
 	"time"
 
+	composeTypes "github.com/compose-spec/compose-go/types"
 	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -40,6 +41,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
 	"github.com/kelda-inc/blimp/pkg/syncthing"
 	"github.com/kelda-inc/blimp/pkg/version"
+	"github.com/kelda-inc/blimp/pkg/volume"
 
 	// Install the gzip compressor.
 	_ "google.golang.org/grpc/encoding/gzip"
@@ -135,11 +137,11 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, err
 	}
 
-	analytics.Log.WithField("namespace", user.Namespace).WithField("composeFile", req.GetComposeFile()).Info("Booted Blimp")
-
-	composeFile := req.GetComposeFile()
-	dcCfg, strictParseErr, err := dockercompose.Parse(composeFile.Path, []byte(composeFile.Contents))
+	dcCfg, err := dockercompose.Unmarshal([]byte(req.GetComposeFile()))
 	if err != nil {
+		// TODO: This friendly message is actually wrong, because we know that
+		// unmarshalled on the client side. So it's our problem, not the user's
+		// Docker Compose file.
 		return &cluster.CreateSandboxResponse{
 			Message: parseErrorFriendlyMessage("FATAL", err),
 			Action:  cluster.CLIAction_EXIT,
@@ -178,20 +180,11 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, fmt.Errorf("get kube credentials: %w", err)
 	}
 
-	var msg string
-	if strictParseErr != nil {
-		log.WithError(strictParseErr).
-			WithField("namespace", namespace).
-			Warn("Docker Compose file failed strict parsing")
-		msg = parseErrorFriendlyMessage("WARNING", strictParseErr)
-	}
-
 	return &cluster.CreateSandboxResponse{
 		SandboxAddress:  sandboxAddress,
 		SandboxCert:     sandboxCert,
 		ImageNamespace:  fmt.Sprintf("%s/%s", RegistryHostname, namespace),
 		KubeCredentials: &cliCreds,
-		Message:         msg,
 	}, nil
 }
 
@@ -202,8 +195,7 @@ func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest
 		return &cluster.DeployResponse{}, err
 	}
 
-	composeFile := req.GetComposeFile()
-	dcCfg, _, err := dockercompose.Parse(composeFile.Path, []byte(composeFile.Contents))
+	dcCfg, err := dockercompose.Unmarshal([]byte(req.GetComposeFile()))
 	if err != nil {
 		return &cluster.DeployResponse{}, err
 	}
@@ -467,14 +459,14 @@ func newSelfSignedCert(ip string) (pemCert, pemKey []byte, err error) {
 	return certOut.Bytes(), keyOut.Bytes(), nil
 }
 
-func (s *server) createSyncthing(namespace string, cfg dockercompose.Config) error {
+func (s *server) createSyncthing(namespace string, cfg composeTypes.Config) error {
 	idPathMap := map[string]string{}
 
 	var volumes []corev1.Volume
 	var volumeMounts []corev1.VolumeMount
 	for _, svc := range cfg.Services {
 		for _, desired := range svc.Volumes {
-			id := desired.Id(namespace)
+			id := volume.ID(namespace, desired)
 			hostPath := volumeHostPath(namespace, id)
 
 			volume, mount := makeVolumeMount(namespace, id,
@@ -977,8 +969,8 @@ func volumeHostPath(namespace, id string) string {
 	return fmt.Sprintf("/var/blimp/volumes/%s/%s", namespace, id)
 }
 
-func toPods(namespace, managerIP string, cfg dockercompose.Config, builtImages map[string]string) (pods []corev1.Pod, configMaps []corev1.ConfigMap, err error) {
-	for name, svc := range cfg.Services {
+func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages map[string]string) (pods []corev1.Pod, configMaps []corev1.ConfigMap, err error) {
+	for _, svc := range cfg.Services {
 		// Each pod has a corresponding ConfigMap containing the dependencies
 		// it requires before it should boot. This ConfigMap is mounted as a
 		// volume into the pod's init container. The init container passes it
@@ -991,7 +983,7 @@ func toPods(namespace, managerIP string, cfg dockercompose.Config, builtImages m
 				continue
 			}
 
-			waitSpec.SyncthingFolders = append(waitSpec.SyncthingFolders, v.Id(namespace))
+			waitSpec.SyncthingFolders = append(waitSpec.SyncthingFolders, volume.ID(namespace, v))
 		}
 
 		waitSpecBytes, err := proto.Marshal(waitSpec)
@@ -1002,7 +994,7 @@ func toPods(namespace, managerIP string, cfg dockercompose.Config, builtImages m
 		waitSpecConfigMap := corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: namespace,
-				Name:      fmt.Sprintf("wait-spec-%s", name),
+				Name:      fmt.Sprintf("wait-spec-%s", svc.Name),
 			},
 			BinaryData: map[string][]byte{
 				"wait-spec": waitSpecBytes,
@@ -1029,7 +1021,7 @@ func toPods(namespace, managerIP string, cfg dockercompose.Config, builtImages m
 		// Volumes are backed by a directory on the node's filesystem.
 		var volumeMounts []corev1.VolumeMount
 		for _, desired := range svc.Volumes {
-			id := desired.Id(namespace)
+			id := volume.ID(namespace, desired)
 			hostPath := volumeHostPath(namespace, id)
 			volume, mount := makeVolumeMount(namespace, id,
 				hostPath, desired.Target)
@@ -1038,7 +1030,12 @@ func toPods(namespace, managerIP string, cfg dockercompose.Config, builtImages m
 		}
 
 		var envVars []corev1.EnvVar
-		for k, v := range svc.Environment {
+		for k, vPtr := range svc.Environment {
+			// vPtr may be nil if only the key is specified.
+			var v string
+			if vPtr != nil {
+				v = *vPtr
+			}
 			envVars = append(envVars, corev1.EnvVar{
 				Name:  k,
 				Value: v,
@@ -1047,7 +1044,7 @@ func toPods(namespace, managerIP string, cfg dockercompose.Config, builtImages m
 
 		image := svc.Image
 		if svc.Build != nil {
-			image = builtImages[name]
+			image = builtImages[svc.Name]
 			// TODO: Error if image DNE.
 		}
 
@@ -1055,9 +1052,9 @@ func toPods(namespace, managerIP string, cfg dockercompose.Config, builtImages m
 		pod := corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: namespace,
-				Name:      name,
+				Name:      svc.Name,
 				Labels: map[string]string{
-					"blimp.service":     name,
+					"blimp.service":     svc.Name,
 					"blimp.customerPod": "true",
 					"blimp.customer":    namespace,
 				},
@@ -1083,7 +1080,7 @@ func toPods(namespace, managerIP string, cfg dockercompose.Config, builtImages m
 				},
 				Containers: []corev1.Container{
 					{
-						Name:         name,
+						Name:         svc.Name,
 						Image:        image,
 						Command:      svc.Entrypoint,
 						Args:         svc.Command,

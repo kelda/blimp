@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	composeTypes "github.com/compose-spec/compose-go/types"
 	"github.com/docker/cli/cli/config"
 	clitypes "github.com/docker/cli/cli/config/types"
 	"github.com/docker/docker/api/types"
@@ -29,11 +30,13 @@ import (
 	"github.com/kelda-inc/blimp/cli/logs"
 	"github.com/kelda-inc/blimp/cli/manager"
 	"github.com/kelda-inc/blimp/cli/util"
+	"github.com/kelda-inc/blimp/pkg/analytics"
 	"github.com/kelda-inc/blimp/pkg/dockercompose"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
 	"github.com/kelda-inc/blimp/pkg/syncthing"
 	"github.com/kelda-inc/blimp/pkg/tunnel"
+	"github.com/kelda-inc/blimp/pkg/volume"
 )
 
 func New() *cobra.Command {
@@ -95,7 +98,7 @@ type up struct {
 	sandboxCert    string
 }
 
-func (cmd *up) createSandbox(rawCompose string) error {
+func (cmd *up) createSandbox(composeCfg string) error {
 	pp := util.NewProgressPrinter(os.Stderr, "Booting cloud sandbox")
 	go pp.Run()
 	defer pp.Stop()
@@ -107,11 +110,8 @@ func (cmd *up) createSandbox(rawCompose string) error {
 
 	resp, err := manager.C.CreateSandbox(context.TODO(),
 		&cluster.CreateSandboxRequest{
-			Token: cmd.auth.AuthToken,
-			ComposeFile: &cluster.ComposeFile{
-				Path:     cmd.composePath,
-				Contents: rawCompose,
-			},
+			Token:               cmd.auth.AuthToken,
+			ComposeFile:         string(composeCfg),
 			RegistryCredentials: registryCredentials,
 		})
 	if err != nil {
@@ -152,18 +152,26 @@ func (cmd *up) run() error {
 		return err
 	}
 
-	// Start creating the sandbox immediately so that the systems services
-	// start booting as soon as possible.
-	// Also, we ship the Docker Compose file to the cluster as quickly as
-	// possible so that if the parsing fails, we will at least have the compose
-	// file for debugging later.
-	if err := cmd.createSandbox(string(rawCompose)); err != nil {
-		log.WithError(err).Fatal("Failed to create development sandbox")
-	}
-
-	parsedCompose, _, err := dockercompose.Parse(cmd.composePath, rawCompose)
+	// TODO: Warn if compose file uses features that we don't implement.
+	parsedCompose, err := dockercompose.Load(cmd.composePath, rawCompose)
 	if err != nil {
 		return err
+	}
+
+	parsedComposeBytes, err := dockercompose.Marshal(parsedCompose)
+	if err != nil {
+		return err
+	}
+
+	analytics.Log.
+		WithField("rawCompose", string(rawCompose)).
+		WithField("evaluatedCompose", string(parsedComposeBytes)).
+		Info("Booted Blimp")
+
+	// Start creating the sandbox immediately so that the systems services
+	// start booting as soon as possible.
+	if err := cmd.createSandbox(string(parsedComposeBytes)); err != nil {
+		log.WithError(err).Fatal("Failed to create development sandbox")
 	}
 
 	haveSyncthing := cmd.bootSyncthing(parsedCompose)
@@ -179,11 +187,8 @@ func (cmd *up) run() error {
 	go pp.Run()
 
 	_, err = manager.C.DeployToSandbox(context.Background(), &cluster.DeployRequest{
-		Token: cmd.auth.AuthToken,
-		ComposeFile: &cluster.ComposeFile{
-			Path:     cmd.composePath,
-			Contents: string(rawCompose),
-		},
+		Token:       cmd.auth.AuthToken,
+		ComposeFile: string(parsedComposeBytes),
 		BuiltImages: builtImages,
 	})
 	pp.Stop()
@@ -199,10 +204,10 @@ func (cmd *up) run() error {
 
 	// Start the tunnels.
 	sandboxManager := sandbox.NewControllerClient(sandboxConn)
-	for name, svc := range parsedCompose.Services {
-		for _, mapping := range svc.PortMappings {
-			go startTunnel(sandboxManager, cmd.auth.AuthToken, name,
-				mapping.HostPort, mapping.ContainerPort)
+	for _, svc := range parsedCompose.Services {
+		for _, mapping := range svc.Ports {
+			go startTunnel(sandboxManager, cmd.auth.AuthToken, svc.Name,
+				mapping.Published, mapping.Target)
 		}
 	}
 
@@ -211,11 +216,7 @@ func (cmd *up) run() error {
 			syncthing.Port, syncthing.Port)
 	}
 
-	var services []string
-	for name := range parsedCompose.Services {
-		services = append(services, name)
-	}
-
+	services := parsedCompose.ServiceNames()
 	statusPrinter := newStatusPrinter(services)
 	statusPrinter.Run(manager.C, cmd.auth.AuthToken)
 
@@ -257,28 +258,28 @@ func startTunnel(scc sandbox.ControllerClient, token, name string,
 	}
 }
 
-func (cmd *up) buildImages(composeFile dockercompose.Config) (map[string]string, error) {
+func (cmd *up) buildImages(composeFile composeTypes.Config) (map[string]string, error) {
 	if cmd.dockerClient == nil {
 		return nil, errors.New("no docker client")
 	}
 
 	images := map[string]string{}
-	for svcName, svc := range composeFile.Services {
+	for _, svc := range composeFile.Services {
 		if svc.Build == nil {
 			continue
 		}
 
-		imageName, err := cmd.buildImage(*svc.Build, svcName)
+		imageName, err := cmd.buildImage(*svc.Build, svc.Name)
 		if err != nil {
-			return nil, fmt.Errorf("build %s: %w", svcName, err)
+			return nil, fmt.Errorf("build %s: %w", svc.Name, err)
 		}
 
-		images[svcName] = imageName
+		images[svc.Name] = imageName
 	}
 	return images, nil
 }
 
-func (cmd *up) buildImage(spec dockercompose.Build, svc string) (string, error) {
+func (cmd *up) buildImage(spec composeTypes.BuildConfig, svc string) (string, error) {
 	opts := types.ImageBuildOptions{
 		Dockerfile: spec.Dockerfile,
 	}
@@ -347,7 +348,7 @@ func (cmd *up) buildImage(spec dockercompose.Build, svc string) (string, error) 
 	return name, nil
 }
 
-func (cmd *up) bootSyncthing(dcCfg dockercompose.Config) bool {
+func (cmd *up) bootSyncthing(dcCfg composeTypes.Config) bool {
 	namespace := cmd.auth.KubeNamespace
 	idPathMap := map[string]string{}
 	for _, svc := range dcCfg.Services {
@@ -355,7 +356,7 @@ func (cmd *up) bootSyncthing(dcCfg dockercompose.Config) bool {
 			if v.Type != "bind" {
 				continue
 			}
-			idPathMap[v.Id(namespace)] = v.Source
+			idPathMap[volume.ID(namespace, v)] = v.Source
 		}
 	}
 
