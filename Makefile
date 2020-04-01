@@ -8,7 +8,7 @@ MANAGER_KEY_PATH = "./certs/cluster-manager.key.pem"
 MANAGER_CERT_PATH = "./certs/cluster-manager.crt.pem"
 LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
 	   -X github.com/kelda-inc/blimp/pkg/version.SandboxControllerImage=${SANDBOX_CONTROLLER_IMAGE} \
-	   -X github.com/kelda-inc/blimp/pkg/version.BootWaiterImage=${BOOT_WAITER_IMAGE} \
+	   -X github.com/kelda-inc/blimp/pkg/version.InitImage=${INIT_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/version.SyncthingImage=${SYNCTHING_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/auth.ClusterManagerCertBase64=$(shell base64 ${MANAGER_CERT_PATH} | tr -d "\n") \
 	   -X main.RegistryHostname=${REGISTRY_HOSTNAME}"
@@ -23,10 +23,8 @@ install: certs build-cli-osx
 	mv blimp-osx $(GOPATH)/bin/cli
 	CGO_ENABLED=0 go install -ldflags $(LD_FLAGS) \
 		    ./cluster-controller \
-		    ./sandbox-controller \
 		    ./registry \
-		    ./boot-waiter \
-		    ./sandbox-syncthing
+		    ./sandbox/*
 
 syncthing-macos:
 	curl -L -O https://github.com/syncthing/syncthing/releases/download/v1.4.0/syncthing-macos-amd64-v1.4.0.tar.gz
@@ -73,23 +71,23 @@ build-circle-image:
 
 SANDBOX_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-sandbox-controller:${VERSION}
 CLUSTER_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-cluster-controller:${VERSION}
-BOOT_WAITER_IMAGE = ${DOCKER_REPO}/blimp-boot-waiter:${VERSION}
+INIT_IMAGE = ${DOCKER_REPO}/blimp-init:${VERSION}
 SYNCTHING_IMAGE = ${DOCKER_REPO}/sandbox-syncthing:${VERSION}
 DOCKER_AUTH_IMAGE = ${DOCKER_REPO}/blimp-docker-auth:${VERSION}
 
 build-docker:
 	docker build -t blimp-go-build --build-arg COMPILE_FLAGS=${LD_FLAGS} .
 	docker build -t blimp-cluster-controller -t ${CLUSTER_CONTROLLER_IMAGE} -f ./cluster-controller/Dockerfile .
-	docker build -t blimp-sandbox-controller -t ${SANDBOX_CONTROLLER_IMAGE} -f ./sandbox-controller/Dockerfile .
-	docker build -t sandbox-syncthing -t ${SYNCTHING_IMAGE} -f ./sandbox-syncthing/Dockerfile ./sandbox-syncthing
-	docker build -t boot-waiter -t ${BOOT_WAITER_IMAGE} -f ./boot-waiter/Dockerfile ./boot-waiter
+	docker build -t blimp-sandbox-controller -t ${SANDBOX_CONTROLLER_IMAGE} -f ./sandbox/sbctl/Dockerfile .
+	docker build -t sandbox-syncthing -t ${SYNCTHING_IMAGE} -f ./sandbox/syncthing/Dockerfile .
+	docker build -t blimp-init -t ${INIT_IMAGE} -f ./sandbox/init/Dockerfile .
 	docker build -t blimp-docker-auth -t ${DOCKER_AUTH_IMAGE} -f ./registry/Dockerfile .
 
 push-docker: build-docker
 	docker push ${SANDBOX_CONTROLLER_IMAGE}
 	docker push ${CLUSTER_CONTROLLER_IMAGE}
 	docker push ${SYNCTHING_IMAGE}
-	docker push ${BOOT_WAITER_IMAGE}
+	docker push ${INIT_IMAGE}
 	docker push ${DOCKER_AUTH_IMAGE}
 
 deploy-registry:

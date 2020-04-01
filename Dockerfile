@@ -8,8 +8,6 @@ ADD . .
 ARG COMPILE_FLAGS
 
 RUN CGO_ENABLED=0 go install -ldflags "${COMPILE_FLAGS}" \
-    ./boot-waiter \
     ./cluster-controller \
     ./registry \
-    ./sandbox-controller \
-    ./sandbox-syncthing
+    ./sandbox/* \

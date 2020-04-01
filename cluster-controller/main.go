@@ -1056,8 +1056,8 @@ func toPods(namespace, managerIP string, cfg dockercompose.Config, builtImages m
 			Spec: corev1.PodSpec{
 				InitContainers: []corev1.Container{
 					{
-						Name:  "boot-waiter",
-						Image: version.BootWaiterImage,
+						Name:  "init",
+						Image: version.InitImage,
 						Env: []corev1.EnvVar{
 							{
 								Name:  "SANDBOX_MANAGER_HOST",

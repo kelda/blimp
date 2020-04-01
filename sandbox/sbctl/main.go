@@ -17,8 +17,8 @@ import (
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
 	"github.com/kelda-inc/blimp/pkg/syncthing"
 	"github.com/kelda-inc/blimp/pkg/tunnel"
-	"github.com/kelda-inc/blimp/sandbox-controller/dns"
-	"github.com/kelda-inc/blimp/sandbox-controller/wait"
+	"github.com/kelda-inc/blimp/sandbox/sbctl/dns"
+	"github.com/kelda-inc/blimp/sandbox/sbctl/wait"
 
 	// Install the gzip compressor.
 	_ "google.golang.org/grpc/encoding/gzip"
