@@ -64,7 +64,7 @@ build-cli-osx: syncthing-macos certs
 	rm ./pkg/syncthing/stbin
 
 run-cluster-controller: certs
-	go run -ldflags $(LD_FLAGS) ./cluster-controller -tls-cert ${MANAGER_CERT_PATH} -tls-key ${MANAGER_KEY_PATH}
+	go run -mod=vendor -ldflags $(LD_FLAGS) ./cluster-controller -tls-cert ${MANAGER_CERT_PATH} -tls-key ${MANAGER_KEY_PATH}
 
 build-circle-image:
 	docker build -f .circleci/Dockerfile . -t keldaio/circleci-blimp
@@ -75,20 +75,20 @@ INIT_IMAGE = ${DOCKER_REPO}/blimp-init:${VERSION}
 SYNCTHING_IMAGE = ${DOCKER_REPO}/sandbox-syncthing:${VERSION}
 DOCKER_AUTH_IMAGE = ${DOCKER_REPO}/blimp-docker-auth:${VERSION}
 
-build-docker:
+build-docker: certs
 	docker build -t blimp-go-build --build-arg COMPILE_FLAGS=${LD_FLAGS} .
-	docker build -t blimp-cluster-controller -t ${CLUSTER_CONTROLLER_IMAGE} - < ./cluster-controller/Dockerfile
-	docker build -t blimp-sandbox-controller -t ${SANDBOX_CONTROLLER_IMAGE} - < ./sandbox/sbctl/Dockerfile
-	docker build -t sandbox-syncthing -t ${SYNCTHING_IMAGE} -f ./sandbox/syncthing/Dockerfile .
-	docker build -t blimp-init -t ${INIT_IMAGE} - < ./sandbox/init/Dockerfile
-	docker build -t blimp-docker-auth -t ${DOCKER_AUTH_IMAGE} - < ./registry/Dockerfile
+	docker build -t sandbox-syncthing -t ${SYNCTHING_IMAGE} -f ./sandbox/syncthing/Dockerfile . &
+	docker build -t blimp-cluster-controller -t ${CLUSTER_CONTROLLER_IMAGE} - < ./cluster-controller/Dockerfile &
+	docker build -t blimp-sandbox-controller -t ${SANDBOX_CONTROLLER_IMAGE} - < ./sandbox/sbctl/Dockerfile &
+	docker build -t blimp-init -t ${INIT_IMAGE} - < ./sandbox/init/Dockerfile &
+	docker build -t blimp-docker-auth -t ${DOCKER_AUTH_IMAGE} - < ./registry/Dockerfile &
 
 push-docker: build-docker
 	docker push ${SANDBOX_CONTROLLER_IMAGE}
-	docker push ${CLUSTER_CONTROLLER_IMAGE}
-	docker push ${SYNCTHING_IMAGE}
-	docker push ${INIT_IMAGE}
-	docker push ${DOCKER_AUTH_IMAGE}
+	docker push ${CLUSTER_CONTROLLER_IMAGE} &
+	docker push ${SYNCTHING_IMAGE} &
+	docker push ${INIT_IMAGE} &
+	docker push ${DOCKER_AUTH_IMAGE} &
 
 deploy-registry:
 	sed -i '' 's|<DOCKER_AUTH_IMAGE>|${DOCKER_AUTH_IMAGE}|' ./registry/kube/registry-deployment.yaml

@@ -10,8 +10,11 @@ services:
     depends_on:
       - mongo
     volumes:
-      - ./app:/usr/src/app/app
+      - foo2:/usr/src/app/app
   mongo:
     image: "mongo"
     ports:
       - "27017:27017"
+
+volumes:
+  foo2:

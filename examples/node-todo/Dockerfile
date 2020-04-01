@@ -5,4 +5,4 @@ COPY . /usr/src/app
 
 RUN ["npm", "install"]
 
-ENTRYPOINT ["node", "/usr/src/app/server.js"]
+#ENTRYPOINT ["node", "/usr/src/app/server.js"]

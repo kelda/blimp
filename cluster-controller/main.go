@@ -1057,6 +1057,11 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 
 		volumes := []corev1.Volume{
 			{
+				Name: "vcpbin",
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
+				},
+			}, {
 				Name: "wait-spec",
 				VolumeSource: corev1.VolumeSource{
 					ConfigMap: &corev1.ConfigMapVolumeSource{
@@ -1072,7 +1077,8 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 		}
 
 		// Volumes are backed by a directory on the node's filesystem.
-		var volumeMounts []corev1.VolumeMount
+		var volumeMounts, vcpMounts []corev1.VolumeMount
+		var vcpArgs []string
 		for _, desired := range svc.Volumes {
 			id := volume.ID(namespace, desired)
 			hostPath := volumeHostPath(namespace, id)
@@ -1080,6 +1086,13 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 				hostPath, desired.Target)
 			volumes = append(volumes, volume)
 			volumeMounts = append(volumeMounts, mount)
+
+			vcpTarget := "/vcp-mount" + desired.Target
+			vcpMounts = append(vcpMounts, corev1.VolumeMount{
+				Name:      id,
+				MountPath: vcpTarget,
+			})
+			vcpArgs = append(vcpArgs, fmt.Sprintf("%s/*:%s", desired.Target, vcpTarget))
 		}
 
 		var envVars []corev1.EnvVar
@@ -1121,6 +1134,11 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 			annotations[metadata.AliasesKey] = metadata.Aliases(aliases)
 		}
 
+		vcpBinMount := []corev1.VolumeMount{{
+			Name:      "vcpbin",
+			MountPath: "/vcpbin",
+		}}
+
 		// TODO: Resources
 		pod := corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
@@ -1137,7 +1155,22 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 				Hostname: hostname,
 				InitContainers: []corev1.Container{
 					{
-						Name:  "init",
+						Name:         "copy-busybox",
+						Image:        version.InitImage,
+						Command:      []string{"/bin/cp", "/bin/busybox.static", "/vcpbin/cp"},
+						VolumeMounts: vcpBinMount,
+					}, {
+						Name:         "copy-vcp",
+						Image:        version.InitImage,
+						Command:      []string{"/bin/cp", "/bin/blimp-vcp", "/vcpbin/blimp-cp"},
+						VolumeMounts: vcpBinMount,
+					}, {
+						Name:         "vcp",
+						Image:        image,
+						Command:      append([]string{"/vcpbin/blimp-cp", "/vcpbin/cp"}, vcpArgs...),
+						VolumeMounts: append(vcpBinMount, vcpMounts...),
+					}, {
+						Name:  "wait",
 						Image: version.InitImage,
 						Env: []corev1.EnvVar{
 							{
@@ -1145,12 +1178,10 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 								Value: managerIP,
 							},
 						},
-						VolumeMounts: []corev1.VolumeMount{
-							{
-								Name:      "wait-spec",
-								MountPath: "/etc/blimp",
-							},
-						},
+						VolumeMounts: append(vcpBinMount, corev1.VolumeMount{
+							Name:      "wait-spec",
+							MountPath: "/etc/blimp",
+						}),
 					},
 				},
 				Containers: []corev1.Container{
