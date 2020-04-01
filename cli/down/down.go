@@ -40,13 +40,7 @@ All containers and volumes are removed.`,
 }
 
 func run(authToken string) error {
-	conn, err := manager.Dial()
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
-	_, err = conn.DeleteSandbox(context.Background(), &cluster.DeleteSandboxRequest{
+	_, err := manager.C.DeleteSandbox(context.Background(), &cluster.DeleteSandboxRequest{
 		Token: authToken,
 	})
 	if err == nil {

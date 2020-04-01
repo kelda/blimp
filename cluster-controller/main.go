@@ -63,6 +63,10 @@ const (
 var RegistryHostname string
 
 func main() {
+	analytics.Init(analytics.DirectPoster{}, analytics.StreamID{
+		Source: "manager",
+	})
+
 	kubeClient, restConfig, err := getKubeClient()
 	if err != nil {
 		log.WithError(err).Error("Failed to connect to customer cluster")
@@ -115,6 +119,11 @@ func (s *server) CheckVersion(ctx context.Context, req *cluster.CheckVersionRequ
 		DisplayMessage: "",
 		Action:         cluster.CLIAction_OK,
 	}, nil
+}
+
+func (s *server) ProxyAnalytics(ctx context.Context, req *cluster.ProxyAnalyticsRequest) (
+	*cluster.ProxyAnalyticsResponse, error) {
+	return &cluster.ProxyAnalyticsResponse{}, analytics.DirectPoster{}.Post(req.GetBody())
 }
 
 func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRequest) (*cluster.CreateSandboxResponse, error) {

@@ -93,8 +93,6 @@ type up struct {
 	imageNamespace string
 	sandboxAddr    string
 	sandboxCert    string
-
-	clusterManager manager.Client
 }
 
 func (cmd *up) createSandbox(rawCompose string) error {
@@ -107,7 +105,7 @@ func (cmd *up) createSandbox(rawCompose string) error {
 		return fmt.Errorf("get local registry credentials: %w", err)
 	}
 
-	resp, err := cmd.clusterManager.CreateSandbox(context.TODO(),
+	resp, err := manager.C.CreateSandbox(context.TODO(),
 		&cluster.CreateSandboxRequest{
 			Token: cmd.auth.AuthToken,
 			ComposeFile: &cluster.ComposeFile{
@@ -154,11 +152,6 @@ func (cmd *up) run() error {
 		return err
 	}
 
-	cmd.clusterManager, err = manager.Dial()
-	if err != nil {
-		return err
-	}
-
 	// Start creating the sandbox immediately so that the systems services
 	// start booting as soon as possible.
 	// Also, we ship the Docker Compose file to the cluster as quickly as
@@ -167,7 +160,6 @@ func (cmd *up) run() error {
 	if err := cmd.createSandbox(string(rawCompose)); err != nil {
 		log.WithError(err).Fatal("Failed to create development sandbox")
 	}
-	defer cmd.clusterManager.Close()
 
 	parsedCompose, _, err := dockercompose.Parse(cmd.composePath, rawCompose)
 	if err != nil {
@@ -186,7 +178,7 @@ func (cmd *up) run() error {
 	pp := util.NewProgressPrinter(os.Stderr, "Deploying Docker Compose file to sandbox")
 	go pp.Run()
 
-	_, err = cmd.clusterManager.DeployToSandbox(context.Background(), &cluster.DeployRequest{
+	_, err = manager.C.DeployToSandbox(context.Background(), &cluster.DeployRequest{
 		Token: cmd.auth.AuthToken,
 		ComposeFile: &cluster.ComposeFile{
 			Path:     cmd.composePath,
@@ -225,7 +217,7 @@ func (cmd *up) run() error {
 	}
 
 	statusPrinter := newStatusPrinter(services)
-	statusPrinter.Run(cmd.clusterManager, cmd.auth.AuthToken)
+	statusPrinter.Run(manager.C, cmd.auth.AuthToken)
 
 	return logs.LogsCommand{
 		Containers: services,

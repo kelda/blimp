@@ -39,13 +39,7 @@ func New() *cobra.Command {
 }
 
 func run(authToken string) error {
-	conn, err := manager.Dial()
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
-	status, err := conn.GetStatus(context.Background(), &cluster.GetStatusRequest{
+	status, err := manager.C.GetStatus(context.Background(), &cluster.GetStatusRequest{
 		Token: authToken,
 	})
 	if err != nil {

@@ -14,6 +14,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	"github.com/kelda-inc/blimp/pkg/analytics"
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
 	"github.com/kelda-inc/blimp/pkg/syncthing"
 	"github.com/kelda-inc/blimp/pkg/tunnel"
@@ -36,6 +37,11 @@ func main() {
 		log.Error("NAMESPACE environment variable is required")
 		os.Exit(1)
 	}
+
+	analytics.Init(analytics.DirectPoster{}, analytics.StreamID{
+		Source:    "sandbox-controller",
+		Namespace: namespace,
+	})
 
 	config, err := rest.InClusterConfig()
 	if err != nil {

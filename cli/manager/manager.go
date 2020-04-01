@@ -12,11 +12,18 @@ import (
 	"google.golang.org/grpc"
 )
 
+var C Client
+
 var Host = getHost()
 
 type Client struct {
 	cluster.ManagerClient
 	*grpc.ClientConn
+}
+
+func SetupClient() (err error) {
+	C, err = dial()
+	return err
 }
 
 func getHost() string {
@@ -27,7 +34,7 @@ func getHost() string {
 	return "blimp-manager.kelda.io:443"
 }
 
-func Dial() (Client, error) {
+func dial() (Client, error) {
 	conn, err := util.Dial(Host, auth.ClusterManagerCert)
 	if err != nil {
 		return Client{}, err

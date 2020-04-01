@@ -9,9 +9,17 @@ service Manager {
   rpc DeployToSandbox(DeployRequest) returns (DeployResponse) {}
   rpc DeleteSandbox(DeleteSandboxRequest) returns (DeleteSandboxResponse) {}
   rpc GetStatus(GetStatusRequest) returns (GetStatusResponse) {}
+  rpc ProxyAnalytics(ProxyAnalyticsRequest) returns (ProxyAnalyticsResponse) {}
   rpc WatchStatus(GetStatusRequest) returns (stream GetStatusResponse) {}
   rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}
 }
+
+message ProxyAnalyticsRequest {
+  // The JSON payload to post to DataDog on behalf of the client.
+  string body = 1;
+}
+
+message ProxyAnalyticsResponse {}
 
 enum CLIAction {
   OK = 0;

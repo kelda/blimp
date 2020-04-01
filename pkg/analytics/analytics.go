@@ -2,6 +2,7 @@ package analytics
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -9,37 +10,74 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 	"github.com/kelda-inc/blimp/pkg/version"
 )
 
-var (
-	// Log is the global analytics logger. Log events created via this object are
-	// automatically pushed into our analytics system.
-	Log = newAnalyticsLogger()
+// Log is the global analytics logger. Log events created via this object are
+// automatically pushed into our analytics system.
+var Log = noopLogger()
 
-	// Mocked out for unit testing.
-	httpPost = http.Post
-)
-
-func newAnalyticsLogger() *logrus.Logger {
-	logger := logrus.New()
-	logger.SetOutput(ioutil.Discard)
-
-	// Don't publish analytics during development.
-	if version.Version != "latest" {
-		logger.AddHook(&hook{
-			endpoint:   "https://http-intake.logs.datadoghq.com/v1/input/9ac6e71a87aa0c160c84017823ce2348",
-			levels:     logrus.AllLevels,
-			streamType: "blimp-analytics",
-		})
-	}
-
-	return logger
+// DatadogPoster posts the given payload to the Datadog log API.
+type DatadogPoster interface {
+	Post(body string) error
 }
 
-const (
-	ddContentType = "application/json"
-)
+// DirectPoster posts logs directly to Datadog.
+type DirectPoster struct{}
+
+func (c DirectPoster) Post(body string) error {
+	resp, err := http.Post(
+		"https://http-intake.logs.datadoghq.com/v1/input/9ac6e71a87aa0c160c84017823ce2348",
+		"application/json",
+		bytes.NewBufferString(body))
+	if err != nil {
+		return err
+	}
+
+	// Close the body to avoid leaking resources.
+	resp.Body.Close()
+	return nil
+}
+
+// ProxyPoster posts logs to the manager, which in turn posts to Datadog.
+type ProxyPoster struct {
+	Client cluster.ManagerClient
+}
+
+func (c ProxyPoster) Post(body string) error {
+	_, err := c.Client.ProxyAnalytics(context.TODO(), &cluster.ProxyAnalyticsRequest{
+		Body: body,
+	})
+	return err
+}
+
+type StreamID struct {
+	Source    string
+	Namespace string
+}
+
+func Init(p DatadogPoster, id StreamID) {
+	// Don't publish analytics during development.
+	if version.Version == "latest" {
+		return
+	}
+
+	Log.AddHook(&hook{
+		levels: logrus.AllLevels,
+		poster: p,
+		stream: "analytics",
+		id:     id,
+	})
+
+	// Forward error and warning logs for the global logger.
+	logrus.AddHook(&hook{
+		levels: []logrus.Level{logrus.WarnLevel, logrus.ErrorLevel},
+		poster: p,
+		stream: "logs",
+		id:     id,
+	})
+}
 
 // ddFormatter formats log entries according to DD's preferred format
 var ddFormatter = &logrus.JSONFormatter{
@@ -51,11 +89,10 @@ var ddFormatter = &logrus.JSONFormatter{
 }
 
 type hook struct {
-	// Documentation: https://docs.datadoghq.com/api/?lang=python#send-logs-over-http
-	// https://docs.datadoghq.com/logs/log_collection/?tab=ussite#datadog-logs-endpoints
-	endpoint   string
-	levels     []logrus.Level
-	streamType string
+	poster DatadogPoster
+	levels []logrus.Level
+	stream string
+	id     StreamID
 }
 
 func (h *hook) Levels() []logrus.Level {
@@ -64,11 +101,14 @@ func (h *hook) Levels() []logrus.Level {
 
 func (h *hook) Fire(entry *logrus.Entry) error {
 	tags := []string{
-		fmt.Sprintf("stream:%s", h.streamType),
+		fmt.Sprintf("stream:%s", h.stream),
+		fmt.Sprintf("version:%s", version.Version),
+		fmt.Sprintf("namespace:%s", h.id.Namespace),
 	}
 	dataCopy := map[string]interface{}{
 		"ddtags":   strings.Join(tags, ","),
-		"ddsource": "blimp",
+		"ddsource": h.id.Source,
+		"service":  "blimp",
 	}
 	for k, v := range entry.Data {
 		dataCopy[k] = v
@@ -91,15 +131,17 @@ func (h *hook) Fire(entry *logrus.Entry) error {
 		return nil
 	}
 
-	resp, err := httpPost(h.endpoint, ddContentType, bytes.NewReader(jsonBytes))
-	if err != nil {
+	if err = h.poster.Post(string(jsonBytes)); err != nil {
 		logrus.WithError(err).Debug("Failed to update analytics")
-	} else {
-		// Close the body to avoid leaking resources.
-		resp.Body.Close()
 	}
 
 	// Never return an error because doing so causes the error to be printed
 	// directly to `stderr`, which pollutes the logs:
 	return nil
+}
+
+func noopLogger() *logrus.Logger {
+	logger := logrus.New()
+	logger.SetOutput(ioutil.Discard)
+	return logger
 }
