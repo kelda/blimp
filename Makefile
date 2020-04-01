@@ -13,6 +13,9 @@ LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
 	   -X github.com/kelda-inc/blimp/pkg/auth.ClusterManagerCertBase64=$(shell base64 ${MANAGER_CERT_PATH} | tr -d "\n") \
 	   -X main.RegistryHostname=${REGISTRY_HOSTNAME}"
 
+# Use the committed vendor directory.
+GOFLAGS=-mod=vendor
+
 # Include override variables. The production Makefile takes precendence if it exists.
 -include local.mk
 -include prod.mk

@@ -79,3 +79,15 @@ The registry needs a DNS name, even during development. To deploy it:
 	```
 
 1. Update the install script to point to the new version in `kelda.io/install-blimp.sh`
+
+# Dependencies
+
+This project uses `go mod` to handle dependencies, but commits them to the repo
+with `go mod vendor`. This makes it easier to deal with private 3rd party
+dependencies (namely `github.com/compose-spec/compose-go`).
+
+In order to use the `vendor` directory, the `GOFLAGS=-mod=vendor` must be
+enabled. This is done by default in the Makefile.
+
+When adding a new dependency, run `go get` as normal to update the `go.mod`
+files, and commit the files in `vendor` after running `go mod vendor`.
