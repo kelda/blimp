@@ -5,7 +5,4 @@ WORKDIR /go/src/github.com/kelda-inc/blimp
 ADD . .
 ARG COMPILE_FLAGS
 
-RUN CGO_ENABLED=0 go install -mod=vendor -ldflags "${COMPILE_FLAGS}" \
-    ./cluster-controller \
-    ./registry \
-    ./sandbox/* \
+RUN CGO_ENABLED=0 go install -ldflags "${COMPILE_FLAGS}" ./...

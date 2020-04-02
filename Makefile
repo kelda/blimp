@@ -24,10 +24,7 @@ GOFLAGS=-mod=vendor
 # OSX
 install: certs build-cli-osx
 	mv blimp-osx $(GOPATH)/bin/cli
-	CGO_ENABLED=0 go install -ldflags $(LD_FLAGS) \
-		    ./cluster-controller \
-		    ./registry \
-		    ./sandbox/*
+	CGO_ENABLED=0 go install -ldflags $(LD_FLAGS) ./...
 
 syncthing-macos:
 	curl -L -O https://github.com/syncthing/syncthing/releases/download/v1.4.0/syncthing-macos-amd64-v1.4.0.tar.gz
