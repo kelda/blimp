@@ -17,6 +17,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/Masterminds/semver"
 	composeTypes "github.com/compose-spec/compose-go/types"
 	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
@@ -117,6 +118,47 @@ func (s *server) listenAndServe(address string) error {
 
 func (s *server) CheckVersion(ctx context.Context, req *cluster.CheckVersionRequest) (
 	*cluster.CheckVersionResponse, error) {
+
+	clientVersionStr := req.GetVersion()
+	if clientVersionStr == "latest" || version.Version == "latest" {
+		// Running in development, so don't complain about version.
+		return &cluster.CheckVersionResponse{
+			Version:        version.Version,
+			DisplayMessage: "",
+			Action:         cluster.CLIAction_OK,
+		}, nil
+	}
+
+	clientVersion, err := semver.NewVersion(clientVersionStr)
+	if err != nil {
+		log.WithError(err).WithField("version", clientVersionStr).Warn("Failed to parse client version")
+		return &cluster.CheckVersionResponse{
+			Version:        version.Version,
+			DisplayMessage: "",
+			Action:         cluster.CLIAction_OK,
+		}, nil
+	}
+
+	c, err := semver.NewConstraint(">= 0.5.0")
+	if err != nil {
+		log.WithError(err).Warn("Failed to create version constraint")
+		return &cluster.CheckVersionResponse{
+			Version:        version.Version,
+			DisplayMessage: "",
+			Action:         cluster.CLIAction_OK,
+		}, nil
+	}
+
+	if !c.Check(clientVersion) {
+		return &cluster.CheckVersionResponse{
+			Version: version.Version,
+			DisplayMessage: "CLI version is incompatible with server. " +
+				"Please upgrade by running:\n\n" +
+				"curl -fsSL 'https://kelda.io/install-blimp.sh' | sh",
+			Action: cluster.CLIAction_EXIT,
+		}, nil
+	}
+
 	return &cluster.CheckVersionResponse{
 		Version:        version.Version,
 		DisplayMessage: "",

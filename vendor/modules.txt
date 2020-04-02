@@ -6,6 +6,8 @@ github.com/Azure/go-ansiterm/winterm
 # github.com/GeertJohan/go.rice v1.0.0
 github.com/GeertJohan/go.rice
 github.com/GeertJohan/go.rice/embedded
+# github.com/Masterminds/semver v1.5.0
+github.com/Masterminds/semver
 # github.com/Microsoft/go-winio v0.4.15-0.20190919025122-fc70bd9a86b5
 github.com/Microsoft/go-winio
 github.com/Microsoft/go-winio/pkg/guid

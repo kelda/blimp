@@ -14,6 +14,7 @@ replace (
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/GeertJohan/go.rice v1.0.0
+	github.com/Masterminds/semver v1.5.0
 	github.com/Microsoft/hcsshim v0.8.7 // indirect
 	github.com/buger/goterm v0.0.0-20200322175922-2f3e71b85129
 	github.com/cesanta/docker_auth/auth_server v0.0.0-20200309093330-99bfe0217f59
