@@ -85,11 +85,12 @@ build-docker: certs
 	wait # Wait for all background jobs to exit before continuing so that we can guarantee the images are built.
 
 push-docker: build-docker
-	docker push ${SANDBOX_CONTROLLER_IMAGE}
-	docker push ${CLUSTER_CONTROLLER_IMAGE} &
-	docker push ${SYNCTHING_IMAGE} &
-	docker push ${INIT_IMAGE} &
-	docker push ${DOCKER_AUTH_IMAGE} &
+	docker push ${SANDBOX_CONTROLLER_IMAGE} ; \
+	docker push ${CLUSTER_CONTROLLER_IMAGE} & \
+	docker push ${SYNCTHING_IMAGE} & \
+	docker push ${INIT_IMAGE} & \
+	docker push ${DOCKER_AUTH_IMAGE} & \
+	wait # Wait for all background jobs to exit before continuing so that we can guarantee the images are pushed.
 
 deploy-registry:
 	sed -i '' 's|<DOCKER_AUTH_IMAGE>|${DOCKER_AUTH_IMAGE}|' ./registry/kube/registry-deployment.yaml
