@@ -4,6 +4,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/miekg/dns"
 	log "github.com/sirupsen/logrus"
@@ -48,12 +49,16 @@ func Run(kubeClient kubernetes.Interface, namespace string) {
 		return
 	}
 
-	for range watcher.ResultChan() {
+	watcherChan := watcher.ResultChan()
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
 		pods, err := podsClient.List(metav1.ListOptions{
 			LabelSelector: "blimp.customerPod=true",
 		})
 		if err != nil {
 			log.WithError(err).Error("Failed to list pods")
+			time.Sleep(30 * time.Second)
 			continue
 		}
 
@@ -61,6 +66,11 @@ func Run(kubeClient kubernetes.Interface, namespace string) {
 		table.recordLock.Lock()
 		table.records = records
 		table.recordLock.Unlock()
+
+		select {
+		case <-watcherChan:
+		case <-ticker.C:
+		}
 	}
 }
 
