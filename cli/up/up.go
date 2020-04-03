@@ -40,7 +40,8 @@ import (
 )
 
 func New() *cobra.Command {
-	return &cobra.Command{
+	var composePath string
+	cobraCmd := &cobra.Command{
 		Use:   "up",
 		Short: "Create and start containers",
 		Long:  "Create and start containers\n\nDeploys the docker-compose.yml in the current directory.",
@@ -58,7 +59,7 @@ func New() *cobra.Command {
 
 			cmd := up{
 				auth:        auth,
-				composePath: "./docker-compose.yml",
+				composePath: composePath,
 			}
 
 			dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
@@ -87,6 +88,9 @@ func New() *cobra.Command {
 			}
 		},
 	}
+	cobraCmd.Flags().StringVarP(&composePath, "file", "f", "docker-compose.yml",
+		"Specify an alternate compose file")
+	return cobraCmd
 }
 
 type up struct {
