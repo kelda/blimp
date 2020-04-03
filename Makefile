@@ -76,12 +76,13 @@ SYNCTHING_IMAGE = ${DOCKER_REPO}/sandbox-syncthing:${VERSION}
 DOCKER_AUTH_IMAGE = ${DOCKER_REPO}/blimp-docker-auth:${VERSION}
 
 build-docker: certs
-	docker build -t blimp-go-build --build-arg COMPILE_FLAGS=${LD_FLAGS} .
-	docker build -t sandbox-syncthing -t ${SYNCTHING_IMAGE} -f ./sandbox/syncthing/Dockerfile . &
-	docker build -t blimp-cluster-controller -t ${CLUSTER_CONTROLLER_IMAGE} - < ./cluster-controller/Dockerfile &
-	docker build -t blimp-sandbox-controller -t ${SANDBOX_CONTROLLER_IMAGE} - < ./sandbox/sbctl/Dockerfile &
-	docker build -t blimp-init -t ${INIT_IMAGE} - < ./sandbox/init/Dockerfile &
-	docker build -t blimp-docker-auth -t ${DOCKER_AUTH_IMAGE} - < ./registry/Dockerfile &
+	docker build -t blimp-go-build --build-arg COMPILE_FLAGS=${LD_FLAGS} . ; \
+	docker build -t sandbox-syncthing -t ${SYNCTHING_IMAGE} -f ./sandbox/syncthing/Dockerfile . & \
+	docker build -t blimp-cluster-controller -t ${CLUSTER_CONTROLLER_IMAGE} - < ./cluster-controller/Dockerfile & \
+	docker build -t blimp-sandbox-controller -t ${SANDBOX_CONTROLLER_IMAGE} - < ./sandbox/sbctl/Dockerfile & \
+	docker build -t blimp-init -t ${INIT_IMAGE} - < ./sandbox/init/Dockerfile & \
+	docker build -t blimp-docker-auth -t ${DOCKER_AUTH_IMAGE} - < ./registry/Dockerfile & \
+	wait # Wait for all background jobs to exit before continuing so that we can guarantee the images are built.
 
 push-docker: build-docker
 	docker push ${SANDBOX_CONTROLLER_IMAGE}
