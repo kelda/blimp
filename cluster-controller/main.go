@@ -139,13 +139,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 
 	dcCfg, err := dockercompose.Unmarshal([]byte(req.GetComposeFile()))
 	if err != nil {
-		// TODO: This friendly message is actually wrong, because we know that
-		// unmarshalled on the client side. So it's our problem, not the user's
-		// Docker Compose file.
-		return &cluster.CreateSandboxResponse{
-			Message: parseErrorFriendlyMessage("FATAL", err),
-			Action:  cluster.CLIAction_EXIT,
-		}, nil
+		return &cluster.CreateSandboxResponse{}, fmt.Errorf("unmarshal compose file: %w", err)
 	}
 
 	namespace := user.Namespace
@@ -180,11 +174,27 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, fmt.Errorf("get kube credentials: %w", err)
 	}
 
+	var featuresMsg string
+	unsupportedFeatures := dockercompose.GetUnsupportedFeatures(dcCfg)
+	if len(unsupportedFeatures) > 0 {
+		featuresMsg = fmt.Sprintf("WARNING: Docker Compose file uses features unsupported by Kelda Blimp: %v\n"+
+			"Blimp will attempt to continue to boot.\n"+
+			"We're working on reaching full parity with Docker Compose.\n"+
+			"Ping us in Slack (http://slack.kelda.io) to request support for features!",
+			unsupportedFeatures)
+
+		analytics.Log.
+			WithField("namespace", user.Namespace).
+			WithField("unsupportedFeatures", unsupportedFeatures).
+			WithField("composeFile", req.GetComposeFile()).Warn("Used unsupported feature")
+	}
+
 	return &cluster.CreateSandboxResponse{
 		SandboxAddress:  sandboxAddress,
 		SandboxCert:     sandboxCert,
 		ImageNamespace:  fmt.Sprintf("%s/%s", RegistryHostname, namespace),
 		KubeCredentials: &cliCreds,
+		Message:         featuresMsg,
 	}, nil
 }
 

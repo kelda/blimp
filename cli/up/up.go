@@ -152,7 +152,10 @@ func (cmd *up) run() error {
 		return err
 	}
 
-	// TODO: Warn if compose file uses features that we don't implement.
+	analytics.Log.
+		WithField("rawCompose", string(rawCompose)).
+		Info("Read compose file")
+
 	parsedCompose, err := dockercompose.Load(cmd.composePath, rawCompose)
 	if err != nil {
 		return err
@@ -166,7 +169,7 @@ func (cmd *up) run() error {
 	analytics.Log.
 		WithField("rawCompose", string(rawCompose)).
 		WithField("evaluatedCompose", string(parsedComposeBytes)).
-		Info("Booted Blimp")
+		Info("Parsed compose file")
 
 	// Start creating the sandbox immediately so that the systems services
 	// start booting as soon as possible.
