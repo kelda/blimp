@@ -42,6 +42,7 @@ func validateServices(services types.Services) []string {
 		{ID: ".Environment"},
 		{ID: ".EnvFile"},
 		{ID: ".Image"},
+		{ID: ".Networks.Aliases"},
 		{ID: ".Ports.Target"},
 		{ID: ".Ports.Published"},
 		{ID: ".Ports.Protocol", AllowedValues: []interface{}{"tcp"}},

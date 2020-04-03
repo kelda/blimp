@@ -37,6 +37,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/analytics"
 	"github.com/kelda-inc/blimp/pkg/auth"
 	"github.com/kelda-inc/blimp/pkg/dockercompose"
+	"github.com/kelda-inc/blimp/pkg/metadata"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
 	"github.com/kelda-inc/blimp/pkg/syncthing"
@@ -1058,6 +1059,21 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 			// TODO: Error if image DNE.
 		}
 
+		// Blimp doesn't support multiple networks, so just aggregate the
+		// aliases from all of them.
+		var aliases []string
+		for _, network := range svc.Networks {
+			if network == nil {
+				continue
+			}
+			aliases = append(aliases, network.Aliases...)
+		}
+
+		annotations := map[string]string{}
+		if len(aliases) > 0 {
+			annotations[metadata.AliasesKey] = metadata.Aliases(aliases)
+		}
+
 		// TODO: Resources
 		pod := corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
@@ -1068,6 +1084,7 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 					"blimp.customerPod": "true",
 					"blimp.customer":    namespace,
 				},
+				Annotations: annotations,
 			},
 			Spec: corev1.PodSpec{
 				InitContainers: []corev1.Container{
@@ -1202,8 +1219,4 @@ func getKubeClient() (kubernetes.Interface, *rest.Config, error) {
 	}
 
 	return kubeClient, restConfig, nil
-}
-
-func parseErrorFriendlyMessage(level string, err error) string {
-	return fmt.Sprintf("%s: %s", level, dockercompose.FriendlyError(err))
 }

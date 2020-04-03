@@ -10,6 +10,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/kelda-inc/blimp/pkg/metadata"
 )
 
 const dnsTTL = 60 // Seconds
@@ -164,8 +166,21 @@ func makeTable() *dnsTable {
 func podsToDNS(pods []corev1.Pod) map[string]net.IP {
 	records := map[string]net.IP{}
 	for _, pod := range pods {
-		if ip := net.ParseIP(pod.Status.PodIP); ip != nil {
-			records[strings.ToLower(pod.Name)] = ip
+		ip := net.ParseIP(pod.Status.PodIP)
+		if ip == nil {
+			continue
+		}
+
+		records[strings.ToLower(pod.Name)] = ip
+
+		// Add aliases to DNS.
+		aliases, ok := pod.Annotations[metadata.AliasesKey]
+		if !ok {
+			continue
+		}
+
+		for _, alias := range metadata.ParseAliases(aliases) {
+			records[strings.ToLower(alias)] = ip
 		}
 	}
 	return records
