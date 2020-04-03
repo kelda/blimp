@@ -8,13 +8,23 @@ ADD ./go.mod ./go.mod
 ADD ./go.sum ./go.sum
 ADD ./pkg ./pkg
 ADD ./vendor ./vendor
-ADD ./cli ./cli
 
 ARG COMPILE_FLAGS
 
-# Pre-build the CLI as a hack to download modules and hopefully compile some of
-# our deps
+# Build and install one directory at a time, so that we get more or less decent
+# caching.
+
+ADD ./cli ./cli
 RUN CGO_ENABLED=0 go install -mod=vendor -ldflags "${COMPILE_FLAGS}" ./cli/...
+
+ADD ./registry ./registry
+RUN CGO_ENABLED=0 go install -mod=vendor -ldflags "${COMPILE_FLAGS}" ./registry/...
+
+ADD ./sandbox ./sandbox
+RUN CGO_ENABLED=0 go install -mod=vendor -ldflags "${COMPILE_FLAGS}" ./sandbox/...
+
+ADD ./cluster-controller ./cluster-controller
+RUN CGO_ENABLED=0 go install -mod=vendor -ldflags "${COMPILE_FLAGS}" ./cluster-controller/...
 
 ADD . .
 

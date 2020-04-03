@@ -1092,7 +1092,7 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 				Name:      id,
 				MountPath: vcpTarget,
 			})
-			vcpArgs = append(vcpArgs, fmt.Sprintf("%s/*:%s", desired.Target, vcpTarget))
+			vcpArgs = append(vcpArgs, fmt.Sprintf("%s/.:%s", desired.Target, vcpTarget))
 		}
 
 		var envVars []corev1.EnvVar
