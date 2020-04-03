@@ -1059,6 +1059,11 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 			// TODO: Error if image DNE.
 		}
 
+		hostname := svc.Name
+		if svc.Hostname != "" {
+			hostname = svc.Hostname
+		}
+
 		// Blimp doesn't support multiple networks, so just aggregate the
 		// aliases from all of them.
 		var aliases []string
@@ -1087,6 +1092,7 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 				Annotations: annotations,
 			},
 			Spec: corev1.PodSpec{
+				Hostname: hostname,
 				InitContainers: []corev1.Container{
 					{
 						Name:  "init",

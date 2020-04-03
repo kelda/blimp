@@ -41,6 +41,7 @@ func validateServices(services types.Services) []string {
 		{ID: ".DependsOn"},
 		{ID: ".Environment"},
 		{ID: ".EnvFile"},
+		{ID: ".Hostname"},
 		{ID: ".Image"},
 		{ID: ".Networks.Aliases"},
 		{ID: ".Ports.Target"},
