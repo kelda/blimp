@@ -3,14 +3,15 @@ package syncthing
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	rice "github.com/GeertJohan/go.rice"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/kelda-inc/blimp/pkg/cfgdir"
-	"github.com/kelda-inc/blimp/pkg/dockercompose"
 )
 
 const Marker = ".kelda_syncthing"
@@ -73,12 +74,17 @@ func ArgsToMap(args []string) map[string]string {
 	return m
 }
 
+type makeMarkerError struct {
+	path string
+	error
+}
+
 func MakeMarkers(folders map[string]string) error {
 	for _, path := range folders {
 		markerPath := path + "/" + Marker
 		err := os.Mkdir(markerPath, 0444)
 		if err != nil && !os.IsExist(err) {
-			return err
+			return makeMarkerError{error: err, path: path}
 		}
 	}
 
@@ -94,7 +100,12 @@ func Run(folders map[string]string) ([]byte, error) {
 
 	err := MakeMarkers(folders)
 	if err != nil {
-		log.Fatal(dockercompose.FriendlyError(err))
+		if strings.Contains(err.Error(), "not a directory") {
+			path := err.(makeMarkerError).path
+			log.Fatalf("Blimp currently only supports volume mounts for directories.\n"+
+				"Please change the mount %s to mount %s instead.", path, filepath.Dir(path))
+		}
+		log.WithError(err).Fatal("Failed to start volume")
 	}
 
 	stbinBytes, err := box.Bytes("")
