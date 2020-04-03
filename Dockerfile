@@ -11,12 +11,7 @@ ADD ./vendor ./vendor
 
 ARG COMPILE_FLAGS
 
-# Build and install one directory at a time, so that we get more or less decent
-# caching.
-
-ADD ./cli ./cli
-RUN CGO_ENABLED=0 go install -mod=vendor -ldflags "${COMPILE_FLAGS}" ./cli/...
-
+# Build incrementally for better caching.
 ADD ./registry ./registry
 RUN CGO_ENABLED=0 go install -mod=vendor -ldflags "${COMPILE_FLAGS}" ./registry/...
 
@@ -25,10 +20,6 @@ RUN CGO_ENABLED=0 go install -mod=vendor -ldflags "${COMPILE_FLAGS}" ./sandbox/.
 
 ADD ./cluster-controller ./cluster-controller
 RUN CGO_ENABLED=0 go install -mod=vendor -ldflags "${COMPILE_FLAGS}" ./cluster-controller/...
-
-ADD . .
-
-RUN CGO_ENABLED=0 go install -mod=vendor -ldflags "${COMPILE_FLAGS}" ./...
 
 RUN mkdir /gobin
 RUN cp /go/bin/cluster-controller /gobin/blimp-cluster-controller
