@@ -8,6 +8,7 @@ import (
 
 	"github.com/ghodss/yaml"
 
+	"github.com/compose-spec/compose-go/envfile"
 	"github.com/compose-spec/compose-go/loader"
 	"github.com/compose-spec/compose-go/types"
 )
@@ -19,6 +20,18 @@ func Load(path string, b []byte) (types.Config, error) {
 	}
 
 	env := map[string]string{}
+	dotenvPath := filepath.Join(filepath.Dir(path), ".env")
+	if _, err := os.Stat(dotenvPath); err == nil {
+		dotenv, err := parseEnvFile(dotenvPath)
+		if err != nil {
+			return types.Config{}, fmt.Errorf("parse .env file: %w", err)
+		}
+
+		env = dotenv
+	}
+
+	// Environment variables in the shell take precedence over the .env file:
+	// https://docs.docker.com/compose/environment-variables/#the-env-file
 	for _, e := range os.Environ() {
 		pair := strings.SplitN(e, "=", 2)
 		var val string
@@ -62,6 +75,23 @@ func Load(path string, b []byte) (types.Config, error) {
 	}
 
 	return *cfgPtr, nil
+}
+
+func parseEnvFile(path string) (map[string]string, error) {
+	parsed, err := envfile.Parse(path)
+	if err != nil {
+		return nil, err
+	}
+
+	ret := map[string]string{}
+	for k, vPtr := range parsed {
+		v := ""
+		if vPtr != nil {
+			v = *vPtr
+		}
+		ret[k] = v
+	}
+	return ret, nil
 }
 
 func Unmarshal(b []byte) (parsed types.Config, err error) {
