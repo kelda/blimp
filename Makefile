@@ -77,11 +77,11 @@ DOCKER_AUTH_IMAGE = ${DOCKER_REPO}/blimp-docker-auth:${VERSION}
 
 build-docker:
 	docker build -t blimp-go-build --build-arg COMPILE_FLAGS=${LD_FLAGS} .
-	docker build -t blimp-cluster-controller -t ${CLUSTER_CONTROLLER_IMAGE} -f ./cluster-controller/Dockerfile .
-	docker build -t blimp-sandbox-controller -t ${SANDBOX_CONTROLLER_IMAGE} -f ./sandbox/sbctl/Dockerfile .
+	docker build -t blimp-cluster-controller -t ${CLUSTER_CONTROLLER_IMAGE} - < ./cluster-controller/Dockerfile
+	docker build -t blimp-sandbox-controller -t ${SANDBOX_CONTROLLER_IMAGE} - < ./sandbox/sbctl/Dockerfile
 	docker build -t sandbox-syncthing -t ${SYNCTHING_IMAGE} -f ./sandbox/syncthing/Dockerfile .
-	docker build -t blimp-init -t ${INIT_IMAGE} -f ./sandbox/init/Dockerfile .
-	docker build -t blimp-docker-auth -t ${DOCKER_AUTH_IMAGE} -f ./registry/Dockerfile .
+	docker build -t blimp-init -t ${INIT_IMAGE} - < ./sandbox/init/Dockerfile
+	docker build -t blimp-docker-auth -t ${DOCKER_AUTH_IMAGE} - < ./registry/Dockerfile
 
 push-docker: build-docker
 	docker push ${SANDBOX_CONTROLLER_IMAGE}
