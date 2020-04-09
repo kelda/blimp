@@ -22,12 +22,12 @@ func main() {
 
 	waitSpecRaw, err := ioutil.ReadFile("/etc/blimp/wait-spec")
 	if err != nil {
-		log.WithError(err).Error("Failed to read wait spec")
+		log.WithError(err).Fatal("Failed to read wait spec")
 	}
 
 	var waitSpec sandbox.WaitSpec
 	if err := proto.Unmarshal(waitSpecRaw, &waitSpec); err != nil {
-		log.WithError(err).Error("Failed to unmarshal wait spec")
+		log.WithError(err).Fatal("Failed to unmarshal wait spec")
 	}
 
 	log.WithField("waitSpec", waitSpec).Info("Started")
