@@ -52,7 +52,8 @@ rGQDF3ZOuIeJi9F0RrGggLGHORlhAV3yZf97FaAmOKK4+l+co/E7IoZaUftsg6qr
 // TODO: Don't hardcode the API key.
 const APIKey = "api-key"
 
-const RemoteDeviceID = "ROHA7NN-4KWKQ3Q-CHJMZBK-6UD7Z6D-ZTWQR5C-TYLN6WG-Q2EQJAI-JU73EQN"
+const CLIDeviceID = "ROHA7NN-4KWKQ3Q-CHJMZBK-6UD7Z6D-ZTWQR5C-TYLN6WG-Q2EQJAI-JU73EQN"
+const RemoteDeviceID = "K6QHA3P-VGHXBZE-2NILDY3-Y4E2EUU-7DCSOVF-DFVCQRM-P5BVGMB-LDLP6QA"
 
 func MapToArgs(m map[string]string) []string {
 	var args []string
@@ -164,7 +165,7 @@ func makeConfig(server bool, folders map[string]string) string {
 
 	return fmt.Sprintf(`<configuration version="30">%s
     %s
-    <device id="K6QHA3P-VGHXBZE-2NILDY3-Y4E2EUU-7DCSOVF-DFVCQRM-P5BVGMB-LDLP6QA" compression="always">
+    <device id="%s" compression="always">
         <address>%s</address>
     </device>
     <device id="%s" compression="always"/>
@@ -187,7 +188,7 @@ func makeConfig(server bool, folders map[string]string) string {
         <crashReportingEnabled>false</crashReportingEnabled>
         <stunServer></stunServer>
     </options>
-</configuration>`, strings.Join(folderStrs, ""), gui, address, RemoteDeviceID, listenAddress)
+</configuration>`, strings.Join(folderStrs, ""), gui, RemoteDeviceID, address, CLIDeviceID, listenAddress)
 }
 
 func makeFolder(id, path string) string {
@@ -195,11 +196,11 @@ func makeFolder(id, path string) string {
     <folder id="%s" path="%s" type="sendreceive"
         rescanIntervalS="30" fsWatcherEnabled="true" fsWatcherDelayS="1"
         autoNormalize="true">
-        <device id="K6QHA3P-VGHXBZE-2NILDY3-Y4E2EUU-7DCSOVF-DFVCQRM-P5BVGMB-LDLP6QA"/>
-        <device id="ROHA7NN-4KWKQ3Q-CHJMZBK-6UD7Z6D-ZTWQR5C-TYLN6WG-Q2EQJAI-JU73EQN"/>
+        <device id="%s"/>
+        <device id="%s"/>
         <order>oldestFirst</order>
         <ignoreDelete>false</ignoreDelete>
         <maxConflicts>-1</maxConflicts>
         <markerName>%s</markerName>
-    </folder>`, id, path, Marker)
+    </folder>`, id, path, RemoteDeviceID, CLIDeviceID, Marker)
 }
