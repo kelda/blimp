@@ -52,6 +52,7 @@ func runOnce(sandboxManagerHost string, waitSpec sandbox.WaitSpec) error {
 	client := sandbox.NewBootWaiterClient(conn)
 
 	// Poll the sandbox manager until we're allowed to boot.
+	retry := 500 * time.Millisecond
 	for {
 		isReady, err := client.CheckReady(context.TODO(), &sandbox.CheckReadyRequest{
 			WaitSpec: &waitSpec,
@@ -64,7 +65,12 @@ func runOnce(sandboxManagerHost string, waitSpec sandbox.WaitSpec) error {
 			return nil
 		}
 
-		log.WithField("reason", isReady.Reason).Info("Not ready to boot yet... Will check again in one second")
-		time.Sleep(1 * time.Second)
+		retry = 2 * retry
+		if retry > 30*time.Second {
+			retry = 30 * time.Second
+		}
+
+		log.WithField("reason", isReady.Reason).Infof("Not ready to boot yet... Will check again in %s", retry)
+		time.Sleep(retry)
 	}
 }

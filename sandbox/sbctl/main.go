@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
+	"path/filepath"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -58,6 +60,13 @@ func main() {
 	syncthingClient := syncthing.APIClient{
 		APIKey:        syncthing.APIKey,
 		ServerAddress: fmt.Sprintf("syncthing:%d", syncthing.APIPort),
+	}
+
+	// Clear the contents of the volume from before `blimp down`.
+	for _, path := range os.Args[1:] {
+		if err := clearDir(path); err != nil {
+			log.WithError(err).WithField("path", path).Fatal("Failed to clear volume contents")
+		}
 	}
 
 	// TODO: Remove need for kubeClient and just query local Docker daemon.
@@ -133,4 +142,18 @@ func (s *server) Tunnel(nsrv sandbox.Controller_TunnelServer) error {
 type server struct {
 	kubeClient kubernetes.Interface
 	namespace  string
+}
+
+func clearDir(dir string) error {
+	paths, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("read dir: %w", err)
+	}
+
+	for _, path := range paths {
+		if err := os.RemoveAll(filepath.Join(dir, path.Name())); err != nil {
+			return fmt.Errorf("remove: %w", err)
+		}
+	}
+	return nil
 }

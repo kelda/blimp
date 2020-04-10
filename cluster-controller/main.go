@@ -195,7 +195,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, fmt.Errorf("deploy syncthing: %w", err)
 	}
 
-	sandboxAddress, sandboxCert, err := s.createSandboxManager(namespace)
+	sandboxAddress, sandboxCert, err := s.createSandboxManager(namespace, dcCfg)
 	if err != nil {
 		return &cluster.CreateSandboxResponse{}, fmt.Errorf("deploy customer manager: %w", err)
 	}
@@ -301,6 +301,13 @@ func (s *server) getSandboxControllerIP(namespace string) (string, error) {
 		func(podIntf interface{}) bool {
 			pod := podIntf.(*corev1.Pod)
 
+			// Wait for the pod to be ready to accept connections.
+			for _, container := range pod.Status.ContainerStatuses {
+				if !container.Ready {
+					return false
+				}
+			}
+
 			if pod.Status.PodIP != "" {
 				internalIP = pod.Status.PodIP
 				return true
@@ -314,7 +321,7 @@ func (s *server) getSandboxControllerIP(namespace string) (string, error) {
 	return internalIP, nil
 }
 
-func (s *server) createSandboxManager(namespace string) (sandboxAddr, certPEM string, err error) {
+func (s *server) createSandboxManager(namespace string, cfg composeTypes.Config) (sandboxAddr, certPEM string, err error) {
 	serviceAccount := corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "sandbox-manager",
@@ -335,6 +342,44 @@ func (s *server) createSandboxManager(namespace string) (sandboxAddr, certPEM st
 				Verbs:     []string{"*"},
 			},
 		},
+	}
+
+	volumes := []corev1.Volume{
+		{
+			Name: "cert",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: "sandbox-cert",
+				},
+			},
+		},
+	}
+	volumeMounts := []corev1.VolumeMount{
+		{
+			Name:      "cert",
+			MountPath: "/etc/blimp/certs",
+		},
+	}
+	var resetPaths []string
+	pathsSet := map[string]struct{}{}
+	for _, svc := range cfg.Services {
+		for _, vol := range svc.Volumes {
+			if vol.Type != composeTypes.VolumeTypeVolume {
+				continue
+			}
+
+			id := volume.ID(namespace, vol)
+			hostPath := volumeHostPath(namespace, id)
+			if _, ok := pathsSet[hostPath]; ok {
+				continue
+			}
+			pathsSet[hostPath] = struct{}{}
+
+			volume, mount := makeVolumeMount(namespace, id, hostPath, hostPath)
+			volumeMounts = append(volumeMounts, mount)
+			volumes = append(volumes, volume)
+			resetPaths = append(resetPaths, hostPath)
+		}
 	}
 
 	pod := corev1.Pod{
@@ -362,24 +407,21 @@ func (s *server) createSandboxManager(namespace string) (sandboxAddr, certPEM st
 							},
 						},
 					},
-					VolumeMounts: []corev1.VolumeMount{
-						{
-							Name:      "cert",
-							MountPath: "/etc/blimp/certs",
+					Command:      resetPaths,
+					VolumeMounts: volumeMounts,
+					ReadinessProbe: &corev1.Probe{
+						Handler: corev1.Handler{
+							TCPSocket: &corev1.TCPSocketAction{
+								Port: intstr.FromInt(SandboxPort),
+							},
 						},
+
+						// Give the sandbox controller some time to startup.
+						InitialDelaySeconds: 5,
 					},
 				},
 			},
-			Volumes: []corev1.Volume{
-				{
-					Name: "cert",
-					VolumeSource: corev1.VolumeSource{
-						Secret: &corev1.SecretVolumeSource{
-							SecretName: "sandbox-cert",
-						},
-					},
-				},
-			},
+			Volumes:            volumes,
 			Affinity:           sameNodeAffinity(namespace),
 			ServiceAccountName: serviceAccount.Name,
 		},
