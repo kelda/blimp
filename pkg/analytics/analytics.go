@@ -127,16 +127,15 @@ func (h *hook) Fire(entry *logrus.Entry) error {
 
 	jsonBytes, err := ddFormatter.Format(&entryCopy)
 	if err != nil {
-		logrus.WithError(err).Debug("Failed to marshal log entry for analytics")
+		// Don't log anything when analytics errors to avoid scaring users.
 		return nil
 	}
 
 	if err = h.poster.Post(string(jsonBytes)); err != nil {
-		logrus.WithError(err).Debug("Failed to update analytics")
+		// Don't log anything when analytics errors to avoid scaring users.
+		return nil
 	}
 
-	// Never return an error because doing so causes the error to be printed
-	// directly to `stderr`, which pollutes the logs:
 	return nil
 }
 
