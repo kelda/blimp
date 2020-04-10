@@ -15,6 +15,7 @@ import (
 	"math/big"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Masterminds/semver"
@@ -1107,6 +1108,12 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 			if vPtr != nil {
 				v = *vPtr
 			}
+
+			// Escape dollar signs to disable interpolation by Kubernetes. Any variable
+			// interpolation will have occured by now during the initial parsing of
+			// the Docker Compose file.
+			v = strings.Replace(v, "$", "$$", -1)
+
 			envVars = append(envVars, corev1.EnvVar{
 				Name:  k,
 				Value: v,

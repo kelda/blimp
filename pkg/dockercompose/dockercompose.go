@@ -106,7 +106,7 @@ func Unmarshal(b []byte) (parsed types.Config, err error) {
 				Config: configIntf,
 			},
 		},
-	}, withSkipValidation)
+	}, withSkipValidation, withSkipInterpolation)
 	if err != nil {
 		return types.Config{}, fmt.Errorf("load: %w", err)
 	}
@@ -120,4 +120,8 @@ func Marshal(cfg types.Config) ([]byte, error) {
 
 func withSkipValidation(opts *loader.Options) {
 	opts.SkipValidation = true
+}
+
+func withSkipInterpolation(opts *loader.Options) {
+	opts.SkipInterpolation = true
 }
