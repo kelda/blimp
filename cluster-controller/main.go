@@ -888,7 +888,7 @@ func (s *server) deployPod(pod corev1.Pod) error {
 
 func (s *server) deletePod(namespace, name string) error {
 	podClient := s.kubeClient.CoreV1().Pods(namespace)
-	if err := podClient.Delete(name, nil); err != nil {
+	if err := podClient.Delete(name, metav1.NewDeleteOptions(0)); err != nil {
 		return err
 	}
 
