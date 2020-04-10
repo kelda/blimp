@@ -519,6 +519,11 @@ func (s *server) createSyncthing(namespace string, cfg composeTypes.Config) erro
 	var volumeMounts []corev1.VolumeMount
 	for _, svc := range cfg.Services {
 		for _, desired := range svc.Volumes {
+			// Only run Syncthing on bind volumes.
+			if desired.Type != composeTypes.VolumeTypeBind {
+				continue
+			}
+
 			id := volume.ID(namespace, desired)
 			hostPath := volumeHostPath(namespace, id)
 
