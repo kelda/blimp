@@ -1222,12 +1222,21 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 				Volumes:            volumes,
 				ServiceAccountName: "pod-runner",
 				Affinity:           sameNodeAffinity(namespace),
+
+				// Disable the environment variables that are automatically
+				// added by Kubernetes (e.g. SANDBOX_SERVICE_PORT).
+				EnableServiceLinks: falsePtr(),
 			},
 		}
 		pods = append(pods, pod)
 	}
 
 	return pods, configMaps, nil
+}
+
+func falsePtr() *bool {
+	f := false
+	return &f
 }
 
 func sameNodeAffinity(namespace string) *corev1.Affinity {
