@@ -67,6 +67,14 @@ const (
 // Set by make.
 var RegistryHostname string
 
+const (
+	ContainerNameCopyBusybox               = "copy-busybox"
+	ContainerNameCopyVCP                   = "copy-vcp"
+	ContainerNameInitializeVolumeFromImage = "vcp"
+	ContainerNameWaitDependsOn             = "wait-depends-on"
+	ContainerNameWaitInitialSync           = "wait-sync"
+)
+
 func main() {
 	analytics.Init(analytics.DirectPoster{}, analytics.StreamID{
 		Source: "manager",
@@ -1027,21 +1035,38 @@ func (s *server) getSandboxStatus(namespace string) (cluster.SandboxStatus, erro
 
 	services := map[string]*cluster.ServiceStatus{}
 	for _, pod := range pods.Items {
-		phase := string(pod.Status.Phase)
-		if len(pod.Status.ContainerStatuses) == 1 {
-			containerStatus := pod.Status.ContainerStatuses[0]
-			switch {
-			case containerStatus.State.Waiting != nil && containerStatus.State.Waiting.Message != "":
-				phase += ": " + containerStatus.State.Waiting.Message
-			case containerStatus.State.Terminated != nil && containerStatus.State.Terminated.Message != "":
-				phase += ": " + containerStatus.State.Waiting.Message
-			}
-		}
-		services[pod.Name] = &cluster.ServiceStatus{
-			Phase: phase,
-		}
+		services[pod.Name] = &cluster.ServiceStatus{Phase: getServicePhase(pod)}
 	}
 	return cluster.SandboxStatus{Services: services}, nil
+}
+
+func getServicePhase(pod corev1.Pod) string {
+	for _, c := range pod.Status.InitContainerStatuses {
+		if c.State.Running != nil {
+			switch c.Name {
+			case ContainerNameCopyBusybox, ContainerNameCopyVCP, ContainerNameInitializeVolumeFromImage:
+				return "Waiting for volumes to initialize from image"
+			case ContainerNameWaitDependsOn:
+				return "Waiting for dependencies to boot"
+			case ContainerNameWaitInitialSync:
+				return "Waiting for bind volumes to sync"
+			default:
+				return "Waiting for service to initialize"
+			}
+		}
+	}
+
+	phase := string(pod.Status.Phase)
+	if len(pod.Status.ContainerStatuses) == 1 {
+		containerStatus := pod.Status.ContainerStatuses[0]
+		switch {
+		case containerStatus.State.Waiting != nil && containerStatus.State.Waiting.Message != "":
+			phase += ": " + containerStatus.State.Waiting.Message
+		case containerStatus.State.Terminated != nil && containerStatus.State.Terminated.Message != "":
+			phase += ": " + containerStatus.State.Waiting.Message
+		}
+	}
+	return phase
 }
 
 func makeVolumeMount(namespace, id, hostpath, target string) (
@@ -1078,30 +1103,45 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 		// to the sandbox controller, which blocks boot until the requirements
 		// are met.
 
-		waitSpec := &sandbox.WaitSpec{DependsOn: svc.DependsOn}
+		waitSpecDependsOn := &sandbox.WaitSpec{DependsOn: svc.DependsOn}
+		waitSpecDependsOnBytes, err := proto.Marshal(waitSpecDependsOn)
+		if err != nil {
+			return nil, nil, fmt.Errorf("marshal wait spec: %w", err)
+		}
+
+		waitSpecSync := &sandbox.WaitSpec{}
 		for _, v := range svc.Volumes {
 			if v.Type != "bind" {
 				continue
 			}
 
-			waitSpec.SyncthingFolders = append(waitSpec.SyncthingFolders, volume.ID(namespace, v))
+			waitSpecSync.SyncthingFolders = append(waitSpecSync.SyncthingFolders, volume.ID(namespace, v))
 		}
 
-		waitSpecBytes, err := proto.Marshal(waitSpec)
+		waitSpecSyncBytes, err := proto.Marshal(waitSpecSync)
 		if err != nil {
 			return nil, nil, fmt.Errorf("marshal wait spec: %w", err)
 		}
 
-		waitSpecConfigMap := corev1.ConfigMap{
+		waitSpecDependsOnConfigMap := corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace: namespace,
-				Name:      fmt.Sprintf("wait-spec-%s", svc.Name),
+				Name:      fmt.Sprintf("wait-spec-depends-on-%s", svc.Name),
 			},
 			BinaryData: map[string][]byte{
-				"wait-spec": waitSpecBytes,
+				"wait-spec": waitSpecDependsOnBytes,
 			},
 		}
-		configMaps = append(configMaps, waitSpecConfigMap)
+		waitSpecSyncConfigMap := corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespace,
+				Name:      fmt.Sprintf("wait-spec-sync-%s", svc.Name),
+			},
+			BinaryData: map[string][]byte{
+				"wait-spec": waitSpecSyncBytes,
+			},
+		}
+		configMaps = append(configMaps, waitSpecSyncConfigMap, waitSpecDependsOnConfigMap)
 
 		volumes := []corev1.Volume{
 			{
@@ -1110,11 +1150,23 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 					EmptyDir: &corev1.EmptyDirVolumeSource{},
 				},
 			}, {
-				Name: "wait-spec",
+				Name: "wait-spec-depends-on",
 				VolumeSource: corev1.VolumeSource{
 					ConfigMap: &corev1.ConfigMapVolumeSource{
 						LocalObjectReference: corev1.LocalObjectReference{
-							Name: waitSpecConfigMap.Name,
+							Name: waitSpecDependsOnConfigMap.Name,
+						},
+						Items: []corev1.KeyToPath{
+							{Key: "wait-spec", Path: "wait-spec"},
+						},
+					},
+				},
+			}, {
+				Name: "wait-spec-sync",
+				VolumeSource: corev1.VolumeSource{
+					ConfigMap: &corev1.ConfigMapVolumeSource{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: waitSpecSyncConfigMap.Name,
 						},
 						Items: []corev1.KeyToPath{
 							{Key: "wait-spec", Path: "wait-spec"},
@@ -1209,25 +1261,25 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 				Hostname: hostname,
 				InitContainers: []corev1.Container{
 					{
-						Name:            "copy-busybox",
+						Name:            ContainerNameCopyBusybox,
 						Image:           version.InitImage,
 						ImagePullPolicy: "Always",
 						Command:         []string{"/bin/cp", "/bin/busybox.static", "/vcpbin/cp"},
 						VolumeMounts:    vcpBinMount,
 					}, {
-						Name:            "copy-vcp",
+						Name:            ContainerNameCopyVCP,
 						Image:           version.InitImage,
 						ImagePullPolicy: "Always",
 						Command:         []string{"/bin/cp", "/bin/blimp-vcp", "/vcpbin/blimp-cp"},
 						VolumeMounts:    vcpBinMount,
 					}, {
-						Name:            "vcp",
+						Name:            ContainerNameInitializeVolumeFromImage,
 						Image:           image,
 						ImagePullPolicy: "Always",
 						Command:         append([]string{"/vcpbin/blimp-cp", "/vcpbin/cp"}, vcpArgs...),
 						VolumeMounts:    append(vcpBinMount, vcpMounts...),
 					}, {
-						Name:            "wait",
+						Name:            ContainerNameWaitDependsOn,
 						Image:           version.InitImage,
 						ImagePullPolicy: "Always",
 						Env: []corev1.EnvVar{
@@ -1237,7 +1289,21 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 							},
 						},
 						VolumeMounts: append(vcpBinMount, corev1.VolumeMount{
-							Name:      "wait-spec",
+							Name:      "wait-spec-depends-on",
+							MountPath: "/etc/blimp",
+						}),
+					}, {
+						Name:            ContainerNameWaitInitialSync,
+						Image:           version.InitImage,
+						ImagePullPolicy: "Always",
+						Env: []corev1.EnvVar{
+							{
+								Name:  "SANDBOX_MANAGER_HOST",
+								Value: managerIP,
+							},
+						},
+						VolumeMounts: append(vcpBinMount, corev1.VolumeMount{
+							Name:      "wait-spec-sync",
 							MountPath: "/etc/blimp",
 						}),
 					},
