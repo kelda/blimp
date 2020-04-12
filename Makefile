@@ -13,9 +13,6 @@ LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
 	   -X github.com/kelda-inc/blimp/pkg/auth.ClusterManagerCertBase64=$(shell base64 ${MANAGER_CERT_PATH} | tr -d "\n") \
 	   -X main.RegistryHostname=${REGISTRY_HOSTNAME}"
 
-# Use the committed vendor directory.
-GOFLAGS=-mod=vendor
-
 # Include override variables. The production Makefile takes precendence if it exists.
 -include local.mk
 -include prod.mk
@@ -24,7 +21,7 @@ GOFLAGS=-mod=vendor
 # OSX
 install: certs build-cli-osx
 	mv blimp-osx $(GOPATH)/bin/cli
-	CGO_ENABLED=0 go install -mod=vendor -ldflags $(LD_FLAGS) ./...
+	CGO_ENABLED=0 go install -ldflags $(LD_FLAGS) ./...
 
 syncthing-macos:
 	curl -L -O https://github.com/syncthing/syncthing/releases/download/v1.4.0/syncthing-macos-amd64-v1.4.0.tar.gz
@@ -52,19 +49,19 @@ certs:
 	./scripts/make-manager-cert.sh ${MANAGER_CERT_PATH} ${MANAGER_KEY_PATH}
 
 build-cli-linux: syncthing-linux certs
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -ldflags $(LD_FLAGS) -o blimp-linux ./cli
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LD_FLAGS) -o blimp-linux ./cli
 	cp syncthing-linux ./pkg/syncthing/stbin
 	rice append -i ./pkg/syncthing --exec blimp-linux
 	rm ./pkg/syncthing/stbin
 
 build-cli-osx: syncthing-macos certs
-	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -ldflags $(LD_FLAGS) -o blimp-osx ./cli
+	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LD_FLAGS) -o blimp-osx ./cli
 	cp syncthing-macos ./pkg/syncthing/stbin
 	rice append -i ./pkg/syncthing --exec blimp-osx
 	rm ./pkg/syncthing/stbin
 
 run-cluster-controller: certs
-	go run -mod=vendor -ldflags $(LD_FLAGS) ./cluster-controller -tls-cert ${MANAGER_CERT_PATH} -tls-key ${MANAGER_KEY_PATH}
+	go run -ldflags $(LD_FLAGS) ./cluster-controller -tls-cert ${MANAGER_CERT_PATH} -tls-key ${MANAGER_KEY_PATH}
 
 build-circle-image:
 	docker build -f .circleci/Dockerfile . -t keldaio/circleci-blimp
