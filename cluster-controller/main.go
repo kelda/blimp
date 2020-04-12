@@ -372,12 +372,8 @@ func (s *server) createSandboxManager(namespace string, cfg composeTypes.Config)
 	pathsSet := map[string]struct{}{}
 	for _, svc := range cfg.Services {
 		for _, vol := range svc.Volumes {
-			if vol.Type != composeTypes.VolumeTypeVolume {
-				continue
-			}
-
 			id := volume.ID(namespace, vol)
-			hostPath := volumeHostPath(namespace, id)
+			hostPath := volume.HostPath(namespace, id)
 			if _, ok := pathsSet[hostPath]; ok {
 				continue
 			}
@@ -386,7 +382,10 @@ func (s *server) createSandboxManager(namespace string, cfg composeTypes.Config)
 			volume, mount := makeVolumeMount(namespace, id, hostPath, hostPath)
 			volumeMounts = append(volumeMounts, mount)
 			volumes = append(volumes, volume)
-			resetPaths = append(resetPaths, hostPath)
+
+			if vol.Type == composeTypes.VolumeTypeVolume {
+				resetPaths = append(resetPaths, hostPath)
+			}
 		}
 	}
 
@@ -576,7 +575,7 @@ func (s *server) createSyncthing(namespace string, cfg composeTypes.Config) erro
 			}
 
 			id := volume.ID(namespace, desired)
-			hostPath := volumeHostPath(namespace, id)
+			hostPath := volume.HostPath(namespace, id)
 
 			volume, mount := makeVolumeMount(namespace, id,
 				hostPath, desired.Target)
@@ -620,31 +619,9 @@ func (s *server) createSyncthing(namespace string, cfg composeTypes.Config) erro
 		},
 	}
 
-	service := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "syncthing",
-			Namespace: namespace,
-		},
-		Spec: corev1.ServiceSpec{
-			Selector: pod.Labels,
-			Ports: []corev1.ServicePort{
-				{Port: syncthing.APIPort},
-			},
-		},
-	}
-
 	if err := s.deployPod(pod); err != nil {
 		return fmt.Errorf("deploy pod: %w", err)
 	}
-
-	servicesClient := s.kubeClient.CoreV1().Services(namespace)
-	if _, err := servicesClient.Get(service.Name, metav1.GetOptions{}); err != nil {
-		_, err := servicesClient.Create(service)
-		if err != nil {
-			return fmt.Errorf("create service: %w", err)
-		}
-	}
-
 	return nil
 }
 
@@ -1091,10 +1068,6 @@ func makeVolumeMount(namespace, id, hostpath, target string) (
 	return volume, mount
 }
 
-func volumeHostPath(namespace, id string) string {
-	return fmt.Sprintf("/var/blimp/volumes/%s/%s", namespace, id)
-}
-
 func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages map[string]string) (pods []corev1.Pod, configMaps []corev1.ConfigMap, err error) {
 	for _, svc := range cfg.Services {
 		// Each pod has a corresponding ConfigMap containing the dependencies
@@ -1181,7 +1154,7 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 		var vcpArgs []string
 		for _, desired := range svc.Volumes {
 			id := volume.ID(namespace, desired)
-			hostPath := volumeHostPath(namespace, id)
+			hostPath := volume.HostPath(namespace, id)
 			volume, mount := makeVolumeMount(namespace, id,
 				hostPath, desired.Target)
 			volumes = append(volumes, volume)

@@ -1,0 +1,123 @@
+package syncthing
+
+import (
+	"crypto/sha512"
+	"encoding/base64"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/syncthing/syncthing/lib/fs"
+	"github.com/syncthing/syncthing/lib/ignore"
+)
+
+const hashTrackerName = ".kelda-hash"
+
+func syncFileHash(stop <-chan struct{}, folder string) {
+	hashPath := HashTrackerPath(folder)
+	defer os.Remove(hashPath)
+
+	writeOnce := func() {
+		h, err := HashFolder(folder)
+		if err != nil {
+			log.WithError(err).Warn("Failed to calculate bind volume hash")
+			return
+		}
+
+		if err := ioutil.WriteFile(hashPath, []byte(h), 0644); err != nil {
+			log.WithError(err).Warn("Failed to write bind volume hash")
+		}
+	}
+
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		writeOnce()
+
+		select {
+		case <-stop:
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func HashTrackerPath(folder string) string {
+	return filepath.Join(folder, hashTrackerName)
+}
+
+func HashFolder(root string) (string, error) {
+	ignoreMatcher := ignore.New(fs.NewFilesystem(fs.FilesystemTypeBasic, ""))
+	ignorePath := filepath.Join(root, ".stignore")
+	if _, err := os.Stat(ignorePath); err == nil {
+		if err := ignoreMatcher.Load(ignorePath); err != nil {
+			return "", fmt.Errorf("load stignore: %w", err)
+		}
+	}
+
+	var hashes []string
+	err := filepath.Walk(root, func(path string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if fi.IsDir() {
+			return nil
+		}
+
+		// Don't include the hash tracker file in the hash, or else when we
+		// update the hash file, the next calculation will be different.
+		if fi.Name() == hashTrackerName {
+			return nil
+		}
+
+		relativePath, err := filepath.Rel(root, path)
+		if err != nil || strings.HasPrefix(relativePath, "..") {
+			return fmt.Errorf("get relative path: %w", err)
+		}
+
+		if ignoreMatcher.ShouldIgnore(relativePath) {
+			return nil
+		}
+
+		hash, err := hashFile(path)
+		if err != nil {
+			return err
+		}
+
+		hashes = append(hashes, hash)
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	sort.Strings(hashes)
+	hasher := sha512.New()
+	for _, hash := range hashes {
+		fmt.Fprintf(hasher, hash)
+	}
+	return base64.StdEncoding.EncodeToString(hasher.Sum(nil)), nil
+}
+
+// hashFile returns the sha512 hash of the file at the given path.
+func hashFile(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("open: %w", err)
+	}
+	defer f.Close()
+
+	hasher := sha512.New()
+	if _, err := io.Copy(hasher, f); err != nil {
+		return "", fmt.Errorf("read: %w", err)
+	}
+
+	return base64.StdEncoding.EncodeToString(hasher.Sum(nil)), nil
+}

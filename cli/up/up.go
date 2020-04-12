@@ -171,7 +171,7 @@ func (cmd *up) run() error {
 		log.WithError(err).Fatal("Failed to create development sandbox")
 	}
 
-	haveSyncthing := cmd.bootSyncthing(parsedCompose)
+	haveSyncthing, stopHashSync := cmd.bootSyncthing(parsedCompose)
 
 	// TODO: Does Docker rebuild images when files change?
 	builtImages, err := cmd.buildImages(parsedCompose)
@@ -216,6 +216,12 @@ func (cmd *up) run() error {
 	services := parsedCompose.ServiceNames()
 	statusPrinter := newStatusPrinter(services)
 	statusPrinter.Run(manager.C, cmd.auth.AuthToken)
+
+	// Now that the containers have finished booting, we know the initial
+	// filesync is complete, and can stop updating the file hashes.
+	if haveSyncthing {
+		close(stopHashSync)
+	}
 
 	return logs.LogsCommand{
 		Containers: services,
@@ -345,7 +351,7 @@ func (cmd *up) buildImage(spec composeTypes.BuildConfig, svc string) (string, er
 	return name, nil
 }
 
-func (cmd *up) bootSyncthing(dcCfg composeTypes.Config) bool {
+func (cmd *up) bootSyncthing(dcCfg composeTypes.Config) (bool, chan<- struct{}) {
 	namespace := cmd.auth.KubeNamespace
 	idPathMap := map[string]string{}
 	for _, svc := range dcCfg.Services {
@@ -358,17 +364,18 @@ func (cmd *up) bootSyncthing(dcCfg composeTypes.Config) bool {
 	}
 
 	if len(idPathMap) == 0 {
-		return false
+		return false, nil
 	}
 
+	stopHashSync := make(chan struct{})
 	go func() {
-		output, err := syncthing.Run(idPathMap)
+		output, err := syncthing.RunClient(stopHashSync, idPathMap)
 		if err != nil {
 			log.WithError(err).WithField("output", string(output)).Warn("syncthing error")
 		}
 	}()
 
-	return true
+	return true, stopHashSync
 }
 
 func makeTar(dir string) (io.Reader, error) {

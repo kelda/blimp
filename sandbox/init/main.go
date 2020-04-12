@@ -4,7 +4,6 @@ import (
 	"context"
 	"io/ioutil"
 	"os"
-	"time"
 
 	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
@@ -51,12 +50,15 @@ func runOnce(sandboxManagerHost string, waitSpec sandbox.WaitSpec) error {
 	}
 	client := sandbox.NewBootWaiterClient(conn)
 
-	// Poll the sandbox manager until we're allowed to boot.
-	retry := 500 * time.Millisecond
+	isReadyStream, err := client.CheckReady(context.TODO(), &sandbox.CheckReadyRequest{
+		WaitSpec: &waitSpec,
+	})
+	if err != nil {
+		return err
+	}
+
 	for {
-		isReady, err := client.CheckReady(context.TODO(), &sandbox.CheckReadyRequest{
-			WaitSpec: &waitSpec,
-		})
+		isReady, err := isReadyStream.Recv()
 		if err != nil {
 			return err
 		}
@@ -64,13 +66,6 @@ func runOnce(sandboxManagerHost string, waitSpec sandbox.WaitSpec) error {
 		if isReady.Ready {
 			return nil
 		}
-
-		retry = 2 * retry
-		if retry > 30*time.Second {
-			retry = 30 * time.Second
-		}
-
-		log.WithField("reason", isReady.Reason).Infof("Not ready to boot yet... Will check again in %s", retry)
-		time.Sleep(retry)
+		log.WithField("reason", isReady.Reason).Info("Not ready to boot yet...")
 	}
 }

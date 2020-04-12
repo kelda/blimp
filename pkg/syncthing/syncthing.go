@@ -96,7 +96,7 @@ func MakeServer(folders map[string]string) string {
 	return makeConfig(true, folders)
 }
 
-func Run(folders map[string]string) ([]byte, error) {
+func RunClient(finishedInitialSync <-chan struct{}, folders map[string]string) ([]byte, error) {
 	box := rice.MustFindBox("stbin")
 
 	err := MakeMarkers(folders)
@@ -107,6 +107,10 @@ func Run(folders map[string]string) ([]byte, error) {
 				"Please change the mount %s to mount %s instead.", path, filepath.Dir(path))
 		}
 		log.WithError(err).Fatal("Failed to start volume")
+	}
+
+	for _, folder := range folders {
+		go syncFileHash(finishedInitialSync, folder)
 	}
 
 	stbinBytes, err := box.Bytes("")

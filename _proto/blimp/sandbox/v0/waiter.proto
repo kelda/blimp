@@ -5,7 +5,7 @@ package blimp.sandbox.v0;
 option go_package = "github.com/kelda-inc/blimp/pkg/proto/sandbox";
 
 service BootWaiter {
-  rpc CheckReady(CheckReadyRequest) returns (CheckReadyResponse) {}
+  rpc CheckReady(CheckReadyRequest) returns (stream CheckReadyResponse) {}
 }
 
 message CheckReadyRequest {

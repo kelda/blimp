@@ -1,10 +1,11 @@
 package wait
 
 import (
-	"context"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
 	"github.com/kelda-inc/blimp/pkg/syncthing"
+	"github.com/kelda-inc/blimp/pkg/volume"
 
 	// Install the gzip compressor.
 	_ "google.golang.org/grpc/encoding/gzip"
@@ -21,11 +23,10 @@ import (
 
 const Port = 9002
 
-func Run(kubeClient kubernetes.Interface, namespace string, syncthingClient syncthing.APIClient) {
+func Run(kubeClient kubernetes.Interface, namespace string) {
 	s := &server{
-		kubeClient:      kubeClient,
-		namespace:       namespace,
-		syncthingClient: syncthingClient,
+		kubeClient: kubeClient,
+		namespace:  namespace,
 	}
 
 	addr := fmt.Sprintf("0.0.0.0:%d", Port)
@@ -36,9 +37,8 @@ func Run(kubeClient kubernetes.Interface, namespace string, syncthingClient sync
 }
 
 type server struct {
-	kubeClient      kubernetes.Interface
-	namespace       string
-	syncthingClient syncthing.APIClient
+	kubeClient kubernetes.Interface
+	namespace  string
 }
 
 func (s *server) listenAndServe(address string) error {
@@ -55,42 +55,61 @@ func (s *server) listenAndServe(address string) error {
 
 // CheckReady returns whether the boot requirements specified in the request
 // are satisfied.
-func (s *server) CheckReady(ctx context.Context, req *sandbox.CheckReadyRequest) (*sandbox.CheckReadyResponse, error) {
-	for _, dep := range req.GetWaitSpec().GetDependsOn() {
-		isBooted, err := s.isBooted(dep)
-		if err != nil {
-			return &sandbox.CheckReadyResponse{
-				Ready:  false,
-				Reason: fmt.Sprintf("failed to get pod status: %s", err),
-			}, nil
+func (s *server) CheckReady(req *sandbox.CheckReadyRequest, srv sandbox.BootWaiter_CheckReadyServer) error {
+	checkOnce := func() *sandbox.CheckReadyResponse {
+		for _, dep := range req.GetWaitSpec().GetDependsOn() {
+			isBooted, err := s.isBooted(dep)
+			if err != nil {
+				return &sandbox.CheckReadyResponse{
+					Ready:  false,
+					Reason: fmt.Sprintf("failed to get pod status: %s", err),
+				}
+			}
+
+			if !isBooted {
+				return &sandbox.CheckReadyResponse{
+					Ready:  false,
+					Reason: fmt.Sprintf("service %s is not running yet", dep),
+				}
+			}
 		}
 
-		if !isBooted {
-			return &sandbox.CheckReadyResponse{
-				Ready:  false,
-				Reason: fmt.Sprintf("service %s is not running yet", dep),
-			}, nil
+		for _, folder := range req.GetWaitSpec().GetSyncthingFolders() {
+			isSynced, err := s.isSynced(folder)
+			if err != nil {
+				return &sandbox.CheckReadyResponse{
+					Ready:  false,
+					Reason: fmt.Sprintf("failed to get sync status: %s", err),
+				}
+			}
+
+			if !isSynced {
+				return &sandbox.CheckReadyResponse{
+					Ready:  false,
+					Reason: fmt.Sprintf("folder %s is not synced", folder),
+				}
+			}
 		}
+
+		return &sandbox.CheckReadyResponse{Ready: true}
 	}
 
-	for _, folder := range req.GetWaitSpec().GetSyncthingFolders() {
-		completion, err := s.syncthingClient.GetCompletion(syncthing.RemoteDeviceID, folder)
-		if err != nil {
-			return &sandbox.CheckReadyResponse{
-				Ready:  false,
-				Reason: fmt.Sprintf("failed to get sync status: %s", err),
-			}, nil
+	pollInterval := 1 * time.Second
+	for {
+		update := checkOnce()
+		if err := srv.Send(update); err != nil {
+			return err
+		}
+		if update.Ready {
+			return nil
 		}
 
-		if completion.Completion != 100 {
-			return &sandbox.CheckReadyResponse{
-				Ready:  false,
-				Reason: fmt.Sprintf("folder %s is %d%% synced", folder, completion.Completion),
-			}, nil
+		pollInterval *= 2
+		if pollInterval > 30*time.Second {
+			pollInterval = 30 * time.Second
 		}
+		time.Sleep(pollInterval)
 	}
-
-	return &sandbox.CheckReadyResponse{Ready: true}, nil
 }
 
 func (s *server) isBooted(service string) (bool, error) {
@@ -103,4 +122,19 @@ func (s *server) isBooted(service string) (bool, error) {
 	}
 
 	return pod.Status.Phase == "Running", nil
+}
+
+func (s *server) isSynced(folderID string) (bool, error) {
+	folderPath := volume.HostPath(s.namespace, folderID)
+	expHash, err := ioutil.ReadFile(syncthing.HashTrackerPath(folderPath))
+	if err != nil {
+		return false, fmt.Errorf("read expected hash: %w", err)
+	}
+
+	actualHash, err := syncthing.HashFolder(folderPath)
+	if err != nil {
+		return false, fmt.Errorf("calculate actual hash: %w", err)
+	}
+
+	return string(expHash) == actualHash, nil
 }
