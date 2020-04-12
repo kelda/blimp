@@ -30,7 +30,6 @@ import (
 	"github.com/kelda-inc/blimp/cli/logs"
 	"github.com/kelda-inc/blimp/cli/manager"
 	"github.com/kelda-inc/blimp/cli/util"
-	"github.com/kelda-inc/blimp/pkg/analytics"
 	"github.com/kelda-inc/blimp/pkg/dockercompose"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
@@ -156,10 +155,6 @@ func (cmd *up) run() error {
 		return err
 	}
 
-	analytics.Log.
-		WithField("rawCompose", string(rawCompose)).
-		Info("Read compose file")
-
 	parsedCompose, err := dockercompose.Load(cmd.composePath, rawCompose)
 	if err != nil {
 		return err
@@ -169,11 +164,6 @@ func (cmd *up) run() error {
 	if err != nil {
 		return err
 	}
-
-	analytics.Log.
-		WithField("rawCompose", string(rawCompose)).
-		WithField("evaluatedCompose", string(parsedComposeBytes)).
-		Info("Parsed compose file")
 
 	// Start creating the sandbox immediately so that the systems services
 	// start booting as soon as possible.

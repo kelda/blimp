@@ -229,7 +229,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		analytics.Log.
 			WithField("namespace", user.Namespace).
 			WithField("unsupportedFeatures", unsupportedFeatures).
-			WithField("composeFile", req.GetComposeFile()).Warn("Used unsupported feature")
+			Warn("Used unsupported feature")
 	}
 
 	return &cluster.CreateSandboxResponse{
