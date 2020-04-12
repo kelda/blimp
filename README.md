@@ -78,4 +78,4 @@ The registry needs a DNS name, even during development. To deploy it:
 	./scripts/update-prod.sh <version>
 	```
 
-1. Update the install script to point to the new version in `kelda.io/install-blimp.sh`
+1. Update the install script to point to the new version in `kelda.io/install-blimp.sh`. Make sure to update all AB tests.
