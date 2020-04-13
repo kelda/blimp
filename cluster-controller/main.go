@@ -414,7 +414,7 @@ func (s *server) createSandboxManager(namespace string, cfg composeTypes.Config)
 							},
 						},
 					},
-					Command:      resetPaths,
+					Args:         resetPaths,
 					VolumeMounts: volumeMounts,
 					ReadinessProbe: &corev1.Probe{
 						Handler: corev1.Handler{

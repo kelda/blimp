@@ -1,3 +1,3 @@
 FROM blimp-go-build as builder
 
-CMD ["blimp-sbctl"]
+ENTRYPOINT ["blimp-sbctl"]
