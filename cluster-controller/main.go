@@ -25,6 +25,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -287,18 +288,98 @@ func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest
 }
 
 func (s *server) createNamespace(namespace string) error {
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: namespace,
+			Labels: map[string]string{
+				// Referenced by the network policy.
+				"namespace": namespace,
+			},
+		},
+	}
+
+	namespaceNetworkPolicy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: ns.Name,
+			Name:      "namespace",
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			// TODO: Restrict Egress as well.
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				{
+					From: []networkingv1.NetworkPolicyPeer{
+
+						// Allow traffic any pod in the same namespace.
+						{
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"namespace": ns.Name,
+								},
+							},
+						},
+					},
+				},
+			},
+			PolicyTypes: []networkingv1.PolicyType{
+				networkingv1.PolicyTypeIngress,
+			},
+		},
+	}
+
+	sandboxControllerNetworkPolicy := &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: ns.Name,
+			Name:      "sandbox-manager",
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"service": "sandbox-manager",
+				},
+			},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				{
+					From: []networkingv1.NetworkPolicyPeer{
+
+						// Allow traffic from all IPs so that the load balancer
+						// can forward public connections to the pod.
+						// The above network policy also allows traffic from
+						// other pods in the same namespace.
+						{
+							IPBlock: &networkingv1.IPBlock{
+								CIDR: "0.0.0.0/0",
+							},
+						},
+					},
+				},
+			},
+			PolicyTypes: []networkingv1.PolicyType{
+				networkingv1.PolicyTypeIngress,
+			},
+		},
+	}
+
 	// No need to re-create the namespace if it already exists.
 	namespaceClient := s.kubeClient.CoreV1().Namespaces()
-	if _, err := namespaceClient.Get(namespace, metav1.GetOptions{}); err == nil {
+	if _, err := namespaceClient.Get(ns.Name, metav1.GetOptions{}); err == nil {
 		return nil
 	}
 
-	_, err := namespaceClient.Create(&corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: namespace,
-		},
-	})
-	return err
+	if _, err := namespaceClient.Create(ns); err != nil {
+		return err
+	}
+
+	networkingClient := s.kubeClient.NetworkingV1().NetworkPolicies(ns.Name)
+	for _, policy := range []*networkingv1.NetworkPolicy{namespaceNetworkPolicy, sandboxControllerNetworkPolicy} {
+		if _, err := networkingClient.Get(policy.Name, metav1.GetOptions{}); err == nil {
+			continue
+		}
+
+		if _, err := networkingClient.Create(policy); err != nil {
+			return fmt.Errorf("create network policy: %w", err)
+		}
+	}
+	return nil
 }
 
 func (s *server) getSandboxControllerIP(namespace string) (string, error) {

@@ -12,7 +12,9 @@ function _gcloud_kube() {
 gcloud compute addresses --project kelda-blimp create registry --region us-west1
 gcloud compute addresses --project kelda-blimp create manager --region us-west1
 
-_gcloud_kube create customer -m e2-standard-2 --num-nodes=2 --no-enable-autoupgrade
+# TODO: We actually run with a n1-standard-8 and n1-standard-16.
+# TODO: Automate our fix of fixing nodemon by running `sudo sysctl fs.inotify.max_user_watches=1048576` on each kubelet node.
+_gcloud_kube create customer -m e2-standard-2 --num-nodes=2 --no-enable-autoupgrade --enable-network-policy --image-type=ubuntu
 _gcloud_kube get-credentials customer
 ./scripts/make-kubeconfig.sh > /tmp/customer-cluster-kubeconfig
 

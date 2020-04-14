@@ -1,3 +1,12 @@
+# Creating a dev Kube cluster
+
+You need a Kubernetes cluster for the customer containers to run in. In order
+for GKE's network policy to work, you need at least two nodes in the cluster.
+
+```
+gcloud container clusters create dev -m n1-standard-2 --num-nodes=2 --no-enable-autoupgrade --enable-network-policy --image-type=ubuntu --preemptible
+```
+
 # Installation
 
 Make sure you're using go v1.13 or above.
