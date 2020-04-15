@@ -48,6 +48,11 @@ Kelda Blimp only uses your login to identify you, and doesn't pull any other inf
 	}
 }
 
+type idTokenResult struct {
+	token string
+	err   error
+}
+
 func getAuthToken() (string, error) {
 	oauthConf := &oauth2.Config{
 		ClientID:    auth.ClientID,
@@ -63,12 +68,17 @@ func getAuthToken() (string, error) {
 		return "", fmt.Errorf("create verifier for oauth handshake", err)
 	}
 
-	codeRespChan := make(chan *http.Request, 1)
+	idTokenChan := make(chan idTokenResult, 1)
 	serveMux := http.NewServeMux()
 	serveMux.HandleFunc(auth.RedirectPath, func(w http.ResponseWriter, r *http.Request) {
-		codeRespChan <- r
-		// TODO: Automatically close the window with Javascript.
-		fmt.Fprintln(w, "You can close this window now.")
+		idToken, err := getTokenForCode(oauthConf, verifier, r)
+		idTokenChan <- idTokenResult{token: idToken, err: err}
+		if err != nil {
+			fmt.Fprintf(w, "Login failed: %s\n", err)
+			return
+		}
+
+		fmt.Fprintln(w, `<html><head><meta http-equiv="Refresh" content="0; url=https://kelda.io/thank-you-login/" /></head></html>`)
 	})
 
 	server := http.Server{
@@ -88,15 +98,18 @@ func getAuthToken() (string, error) {
 		log.WithError(err).Warn("Failed to open browser. Please open the link manually.")
 	}
 
-	codeResp := <-codeRespChan
+	token := <-idTokenChan
+	return token.token, token.err
+}
 
-	err = codeResp.ParseForm()
+func getTokenForCode(oauthConf *oauth2.Config, verifier string, r *http.Request) (string, error) {
+	err := r.ParseForm()
 	if err != nil {
 		return "", fmt.Errorf("parse form: %w", err)
 	}
 
 	// TODO: Test bad creds.
-	code := codeResp.FormValue("code")
+	code := r.FormValue("code")
 	if code == "" {
 		return "", errors.New("no auth code")
 	}
