@@ -720,15 +720,25 @@ func (s *server) createCLICreds(namespace string) (cluster.KubeCredentials, erro
 			Name:      "blimp-client",
 		},
 		Rules: []rbacv1.PolicyRule{
+			// Needed for `blimp logs`.
 			{
 				APIGroups: []string{""},
 				Resources: []string{"pods/log"},
 				Verbs:     []string{"get", "list"},
 			},
+
+			// Needed for `blimp ssh` and `blimp cp`.
 			{
 				APIGroups: []string{""},
 				Resources: []string{"pods/exec"},
 				Verbs:     []string{"create"},
+			},
+
+			// Needed for `blimp cp`.
+			{
+				APIGroups: []string{""},
+				Resources: []string{"pods"},
+				Verbs:     []string{"get"},
 			},
 		},
 	}

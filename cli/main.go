@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/kelda-inc/blimp/cli/authstore"
+	"github.com/kelda-inc/blimp/cli/cp"
 	"github.com/kelda-inc/blimp/cli/down"
 	"github.com/kelda-inc/blimp/cli/login"
 	"github.com/kelda-inc/blimp/cli/logs"
@@ -49,6 +50,7 @@ func main() {
 		ps.New(),
 		ssh.New(),
 		up.New(),
+		cp.New(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {

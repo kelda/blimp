@@ -12,7 +12,6 @@ replace (
 )
 
 require (
-	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/GeertJohan/go.rice v1.0.0
 	github.com/Masterminds/semver v1.5.0
 	github.com/Microsoft/hcsshim v0.8.7 // indirect
@@ -30,10 +29,11 @@ require (
 	// and yaml.DisallowUnknownFields functions. This override vendors the latest
 	// commit on `master`.
 	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
-	github.com/golang/protobuf v1.3.3
+	github.com/golang/protobuf v1.4.0
 	github.com/googleapis/gnostic v0.4.0 // indirect
 	github.com/gorilla/mux v1.7.4 // indirect
 	github.com/kr/pretty v0.2.0 // indirect
+	github.com/lithammer/dedent v1.1.0
 	github.com/miekg/dns v1.1.28
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/morikuni/aec v0.0.0-20170113033406-39771216ff4c // indirect
@@ -44,13 +44,16 @@ require (
 	github.com/spf13/cobra v0.0.6
 	github.com/stretchr/testify v1.4.0
 	github.com/syncthing/syncthing v1.4.2
-	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550
+	golang.org/x/crypto v0.0.0-20200220183623-bac4c82f6975
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	google.golang.org/grpc v1.28.0
+	google.golang.org/protobuf v1.21.0
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	gopkg.in/square/go-jose.v2 v2.4.1 // indirect
 	k8s.io/api v0.17.3
 	k8s.io/apimachinery v0.17.3
+	k8s.io/cli-runtime v0.17.3
 	k8s.io/client-go v0.17.3
-	k8s.io/utils v0.0.0-20200229041039-0a110f9eb7ab // indirect
+
+	k8s.io/kubectl v0.17.3
 )
