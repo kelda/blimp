@@ -71,6 +71,7 @@ func getAuthToken() (string, error) {
 	idTokenChan := make(chan idTokenResult, 1)
 	serveMux := http.NewServeMux()
 	serveMux.HandleFunc(auth.RedirectPath, func(w http.ResponseWriter, r *http.Request) {
+		log.Debug("Received oauth code")
 		idToken, err := getTokenForCode(oauthConf, verifier, r)
 		idTokenChan <- idTokenResult{token: idToken, err: err}
 		if err != nil {
@@ -114,6 +115,7 @@ func getTokenForCode(oauthConf *oauth2.Config, verifier string, r *http.Request)
 		return "", errors.New("no auth code")
 	}
 
+	log.WithField("code", code).WithField("verifier", verifier).Debug("Exchanging oauth code for token")
 	tok, err := oauthConf.Exchange(context.Background(), code,
 		oauth2.SetAuthURLParam("code_verifier", verifier),
 	)

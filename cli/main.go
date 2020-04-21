@@ -24,7 +24,16 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// verboseLogKey is the environment variable used to enable verbose logging.
+// When it's set to `true`, Debug events are logged, rather than just Info and
+// above.
+const verboseLogKey = "BLIMP_LOG_VERBOSE"
+
 func main() {
+	if os.Getenv(verboseLogKey) == "true" {
+		log.SetLevel(log.DebugLevel)
+	}
+
 	// By default, the random number generator is seeded to 1, so the resulting
 	// numbers aren't actually different unless we explicitly seed it.
 	rand.Seed(time.Now().UnixNano())
