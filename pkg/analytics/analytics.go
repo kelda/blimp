@@ -72,7 +72,7 @@ func Init(p DatadogPoster, id StreamID) {
 
 	// Forward error and warning logs for the global logger.
 	logrus.AddHook(&hook{
-		levels: []logrus.Level{logrus.WarnLevel, logrus.ErrorLevel},
+		levels: []logrus.Level{logrus.WarnLevel, logrus.ErrorLevel, logrus.FatalLevel, logrus.PanicLevel},
 		poster: p,
 		stream: "logs",
 		id:     id,
