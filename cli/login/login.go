@@ -87,7 +87,7 @@ func getAuthToken() (string, error) {
 		Addr:    auth.RedirectHost,
 	}
 	go server.ListenAndServe()
-	defer server.Close()
+	defer server.Shutdown(context.Background())
 
 	// TODO: Set and check state.
 	authURL := oauthConf.AuthCodeURL("state",
