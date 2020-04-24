@@ -86,9 +86,18 @@ func HashFolder(root string) (string, error) {
 			return nil
 		}
 
-		hash, err := hashFile(path)
-		if err != nil {
-			return err
+		var hash string
+		switch {
+		case fi.Mode()&os.ModeSymlink != 0:
+			hash, err = os.Readlink(path)
+			if err != nil {
+				return fmt.Errorf("get symlink target for %s: %w", path, err)
+			}
+		default:
+			hash, err = hashFile(path)
+			if err != nil {
+				return err
+			}
 		}
 
 		hashes = append(hashes, hash)
