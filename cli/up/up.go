@@ -70,7 +70,7 @@ func New() *cobra.Command {
 			// Convert the compose path to an absolute path so that the code
 			// that makes identifiers for bind volumes are unique for relative
 			// paths.
-			absComposePath, err := filepath.Abs(cmd.composePath)
+			absComposePath, err := getComposeAbsPath(cmd.composePath)
 			if err != nil {
 				if os.IsNotExist(err) {
 					fmt.Fprintf(os.Stderr, "Docker compose file not found: %s\n", cmd.composePath)
@@ -85,8 +85,8 @@ func New() *cobra.Command {
 			}
 		},
 	}
-	cobraCmd.Flags().StringVarP(&composePath, "file", "f", "docker-compose.yml",
-		"Specify an alternate compose file")
+	cobraCmd.Flags().StringVarP(&composePath, "file", "f", "",
+		"Specify an alternate compose file\nDefaults to docker-compose.yml and docker-compose.yaml")
 	cobraCmd.Flags().BoolVarP(&alwaysBuild, "build", "", false,
 		"Build images before starting containers")
 	return cobraCmd
@@ -287,6 +287,18 @@ func (cmd *up) bootSyncthing(dcCfg composeTypes.Config) (bool, chan<- struct{}) 
 	}()
 
 	return true, stopHashSync
+}
+
+func getComposeAbsPath(composePath string) (string, error) {
+	if composePath != "" {
+		return filepath.Abs(composePath)
+	}
+
+	if _, err := os.Stat("docker-compose.yml"); os.IsNotExist(err) {
+		return filepath.Abs("docker-compose.yaml")
+	} else {
+		return filepath.Abs("docker-compose.yml")
+	}
 }
 
 func makeTar(dir string) (io.Reader, error) {
