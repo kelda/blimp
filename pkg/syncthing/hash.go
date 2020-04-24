@@ -17,7 +17,7 @@ import (
 	"github.com/syncthing/syncthing/lib/ignore"
 )
 
-const hashTrackerName = ".kelda-hash"
+const hashTrackerName = ".blimp-hash"
 
 func syncFileHash(stop <-chan struct{}, folder string) {
 	hashPath := HashTrackerPath(folder)
