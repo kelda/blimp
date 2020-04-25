@@ -11,6 +11,7 @@ import (
 	"github.com/kelda-inc/blimp/cli/authstore"
 	"github.com/kelda-inc/blimp/cli/cp"
 	"github.com/kelda-inc/blimp/cli/down"
+	"github.com/kelda-inc/blimp/cli/exec"
 	"github.com/kelda-inc/blimp/cli/login"
 	"github.com/kelda-inc/blimp/cli/logs"
 	"github.com/kelda-inc/blimp/cli/manager"
@@ -60,6 +61,7 @@ func main() {
 		ssh.New(),
 		up.New(),
 		cp.New(),
+		exec.New(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {
