@@ -21,7 +21,8 @@ func New() *cobra.Command {
 		"Usage: blimp " + usageMsg + "\n"
 
 	execCmd := cobra.Command{
-		Use:                   usageMsg,
+		Use:   usageMsg,
+		Short: "Run a command in a service",
 		// This allows the flags passed in to be used by the CMD to be executed and
 		// not the exec command.
 		DisableFlagParsing:    true,
