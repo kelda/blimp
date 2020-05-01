@@ -184,13 +184,15 @@ func makeConfig(server bool, folders map[string]string) string {
         <urAccepted>-1</urAccepted>
         <restartOnWakeup>false</restartOnWakeup>
         <autoUpgradeIntervalH>0</autoUpgradeIntervalH>
-        <keepTemporariesH>24</keepTemporariesH>
         <cacheIgnoredFiles>false</cacheIgnoredFiles>
         <overwriteRemoteDeviceNamesOnConnect>false</overwriteRemoteDeviceNamesOnConnect>
         <defaultFolderPath></defaultFolderPath>
         <setLowPriority>false</setLowPriority>
         <crashReportingEnabled>false</crashReportingEnabled>
         <stunServer></stunServer>
+
+        <!-- Don't keep temporary files from failed transfers. They pollute the filesystem, and the transfer will complete when the devices reconnect. -->
+        <keepTemporariesH>0</keepTemporariesH>
     </options>
 </configuration>`, strings.Join(folderStrs, ""), gui, RemoteDeviceID, address, CLIDeviceID, listenAddress)
 }
@@ -203,8 +205,10 @@ func makeFolder(id, path string) string {
         <device id="%s"/>
         <device id="%s"/>
         <order>oldestFirst</order>
-        <ignoreDelete>false</ignoreDelete>
-        <maxConflicts>-1</maxConflicts>
         <markerName>%s</markerName>
+        <ignoreDelete>false</ignoreDelete>
+
+        <!-- Don't create conflict files. We just let Syncthing resolve the conflict based on modtime, which is basically always good enough.-->
+        <maxConflicts>0</maxConflicts>
     </folder>`, id, path, RemoteDeviceID, CLIDeviceID, Marker)
 }
