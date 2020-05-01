@@ -1251,6 +1251,13 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 			volumes = append(volumes, volume)
 			volumeMounts = append(volumeMounts, mount)
 
+			// Only initialize regular volumes. Bind volumes aren't initalized
+			// based on the contents of the Docker image -- they're supposed to
+			// exactly match what's on the user's filesystem.
+			if desired.Type != composeTypes.VolumeTypeVolume {
+				continue
+			}
+
 			vcpTarget := "/vcp-mount" + desired.Target
 			vcpMounts = append(vcpMounts, corev1.VolumeMount{
 				Name:      id,
