@@ -301,6 +301,25 @@ func getComposeAbsPath(composePath string) (string, error) {
 	}
 }
 
+func getHeader(fi os.FileInfo, relFilePath string) (*tar.Header, error) {
+	var link string
+	if fi.Mode()&os.ModeSymlink != 0 {
+		var err error
+		link, err = os.Readlink(relFilePath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	hdr, err := tar.FileInfoHeader(fi, link)
+	if err != nil {
+		return nil, err
+	}
+
+	hdr.Name = relFilePath
+	return hdr, nil
+}
+
 func makeTar(dir string) (io.Reader, error) {
 	var out bytes.Buffer
 	tw := tar.NewWriter(&out)
@@ -311,17 +330,16 @@ func makeTar(dir string) (io.Reader, error) {
 			return err
 		}
 
-		header, err := tar.FileInfoHeader(fi, fi.Name())
-		if err != nil {
-			return fmt.Errorf("write header: %s", err)
-		}
-
 		relPath, err := filepath.Rel(dir, path)
 		if err != nil {
 			return fmt.Errorf("get normalized path %q: %w", path, err)
 		}
 
-		header.Name = relPath
+		header, err := getHeader(fi, relPath)
+		if err != nil {
+			return fmt.Errorf("get header: %s", err)
+		}
+
 		if err := tw.WriteHeader(header); err != nil {
 			return fmt.Errorf("write header %q: %w", header.Name, err)
 		}
