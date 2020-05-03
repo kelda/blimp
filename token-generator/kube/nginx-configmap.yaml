@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: token-generator
+  name: nginx-conf
+data:
+  default: |
+    server {
+      listen 443 ssl;
+
+      # SSL
+      include /config/nginx/ssl.conf;
+
+      # disable any limits to avoid HTTP 413 for large image uploads
+      client_max_body_size 0;
+
+      # required to avoid HTTP 411: see Issue #1486 (https://github.com/moby/moby/issues/1486)
+      chunked_transfer_encoding on;
+
+      # Forward requests to the token service.
+      location / {
+        proxy_pass                          http://localhost:8000;
+        proxy_set_header  Host              $http_host;
+        proxy_set_header  X-Real-IP         $remote_addr;
+        proxy_set_header  X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header  X-Forwarded-Proto $scheme;
+        proxy_read_timeout                  900;
+      }
+    }

@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: token-generator
+  namespace: token-generator
+spec:
+  type: LoadBalancer
+  selector:
+    service: token-generator
+  loadBalancerIP: 35.230.110.0
+  ports:
+  # Required for Lets Encrypt to generate certificates.
+  - name: http
+    port: 80
+    targetPort: 80
+
+  # Used for interacting with the login service.
+  - name: https
+    port: 443
+    targetPort: 443

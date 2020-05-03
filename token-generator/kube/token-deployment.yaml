@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: token-generator
+  namespace: token-generator
+spec:
+  selector:
+    matchLabels:
+      service: token-generator
+  template:
+    metadata:
+      labels:
+        service: token-generator
+    spec:
+      containers:
+      # A nginx reverse proxy that gets a SSL certificate from LetsEncrypt, and
+      # forwards traffic to the token service.
+      - name: letsencrypt
+        image: linuxserver/letsencrypt
+        env:
+          - name: URL
+            value: blimp-login.kelda.io
+        volumeMounts:
+        - mountPath: /config
+          name: lets-encrypt-state
+        - mountPath: /config/nginx/site-confs
+          name: nginx-conf
+
+      - name: token-generator
+        image: <TOKEN_GENERATOR_IMAGE>
+        imagePullPolicy: Always
+        env:
+          - name: CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: oauth-client-secret
+                key: CLIENT_SECRET
+
+      volumes:
+      - name: lets-encrypt-state
+        persistentVolumeClaim:
+          claimName: lets-encrypt-pvc
+      - name: nginx-conf
+        configMap:
+          name: nginx-conf
+  strategy:
+    type: Recreate

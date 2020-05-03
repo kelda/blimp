@@ -35,4 +35,7 @@ make deploy-manager
 # Deploy the registry.
 make deploy-registry
 
+# Deploy the token generator.
+make deploy-token-generator
+
 kubectl config use-context ${curr_context}
