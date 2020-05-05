@@ -51,6 +51,7 @@ func validateServices(services types.Services) []string {
 		{ID: ".Volumes.Type", AllowedValues: []interface{}{types.VolumeTypeBind, types.VolumeTypeVolume}},
 		{ID: ".Volumes.Source"},
 		{ID: ".Volumes.Target"},
+		{ID: ".WorkingDir"},
 
 		// Meaningless.
 		{ID: ".Labels"},

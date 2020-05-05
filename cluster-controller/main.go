@@ -1388,6 +1388,7 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 						Args:            svc.Command,
 						VolumeMounts:    volumeMounts,
 						Env:             envVars,
+						WorkingDir:      svc.WorkingDir,
 					},
 				},
 				DNSPolicy: corev1.DNSNone,
