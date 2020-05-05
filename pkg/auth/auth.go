@@ -12,18 +12,17 @@ import (
 )
 
 type User struct {
-	// TODO: Do we actually need email? Not unique according to spec.
 	ID        string `json:"sub"`
 	Namespace string
 }
 
 const (
-	ClientID     = "b87He1pQEDohVzOAYAfLIUfixO5zu6Ln"
-	AuthHost     = "https://blimp-testing.auth0.com"
-	AuthURL      = AuthHost + "/authorize"
-	TokenURL     = AuthHost + "/oauth/token"
-	RedirectHost = "127.0.0.1:8005"
-	RedirectPath = "/oauth/redirect"
+	ClientID           = "b87He1pQEDohVzOAYAfLIUfixO5zu6Ln"
+	AuthHost           = "https://blimp-testing.auth0.com"
+	AuthURL            = AuthHost + "/authorize"
+	TokenURL           = AuthHost + "/oauth/token"
+	LoginProxyHost     = "blimp-login.kelda.io"
+	LoginProxyGRPCPort = 444
 )
 
 var (

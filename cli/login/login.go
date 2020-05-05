@@ -2,22 +2,20 @@ package login
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
+	"crypto/tls"
 	"errors"
 	"fmt"
-	"net/http"
 	"os/exec"
 	"runtime"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"golang.org/x/oauth2"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/kelda-inc/blimp/cli/authstore"
 	"github.com/kelda-inc/blimp/pkg/auth"
+	"github.com/kelda-inc/blimp/pkg/proto/login"
 )
 
 func New() *cobra.Command {
@@ -48,104 +46,79 @@ Kelda Blimp only uses your login to identify you, and doesn't pull any other inf
 	}
 }
 
-type idTokenResult struct {
-	token string
-	err   error
-}
-
 func getAuthToken() (string, error) {
-	oauthConf := &oauth2.Config{
-		ClientID:    auth.ClientID,
-		Endpoint:    auth.Endpoint,
-		RedirectURL: fmt.Sprintf("http://%s%s", auth.RedirectHost, auth.RedirectPath),
-		Scopes: []string{
-			"openid",
-		},
-	}
-
-	challenge, verifier, err := makeVerifier()
+	// Use the system's default certificate pool.
+	tlsConfig := &tls.Config{}
+	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", auth.LoginProxyHost, auth.LoginProxyGRPCPort),
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	if err != nil {
-		return "", fmt.Errorf("create verifier for oauth handshake", err)
+		return "", err
+	}
+	defer conn.Close()
+
+	// Start the login process.
+	client := login.NewLoginClient(conn)
+	stream, err := client.Login(context.Background(), &login.LoginRequest{})
+	if err != nil {
+		return "", err
 	}
 
-	idTokenChan := make(chan idTokenResult, 1)
-	serveMux := http.NewServeMux()
-	serveMux.HandleFunc(auth.RedirectPath, func(w http.ResponseWriter, r *http.Request) {
-		log.Debug("Received oauth code")
-		idToken, err := getTokenForCode(oauthConf, verifier, r)
-		idTokenChan <- idTokenResult{token: idToken, err: err}
-		if err != nil {
-			fmt.Fprintf(w, "Login failed: %s\n", err)
-			return
-		}
-
-		fmt.Fprintln(w, `<html><head><meta http-equiv="Refresh" content="0; url=https://kelda.io/thank-you-login/" /></head></html>`)
-	})
-
-	server := http.Server{
-		Handler: serveMux,
-		Addr:    auth.RedirectHost,
+	// Open the login URL as instructed by the login proxy.
+	loginURL, err := getLoginURL(stream)
+	if err != nil {
+		return "", fmt.Errorf("read instructions: %w", err)
 	}
-	go server.ListenAndServe()
-	defer server.Shutdown(context.Background())
 
-	// TODO: Set and check state.
-	authURL := oauthConf.AuthCodeURL("state",
-		oauth2.SetAuthURLParam("code_challenge", challenge),
-		oauth2.SetAuthURLParam("code_challenge_method", "S256"),
-	)
-	fmt.Printf("Your browser has been opened to visit:\n\n%s\n\n", authURL)
-	if err := openBrowser(authURL); err != nil {
+	fmt.Printf("Your browser has been opened to visit:\n\n%s\n\n", loginURL)
+	if err := openBrowser(loginURL); err != nil {
 		log.WithError(err).Warn("Failed to open browser. Please open the link manually.")
 	}
 
-	token := <-idTokenChan
-	return token.token, token.err
+	// Wait for the user to login. The login proxy will receive the token, and
+	// forward it to us.
+	return getLoginResult(stream)
 }
 
-func getTokenForCode(oauthConf *oauth2.Config, verifier string, r *http.Request) (string, error) {
-	err := r.ParseForm()
+// The first message in the stream should be the login URL.
+func getLoginURL(stream login.Login_LoginClient) (string, error) {
+	msg, err := stream.Recv()
 	if err != nil {
-		return "", fmt.Errorf("parse form: %w", err)
+		return "", fmt.Errorf("receive: %w", err)
 	}
 
-	// TODO: Test bad creds.
-	code := r.FormValue("code")
-	if code == "" {
-		return "", errors.New("no auth code")
+	if msg.Msg == nil {
+		return "", errors.New("nil message")
 	}
 
-	log.WithField("code", code).WithField("verifier", verifier).Debug("Exchanging oauth code for token")
-	tok, err := oauthConf.Exchange(context.Background(), code,
-		oauth2.SetAuthURLParam("code_verifier", verifier),
-	)
-	if err != nil {
-		return "", fmt.Errorf("exchange auth code: %w", err)
-	}
-
-	idToken, ok := tok.Extra("id_token").(string)
+	instr, ok := msg.Msg.(*login.LoginResponse_Instructions)
 	if !ok {
-		return "", errors.New("missing id token")
-	}
-	return idToken, nil
-}
-
-func makeVerifier() (challenge string, verifier string, err error) {
-	randomBytes := make([]byte, 32)
-	if _, err := rand.Read(randomBytes); err != nil {
-		return "", "", err
+		return "", errors.New("unexpected type")
 	}
 
-	// The verifier can only contain the characters A-Z, a-z, 0-9, and the
-	// following punctuation characters: -._~
-	verifier = base64Encode(randomBytes)
-	h := sha256.New()
-	h.Write([]byte(verifier))
-	return base64Encode(h.Sum(nil)), verifier, nil
+	return instr.Instructions.URL, nil
 }
 
-func base64Encode(buf []byte) string {
-	return strings.Replace(base64.URLEncoding.EncodeToString(buf), "=", "", -1)
+// The second, and final, message in the stream should be the result of the login.
+func getLoginResult(stream login.Login_LoginClient) (string, error) {
+	msg, err := stream.Recv()
+	if err != nil {
+		return "", fmt.Errorf("receive: %w", err)
+	}
+
+	if msg.Msg == nil {
+		return "", errors.New("nil message")
+	}
+
+	res, ok := msg.Msg.(*login.LoginResponse_Result)
+	if !ok {
+		return "", errors.New("unexpected type")
+	}
+
+	var loginErr error
+	if res.Result.Error != "" {
+		loginErr = errors.New(res.Result.Error)
+	}
+	return res.Result.Token, loginErr
 }
 
 func openBrowser(url string) (err error) {

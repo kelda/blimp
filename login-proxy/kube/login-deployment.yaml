@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: token-generator
-  namespace: token-generator
+  name: login-proxy
+  namespace: login-proxy
 spec:
   selector:
     matchLabels:
-      service: token-generator
+      service: login-proxy
   template:
     metadata:
       labels:
-        service: token-generator
+        service: login-proxy
     spec:
       containers:
       # A nginx reverse proxy that gets a SSL certificate from LetsEncrypt, and
@@ -19,15 +19,15 @@ spec:
         image: linuxserver/letsencrypt
         env:
           - name: URL
-            value: blimp-login.kelda.io
+            value: <LOGIN_PROXY_HOSTNAME>
         volumeMounts:
         - mountPath: /config
           name: lets-encrypt-state
         - mountPath: /config/nginx/site-confs
           name: nginx-conf
 
-      - name: token-generator
-        image: <TOKEN_GENERATOR_IMAGE>
+      - name: login-proxy
+        image: <LOGIN_PROXY_IMAGE>
         imagePullPolicy: Always
         env:
           - name: CLIENT_SECRET

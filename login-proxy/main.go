@@ -13,51 +13,54 @@ import (
 	"github.com/kelda-inc/blimp/pkg/auth"
 )
 
+const (
+	// The ports that we listen on from behind the load balancer. A Nginx proxy
+	// handle terminating TLS, and proxies traffic to these ports.
+	httpPort = 8000
+	grpcPort = 8001
+)
+
 func main() {
 	clientSecret := os.Getenv("CLIENT_SECRET")
 	if clientSecret == "" {
 		log.Fatal("CLIENT_SECRET is required")
 	}
 
-	oauthConf := &oauth2.Config{
+	oauthConf := oauth2.Config{
 		ClientID:     auth.ClientID,
 		ClientSecret: clientSecret,
 		Endpoint:     auth.Endpoint,
-		RedirectURL:  fmt.Sprintf("https://blimp-login.kelda.io%s", auth.RedirectPath),
 		Scopes: []string{
 			"openid",
 		},
 	}
+	cliLoginServer := newCLILoginServer(oauthConf)
+	manualLoginServer := newManualLoginServer(oauthConf)
 
+	// The HTTP server handles fetching the identity token based on the
+	// authorization code sent by Auth0, as well as the browser-only login
+	// flow.
 	serveMux := http.NewServeMux()
-	serveMux.HandleFunc(auth.RedirectPath, func(w http.ResponseWriter, r *http.Request) {
-		log.Info("Received oauth code")
-		idToken, err := getTokenForCode(oauthConf, r)
-		if err != nil {
-			fmt.Fprintf(w, "Login failed: %s\n", err)
-			return
-		}
+	cliLoginServer.Register(serveMux)
+	manualLoginServer.Register(serveMux)
 
-		msgTemplate := `Successfully logged in. Run the following command to use your token:
-
-cat <<EOF > ~/.blimp/auth.yaml
-AuthToken: %s
-EOF`
-		fmt.Fprintf(w, msgTemplate, idToken)
-	})
-	serveMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, oauthConf.AuthCodeURL("state"), 302)
-	})
-
-	server := http.Server{
+	httpServer := http.Server{
 		Handler: serveMux,
-		Addr:    ":8000",
+		Addr:    fmt.Sprintf(":%d", httpPort),
 	}
-	if err := server.ListenAndServe(); err != nil {
-		panic(err)
+	go func() {
+		log.Info("Starting HTTP server")
+		if err := httpServer.ListenAndServe(); err != nil {
+			log.WithError(err).Fatal("Failed to run http server")
+		}
+	}()
+
+	if err := cliLoginServer.ServeGRPC(fmt.Sprintf(":%d", grpcPort)); err != nil {
+		log.WithError(err).Fatal("Failed to run grpc server")
 	}
 }
 
+// getTokenForCode exchanges the authorization code from Auth0 for an identity token.
 func getTokenForCode(oauthConf *oauth2.Config, r *http.Request) (string, error) {
 	err := r.ParseForm()
 	if err != nil {
@@ -79,5 +82,6 @@ func getTokenForCode(oauthConf *oauth2.Config, r *http.Request) (string, error) 
 	if !ok {
 		return "", errors.New("missing id token")
 	}
+
 	return idToken, nil
 }

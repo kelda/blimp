@@ -43,6 +43,7 @@ generate:
 	protoc -I _proto _proto/blimp/sandbox/v0/controller.proto --go_out=plugins=grpc:$$GOPATH/src
 	protoc -I _proto _proto/blimp/sandbox/v0/waiter.proto --go_out=plugins=grpc:$$GOPATH/src
 	protoc -I _proto _proto/blimp/cluster/v0/manager.proto --go_out=plugins=grpc:$$GOPATH/src
+	protoc -I _proto _proto/blimp/login/v0/login.proto --go_out=plugins=grpc:$$GOPATH/src
 	protoc _proto/blimp/errors/v0/errors.proto --go_out=plugins=grpc:$$GOPATH/src
 
 certs:
@@ -71,7 +72,7 @@ CLUSTER_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-cluster-controller:${VERSION}
 INIT_IMAGE = ${DOCKER_REPO}/blimp-init:${VERSION}
 SYNCTHING_IMAGE = ${DOCKER_REPO}/sandbox-syncthing:${VERSION}
 DOCKER_AUTH_IMAGE = ${DOCKER_REPO}/blimp-docker-auth:${VERSION}
-TOKEN_GENERATOR_IMAGE = ${DOCKER_REPO}/token-generator:${VERSION}
+LOGIN_PROXY_IMAGE = ${DOCKER_REPO}/login-proxy:${VERSION}
 
 build-docker: certs
 	docker build -t blimp-go-build --build-arg COMPILE_FLAGS=${LD_FLAGS} . ; \
@@ -80,7 +81,7 @@ build-docker: certs
 	docker build -t blimp-sandbox-controller -t ${SANDBOX_CONTROLLER_IMAGE} - < ./sandbox/sbctl/Dockerfile & \
 	docker build -t blimp-init -t ${INIT_IMAGE} - < ./sandbox/init/Dockerfile & \
 	docker build -t blimp-docker-auth -t ${DOCKER_AUTH_IMAGE} - < ./registry/Dockerfile & \
-	docker build -t token-generator -t ${TOKEN_GENERATOR_IMAGE} - < ./token-generator/Dockerfile & \
+	docker build -t login-proxy -t ${LOGIN_PROXY_IMAGE} - < ./login-proxy/Dockerfile & \
 	wait # Wait for all background jobs to exit before continuing so that we can guarantee the images are built.
 
 push-docker: build-docker
@@ -89,7 +90,7 @@ push-docker: build-docker
 	docker push ${SYNCTHING_IMAGE} & \
 	docker push ${INIT_IMAGE} & \
 	docker push ${DOCKER_AUTH_IMAGE} & \
-	docker push ${TOKEN_GENERATOR_IMAGE} & \
+	docker push ${LOGIN_PROXY_IMAGE} & \
 	wait # Wait for all background jobs to exit before continuing so that we can guarantee the images are pushed.
 
 deploy-registry:
@@ -103,6 +104,8 @@ deploy-manager:
 	sed -i '' 's|<CLUSTER_MANAGER_IMAGE>|${CLUSTER_CONTROLLER_IMAGE}|' ./cluster-controller/kube/manager-deployment.yaml
 	kubectl apply -f ./cluster-controller/kube
 
-deploy-token-generator:
-	sed -i '' 's|<TOKEN_GENERATOR_IMAGE>|${TOKEN_GENERATOR_IMAGE}|' ./token-generator/kube/token-deployment.yaml
-	kubectl apply -f ./token-generator/kube
+deploy-login-proxy:
+	sed -i '' 's|<LOGIN_PROXY_IMAGE>|${LOGIN_PROXY_IMAGE}|' ./login-proxy/kube/login-deployment.yaml
+	sed -i '' 's|<LOGIN_PROXY_HOSTNAME>|${LOGIN_PROXY_HOSTNAME}|' ./login-proxy/kube/login-deployment.yaml
+	sed -i '' 's|<LOGIN_PROXY_IP>|${LOGIN_PROXY_IP}|' ./login-proxy/kube/login-service.yaml
+	kubectl apply -f ./login-proxy/kube

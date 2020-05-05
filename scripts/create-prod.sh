@@ -11,7 +11,7 @@ function _gcloud_kube() {
 
 gcloud compute addresses --project kelda-blimp create registry --region us-west1
 gcloud compute addresses --project kelda-blimp create manager --region us-west1
-gcloud compute addresses --project kelda-blimp create token-generator --region us-west1
+gcloud compute addresses --project kelda-blimp create login-proxy --region us-west1
 
 # TODO: We actually run with a n1-standard-8 and n1-standard-16.
 # TODO: Automate our fix of fixing nodemon by running `sudo sysctl fs.inotify.max_user_watches=1048576` on each kubelet node.
@@ -25,7 +25,7 @@ kubectl create secret -n manager generic customer-cluster-kubeconfig --from-file
 kubectl create secret -n manager generic manager-certs --from-file=cert.pem=/Users/kevin/Google\ Drive/blimp-manager-certs/cluster-manager.crt.pem,key.pem=/Users/kevin/Google\ Drive/blimp-manager-certs/cluster-manager.key.pem
 kubectl apply -f ./cluster-controller/kube
 
-kubectl create namespace token-generator
-kubectl create secret -n token-generator generic oauth-client-secret --from-env-file=/Users/kevin/Google\ Drive/auth0-client-secret.env
+kubectl create namespace login-proxy
+kubectl create secret -n login-proxy generic oauth-client-secret --from-env-file=/Users/kevin/Google\ Drive/auth0-client-secret.env
 
 echo "Deployed the customer and manager clusters. Run 'kubectl get services' to get the manager's public IP."

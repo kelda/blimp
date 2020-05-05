@@ -27,6 +27,8 @@ VERSION = ${version}
 REGISTRY_HOSTNAME = blimp-registry.kelda.io
 REGISTRY_IP = 35.203.163.180
 REGISTRY_STORAGE = 500Gi
+LOGIN_PROXY_HOSTNAME = blimp-login.kelda.io
+LOGIN_PROXY_IP = 35.247.78.121
 EOF
 
 # Deploy the manager service.
@@ -35,7 +37,7 @@ make deploy-manager
 # Deploy the registry.
 make deploy-registry
 
-# Deploy the token generator.
-make deploy-token-generator
+# Deploy the login proxy.
+make deploy-login-proxy
 
 kubectl config use-context ${curr_context}

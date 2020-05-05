@@ -13,8 +13,8 @@ ARG COMPILE_FLAGS
 # Build incrementally for better caching.
 RUN CGO_ENABLED=0 go install -i -ldflags "${COMPILE_FLAGS}" ./pkg/...
 
-ADD ./token-generator ./token-generator
-RUN CGO_ENABLED=0 go install -i -ldflags "${COMPILE_FLAGS}" ./token-generator/...
+ADD ./login-proxy ./login-proxy
+RUN CGO_ENABLED=0 go install -i -ldflags "${COMPILE_FLAGS}" ./login-proxy/...
 
 ADD ./registry ./registry
 RUN CGO_ENABLED=0 go install -i -ldflags "${COMPILE_FLAGS}" ./registry/...
@@ -32,7 +32,7 @@ RUN cp /go/bin/init /gobin/blimp-init
 RUN cp /go/bin/sbctl /gobin/blimp-sbctl
 RUN cp /go/bin/registry /gobin/blimp-auth
 RUN cp /go/bin/vcp /gobin/blimp-vcp
-RUN cp /go/bin/token-generator /gobin/token-generator
+RUN cp /go/bin/login-proxy /gobin/login-proxy
 
 FROM alpine
 
