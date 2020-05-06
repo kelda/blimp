@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -16,7 +15,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/terminal"
 
-	"github.com/kelda-inc/blimp/cli/util"
 	"github.com/kelda-inc/blimp/pkg/hash"
 )
 
@@ -110,9 +108,7 @@ func (cmd *up) pushImage(svc, imageID string) (string, error) {
 		return "", fmt.Errorf("tag image: %w", err)
 	}
 
-	pp := util.NewProgressPrinter(os.Stderr, fmt.Sprintf("Pushing image for %s", svc))
-	go pp.Run()
-	defer pp.Stop()
+	fmt.Printf("Pushing image for %s:\n", svc)
 
 	registryAuth, err := makeRegistryAuthHeader(cmd.auth.AuthToken)
 	if err != nil {
@@ -127,7 +123,8 @@ func (cmd *up) pushImage(svc, imageID string) (string, error) {
 	}
 	defer pushResp.Close()
 
-	err = jsonmessage.DisplayJSONMessagesStream(pushResp, ioutil.Discard, 0, false, nil)
+	isTerminal := terminal.IsTerminal(int(os.Stderr.Fd()))
+	err = jsonmessage.DisplayJSONMessagesStream(pushResp, os.Stderr, os.Stderr.Fd(), isTerminal, nil)
 	if err != nil {
 		return "", fmt.Errorf("push image: %w", err)
 	}
