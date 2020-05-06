@@ -12,7 +12,9 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/buger/goterm"
 	composeTypes "github.com/compose-spec/compose-go/types"
 	"github.com/docker/cli/cli/config"
 	clitypes "github.com/docker/cli/cli/config/types"
@@ -237,14 +239,28 @@ func startTunnel(scc sandbox.ControllerClient, token, name string,
 	addr := fmt.Sprintf("127.0.0.1:%d", hostPort)
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
+		var tip string
+		switch {
+		case strings.Contains(err.Error(), "permission denied"):
+			tip = fmt.Sprintf("Make sure that the local port for the service %q is above 1024", name)
+		case strings.Contains(err.Error(), "address already in use"):
+			tip = fmt.Sprintf("Make sure that the there aren't any other "+
+				"services listening locally on port %d. This can be checked with the following command:\n"+
+				"lsof -i -P -n | grep %d", hostPort, hostPort)
+		}
+
 		// TODO.  It's appropriate that this error is fatal, but we need
 		// a better way of handling it.  Log messages are ugly, and we
 		// need to do some cleanup.
-		log.WithFields(log.Fields{
-			"error":   err,
-			"address": addr,
-			"network": "tcp",
-		}).Fatal("faield to listen for connections")
+		fmt.Println()
+		fmt.Println(goterm.Color("FATAL: Failed to start tunnels", goterm.RED))
+		if tip != "" {
+			fmt.Println(tip)
+		}
+		fmt.Println()
+		fmt.Printf(`[Extra debugging info follows: {"error": "%s", "address": "%s"}]`, err, addr)
+		fmt.Println()
+		os.Exit(1)
 		return
 	}
 
