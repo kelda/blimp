@@ -162,7 +162,8 @@ func (s *server) CheckVersion(ctx context.Context, req *cluster.CheckVersionRequ
 			Version: version.Version,
 			DisplayMessage: "CLI version is incompatible with server. " +
 				"Please upgrade by running:\n\n" +
-				"curl -fsSL 'https://kelda.io/install-blimp.sh' | sh",
+				"curl -fsSL 'https://kelda.io/get-blimp.sh' | sh\n\n" +
+				"Or brew upgrade kelda/tools/blimp",
 			Action: cluster.CLIAction_EXIT,
 		}, nil
 	}
