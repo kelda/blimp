@@ -6,11 +6,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ghodss/yaml"
-
 	"github.com/compose-spec/compose-go/envfile"
 	"github.com/compose-spec/compose-go/loader"
 	"github.com/compose-spec/compose-go/types"
+	"github.com/ghodss/yaml"
+
+	"github.com/kelda-inc/blimp/pkg/hash"
 )
 
 func Load(path string, b []byte) (types.Config, error) {
@@ -72,6 +73,25 @@ func Load(path string, b []byte) (types.Config, error) {
 				strings.Join(tips, "\n"))
 		}
 		return types.Config{}, fmt.Errorf("load: %w", err)
+	}
+
+	// Assign names to any volumes that are specified as just paths. E.g.:
+	// services:
+	//   web:
+	//     image: 'ubuntu'
+	//     volumes:
+	//       - '/node_modules'
+	for svcIdx, svc := range cfgPtr.Services {
+		for volumeIdx, volume := range svc.Volumes {
+			if volume.Type != types.VolumeTypeVolume {
+				continue
+			}
+
+			if volume.Source == "" {
+				name := hash.DnsCompliant(fmt.Sprintf("%s-%s", svc.Name, volume.Target))
+				cfgPtr.Services[svcIdx].Volumes[volumeIdx].Source = name
+			}
+		}
 	}
 
 	return *cfgPtr, nil
