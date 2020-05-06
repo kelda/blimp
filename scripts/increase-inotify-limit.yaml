@@ -1,0 +1,32 @@
+# This DaemonSet increases the inotify limit on each node in the cluster so that
+# users can run processes like `nodemon`.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: sysctl-conf
+spec:
+  selector:
+    matchLabels:
+      name: sysctl-conf
+  template:
+    metadata:
+      labels:
+        name: sysctl-conf
+    spec:
+      containers:
+        - command:
+            - sh
+            - -c
+            - sysctl -w fs.inotify.max_user_watches=1048576 && while true; do sleep 86400; done
+          image: busybox
+          name: sysctl-conf
+          resources:
+            limits:
+              cpu: 10m
+              memory: 50Mi
+            requests:
+              cpu: 10m
+              memory: 50Mi
+          securityContext:
+            privileged: true
+      terminationGracePeriodSeconds: 1
