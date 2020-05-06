@@ -1316,6 +1316,16 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 			MountPath: "/vcpbin",
 		}}
 
+		restartPolicy := corev1.RestartPolicyNever
+		switch svc.Restart {
+		case "no":
+			restartPolicy = corev1.RestartPolicyNever
+		case "always":
+			restartPolicy = corev1.RestartPolicyAlways
+		case "on-failure":
+			restartPolicy = corev1.RestartPolicyOnFailure
+		}
+
 		// TODO: Resources
 		pod := corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
@@ -1391,7 +1401,8 @@ func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages ma
 						WorkingDir:      svc.WorkingDir,
 					},
 				},
-				DNSPolicy: corev1.DNSNone,
+				RestartPolicy: restartPolicy,
+				DNSPolicy:     corev1.DNSNone,
 				DNSConfig: &corev1.PodDNSConfig{
 					Nameservers: []string{managerIP},
 					// TODO: There's Searches and Options, look into how to replicate these.

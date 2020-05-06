@@ -48,6 +48,7 @@ func validateServices(services types.Services) []string {
 		{ID: ".Ports.Published"},
 		{ID: ".Ports.Protocol", AllowedValues: []interface{}{"tcp"}},
 		{ID: ".Ports.Mode", AllowedValues: []interface{}{"ingress"}},
+		{ID: ".Restart"},
 		{ID: ".Volumes.Type", AllowedValues: []interface{}{types.VolumeTypeBind, types.VolumeTypeVolume}},
 		{ID: ".Volumes.Source"},
 		{ID: ".Volumes.Target"},
