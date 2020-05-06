@@ -1131,7 +1131,7 @@ func getServicePhase(pod corev1.Pod) string {
 		case containerStatus.State.Waiting != nil && containerStatus.State.Waiting.Message != "":
 			phase += ": " + containerStatus.State.Waiting.Message
 		case containerStatus.State.Terminated != nil && containerStatus.State.Terminated.Message != "":
-			phase += ": " + containerStatus.State.Waiting.Message
+			phase += ": " + containerStatus.State.Terminated.Message
 		}
 	}
 	return phase
