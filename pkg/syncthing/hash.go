@@ -61,8 +61,31 @@ func HashFolder(root string) (string, error) {
 		}
 	}
 
+	// If the folder is a symlink, resolve the symlink so that we
+	// `filepath.Walk` reads the files within it. This fixes a bug where we
+	// would calculate the hash as just a single symlink, while the remote
+	// container would (correctly) include the contents of the folder in its
+	// hash.
+	fi, err := os.Lstat(root)
+	if err != nil {
+		return "", fmt.Errorf("stat volume: %w", err)
+	}
+
+	if fi.Mode()&os.ModeSymlink != 0 {
+		link, err := os.Readlink(root)
+		if err != nil {
+			return "", fmt.Errorf("get symlink target for volume: %w", err)
+		}
+
+		if filepath.IsAbs(link) {
+			root = link
+		} else {
+			root = filepath.Join(filepath.Dir(root), link)
+		}
+	}
+
 	var hashes []string
-	err := filepath.Walk(root, func(path string, fi os.FileInfo, err error) error {
+	err = filepath.Walk(root, func(path string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
