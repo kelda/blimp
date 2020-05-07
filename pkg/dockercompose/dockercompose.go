@@ -2,6 +2,7 @@ package dockercompose
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,14 +16,27 @@ import (
 	"github.com/kelda-inc/blimp/pkg/hash"
 )
 
-func Load(path string, b []byte) (types.Config, error) {
-	configIntf, err := loader.ParseYAML(b)
-	if err != nil {
-		return types.Config{}, fmt.Errorf("parse: %w", err)
+func Load(composePath string, overridePaths []string) (types.Config, error) {
+	var configFiles []types.ConfigFile
+	for _, path := range append([]string{composePath}, overridePaths...) {
+		b, err := ioutil.ReadFile(path)
+		if err != nil {
+			return types.Config{}, fmt.Errorf("read compose file: %w", err)
+		}
+
+		configIntf, err := loader.ParseYAML(b)
+		if err != nil {
+			return types.Config{}, fmt.Errorf("parse: %w", err)
+		}
+
+		configFiles = append(configFiles, types.ConfigFile{
+			Filename: filepath.Base(path),
+			Config:   configIntf,
+		})
 	}
 
 	env := map[string]string{}
-	dotenvPath := filepath.Join(filepath.Dir(path), ".env")
+	dotenvPath := filepath.Join(filepath.Dir(composePath), ".env")
 	if _, err := os.Stat(dotenvPath); err == nil {
 		dotenv, err := parseEnvFile(dotenvPath)
 		if err != nil {
@@ -54,13 +68,8 @@ func Load(path string, b []byte) (types.Config, error) {
 	}
 
 	cfgPtr, err := loader.Load(types.ConfigDetails{
-		WorkingDir: filepath.Dir(path),
-		ConfigFiles: []types.ConfigFile{
-			{
-				Filename: filepath.Base(path),
-				Config:   configIntf,
-			},
-		},
+		WorkingDir:  filepath.Dir(composePath),
+		ConfigFiles: configFiles,
 		Environment: env,
 	}, opts...)
 	if err != nil {

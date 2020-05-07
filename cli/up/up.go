@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -36,7 +35,7 @@ import (
 )
 
 func New() *cobra.Command {
-	var composePath string
+	var composePaths []string
 	var alwaysBuild bool
 	cobraCmd := &cobra.Command{
 		Use:   "up",
@@ -56,7 +55,6 @@ func New() *cobra.Command {
 
 			cmd := up{
 				auth:        auth,
-				composePath: composePath,
 				alwaysBuild: alwaysBuild,
 			}
 
@@ -71,7 +69,7 @@ func New() *cobra.Command {
 			// Convert the compose path to an absolute path so that the code
 			// that makes identifiers for bind volumes are unique for relative
 			// paths.
-			absComposePath, err := getComposeAbsPath(cmd.composePath)
+			composePath, overridePaths, err := getComposePaths(composePaths)
 			if err != nil {
 				if os.IsNotExist(err) {
 					fmt.Fprintf(os.Stderr, "Docker compose file not found: %s\n", cmd.composePath)
@@ -80,13 +78,14 @@ func New() *cobra.Command {
 				log.WithError(err).Fatal("Failed to get absolute path to Compose file")
 			}
 
-			cmd.composePath = absComposePath
+			cmd.composePath = composePath
+			cmd.overridePaths = overridePaths
 			if err := cmd.run(); err != nil {
 				log.Fatal(err)
 			}
 		},
 	}
-	cobraCmd.Flags().StringVarP(&composePath, "file", "f", "",
+	cobraCmd.Flags().StringSliceVarP(&composePaths, "file", "f", nil,
 		"Specify an alternate compose file\nDefaults to docker-compose.yml and docker-compose.yaml")
 	cobraCmd.Flags().BoolVarP(&alwaysBuild, "build", "", false,
 		"Build images before starting containers")
@@ -96,6 +95,7 @@ func New() *cobra.Command {
 type up struct {
 	auth           authstore.Store
 	composePath    string
+	overridePaths  []string
 	alwaysBuild    bool
 	dockerClient   *client.Client
 	imageNamespace string
@@ -153,12 +153,7 @@ func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) err
 }
 
 func (cmd *up) run() error {
-	rawCompose, err := ioutil.ReadFile(cmd.composePath)
-	if err != nil {
-		return err
-	}
-
-	parsedCompose, err := dockercompose.Load(cmd.composePath, rawCompose)
+	parsedCompose, err := dockercompose.Load(cmd.composePath, cmd.overridePaths)
 	if err != nil {
 		return err
 	}
@@ -297,16 +292,49 @@ func (cmd *up) makeSyncthingClient(dcCfg composeTypes.Config) syncthing.Client {
 	return syncthing.NewClient(bindVolumes)
 }
 
-func getComposeAbsPath(composePath string) (string, error) {
-	if composePath != "" {
-		return filepath.Abs(composePath)
+func getComposePaths(composePaths []string) (string, []string, error) {
+	getYamlFile := func(prefix string) (string, error) {
+		paths := []string{
+			prefix + ".yaml",
+			prefix + ".yml",
+		}
+
+		var err error
+		for _, path := range paths {
+			if _, err = os.Stat(path); err == nil {
+				return filepath.Abs(path)
+			}
+		}
+
+		// Return the error from the last path we tried to stat.
+		return "", err
 	}
 
-	if _, err := os.Stat("docker-compose.yml"); os.IsNotExist(err) {
-		return filepath.Abs("docker-compose.yaml")
-	} else {
-		return filepath.Abs("docker-compose.yml")
+	// If the user doesn't explicitly specify any files, try to get the
+	// default files.
+	if len(composePaths) == 0 {
+		composePath, err := getYamlFile("docker-compose")
+		if err != nil {
+			return "", nil, err
+		}
+
+		var overridePaths []string
+		if overridePath, err := getYamlFile("docker-compose.override"); err == nil {
+			overridePaths = []string{overridePath}
+		}
+		return composePath, overridePaths, nil
 	}
+
+	var absPaths []string
+	for _, composePath := range composePaths {
+		p, err := filepath.Abs(composePath)
+		if err != nil {
+			return "", nil, err
+		}
+		absPaths = append(absPaths, p)
+	}
+
+	return absPaths[0], absPaths[1:], nil
 }
 
 func getHeader(fi os.FileInfo, relFilePath string) (*tar.Header, error) {
