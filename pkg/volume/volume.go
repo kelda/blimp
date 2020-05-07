@@ -3,16 +3,29 @@ package volume
 import (
 	"fmt"
 
-	"github.com/compose-spec/compose-go/types"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/kelda-inc/blimp/pkg/hash"
 )
 
-func ID(namespace string, v types.ServiceVolumeConfig) string {
-	return hash.DnsCompliant(namespace + v.Type + v.Source)
+func GetVolume(namespace, volume string) corev1.Volume {
+	return hostPathVolume(namespace, volume)
 }
 
-// HostPath returns the path on the Kubernetes node backing the given volume.
-func HostPath(namespace, id string) string {
-	return fmt.Sprintf("/var/blimp/volumes/%s/%s", namespace, id)
+func BindVolumeRoot(namespace string) corev1.Volume {
+	return hostPathVolume(namespace, "bind")
+}
+
+func hostPathVolume(namespace, id string) corev1.Volume {
+	id = hash.DnsCompliant(id)
+	hostPathType := corev1.HostPathDirectoryOrCreate
+	return corev1.Volume{
+		Name: id,
+		VolumeSource: corev1.VolumeSource{
+			HostPath: &corev1.HostPathVolumeSource{
+				Path: fmt.Sprintf("/var/blimp/volumes/%s/%s", namespace, id),
+				Type: &hostPathType,
+			},
+		},
+	}
 }

@@ -2,19 +2,15 @@ package syncthing
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
-	"os/exec"
-	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
-	rice "github.com/GeertJohan/go.rice"
 	log "github.com/sirupsen/logrus"
-
-	"github.com/kelda-inc/blimp/pkg/cfgdir"
 )
 
-const Marker = ".kelda_syncthing"
+const Marker = ".blimp_syncthing"
 
 // I don't wnat to use the standard syncthing port, in case one of our users
 // wants to run syncthing in docker compose.  It doesn't look like anything
@@ -57,6 +53,8 @@ func MapToArgs(m map[string]string) []string {
 	for id, path := range m {
 		args = append(args, id+","+path)
 	}
+	// Make the order of the args consistent to avoid unnecessary restarts.
+	sort.Strings(args)
 	return args
 }
 
@@ -72,18 +70,15 @@ func ArgsToMap(args []string) map[string]string {
 	return m
 }
 
-type makeMarkerError struct {
-	path string
-	error
-}
-
 func MakeMarkers(folders map[string]string) error {
 	for _, path := range folders {
 		markerPath := path + "/" + Marker
-		err := os.Mkdir(markerPath, 0444)
+		err := os.MkdirAll(markerPath, 0444)
 		if err != nil && !os.IsExist(err) {
-			return makeMarkerError{error: err, path: path}
+			return err
 		}
+
+		go ensureDirExists(markerPath)
 	}
 
 	return nil
@@ -91,54 +86,6 @@ func MakeMarkers(folders map[string]string) error {
 
 func MakeServer(folders map[string]string) string {
 	return makeConfig(true, folders)
-}
-
-func RunClient(finishedInitialSync <-chan struct{}, folders map[string]string) ([]byte, error) {
-	box := rice.MustFindBox("stbin")
-
-	err := MakeMarkers(folders)
-	if err != nil {
-		if strings.Contains(err.Error(), "not a directory") {
-			path := err.(makeMarkerError).path
-			log.Fatalf("Blimp currently only supports volume mounts for directories.\n"+
-				"Please change the mount %s to mount %s instead.", path, filepath.Dir(path))
-		}
-		log.WithError(err).Fatal("Failed to start volume")
-	}
-
-	for _, folder := range folders {
-		go syncFileHash(finishedInitialSync, folder)
-	}
-
-	stbinBytes, err := box.Bytes("")
-	if err != nil {
-		// This really really can't happen as stbin is supposed to be
-		// literally embedded in this binary.  A panic is actually
-		// appropriate.
-		panic(err)
-	}
-
-	stbinPath := cfgdir.Expand("stbin")
-	err = ioutil.WriteFile(stbinPath, stbinBytes, 0755)
-	if err != nil {
-		return nil, fmt.Errorf("write stbin error: %w", err)
-	}
-
-	fileMap := map[string]string{
-		"config.xml": makeConfig(false, folders),
-		"cert.pem":   cert,
-		"key.pem":    key,
-	}
-
-	for path, data := range fileMap {
-		err := ioutil.WriteFile(cfgdir.Expand(path), []byte(data), 0666)
-		if err != nil {
-			return nil, fmt.Errorf("write config file error: %w", err)
-		}
-	}
-
-	return exec.Command(stbinPath, "-verbose", "-home", cfgdir.Expand(""),
-		"-logfile", cfgdir.Expand("syncthing.log")).CombinedOutput()
 }
 
 func makeConfig(server bool, folders map[string]string) string {
@@ -207,4 +154,14 @@ func makeFolder(id, path string) string {
         <!-- Don't create conflict files. We just let Syncthing resolve the conflict based on modtime, which is basically always good enough.-->
         <maxConflicts>0</maxConflicts>
     </folder>`, id, path, RemoteDeviceID, CLIDeviceID, Marker)
+}
+
+func ensureDirExists(path string) {
+	for {
+		err := os.MkdirAll(path, 0444)
+		if err != nil {
+			log.WithField("path", path).WithError(err).Warn("Failed to create directory")
+		}
+		time.Sleep(30 * time.Second)
+	}
 }

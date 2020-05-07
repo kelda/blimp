@@ -14,7 +14,7 @@ message CheckReadyRequest {
 
 message WaitSpec {
 	repeated string depends_on = 1;
-	repeated string syncthing_folders = 2;
+	repeated string bind_volumes = 2;
 }
 
 message CheckReadyResponse {

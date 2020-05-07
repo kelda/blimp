@@ -16,10 +16,8 @@ func main() {
 	folders := syncthing.ArgsToMap(os.Args[1:])
 
 	// Reset the bind volume so that we don't sync stale files back to the user.
-	for _, path := range folders {
-		if err := clearDir(path); err != nil {
-			log.WithError(err).WithField("path", path).Fatal("Failed to clear path")
-		}
+	if err := clearDir("/bind"); err != nil {
+		log.WithError(err).Fatal("Failed to clear path")
 	}
 
 	err := syncthing.MakeMarkers(folders)

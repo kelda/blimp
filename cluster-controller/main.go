@@ -15,12 +15,12 @@ import (
 	"math/big"
 	"net"
 	"os"
-	"strings"
+	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/Masterminds/semver"
 	composeTypes "github.com/compose-spec/compose-go/types"
-	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -40,9 +40,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/analytics"
 	"github.com/kelda-inc/blimp/pkg/auth"
 	"github.com/kelda-inc/blimp/pkg/dockercompose"
-	"github.com/kelda-inc/blimp/pkg/metadata"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
-	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
 	"github.com/kelda-inc/blimp/pkg/syncthing"
 	"github.com/kelda-inc/blimp/pkg/version"
 	"github.com/kelda-inc/blimp/pkg/volume"
@@ -149,7 +147,7 @@ func (s *server) CheckVersion(ctx context.Context, req *cluster.CheckVersionRequ
 		}, nil
 	}
 
-	c, err := semver.NewConstraint(">= 0.7.0")
+	c, err := semver.NewConstraint(">= 0.8.0")
 	if err != nil {
 		log.WithError(err).Warn("Failed to create version constraint")
 		return &cluster.CheckVersionResponse{
@@ -200,7 +198,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, fmt.Errorf("create namespace: %w", err)
 	}
 
-	if err := s.createSyncthing(namespace, dcCfg); err != nil {
+	if err := s.createSyncthing(namespace, req.GetSyncedFolders()); err != nil {
 		return &cluster.CreateSandboxResponse{}, fmt.Errorf("deploy syncthing: %w", err)
 	}
 
@@ -433,6 +431,7 @@ func (s *server) createSandboxManager(namespace string, cfg composeTypes.Config)
 		},
 	}
 
+	bindVolumeRoot := volume.BindVolumeRoot(namespace)
 	volumes := []corev1.Volume{
 		{
 			Name: "cert",
@@ -442,31 +441,39 @@ func (s *server) createSandboxManager(namespace string, cfg composeTypes.Config)
 				},
 			},
 		},
+		bindVolumeRoot,
 	}
 	volumeMounts := []corev1.VolumeMount{
 		{
 			Name:      "cert",
 			MountPath: "/etc/blimp/certs",
 		},
+		{
+			Name:      bindVolumeRoot.Name,
+			MountPath: "/bind",
+		},
 	}
-	var resetPaths []string
-	pathsSet := map[string]struct{}{}
+
+	// Collect the volumes that need to be reset.
+	resetPaths := map[string]struct{}{}
 	for _, svc := range cfg.Services {
 		for _, vol := range svc.Volumes {
-			id := volume.ID(namespace, vol)
-			hostPath := volume.HostPath(namespace, id)
-			if _, ok := pathsSet[hostPath]; ok {
+			if vol.Type != composeTypes.VolumeTypeVolume {
 				continue
 			}
-			pathsSet[hostPath] = struct{}{}
 
-			volume, mount := makeVolumeMount(namespace, id, hostPath, hostPath)
-			volumeMounts = append(volumeMounts, mount)
-			volumes = append(volumes, volume)
-
-			if vol.Type == composeTypes.VolumeTypeVolume {
-				resetPaths = append(resetPaths, hostPath)
+			kubeVol := volume.GetVolume(namespace, vol.Source)
+			path := kubeVol.VolumeSource.HostPath.Path
+			if _, ok := resetPaths[path]; ok {
+				continue
 			}
+
+			volumes = append(volumes, kubeVol)
+			volumeMounts = append(volumeMounts, corev1.VolumeMount{
+				Name:      kubeVol.Name,
+				MountPath: path,
+			})
+			resetPaths[path] = struct{}{}
 		}
 	}
 
@@ -495,7 +502,7 @@ func (s *server) createSandboxManager(namespace string, cfg composeTypes.Config)
 							},
 						},
 					},
-					Args:         resetPaths,
+					Args:         mapToSlice(resetPaths),
 					VolumeMounts: volumeMounts,
 					ReadinessProbe: &corev1.Probe{
 						Handler: corev1.Handler{
@@ -643,39 +650,16 @@ func newSelfSignedCert(ip string) (pemCert, pemKey []byte, err error) {
 	return certOut.Bytes(), keyOut.Bytes(), nil
 }
 
-func (s *server) createSyncthing(namespace string, cfg composeTypes.Config) error {
+func (s *server) createSyncthing(namespace string, syncedFolders map[string]string) error {
+	volume := volume.BindVolumeRoot(namespace)
+	mount := corev1.VolumeMount{
+		Name:      volume.Name,
+		MountPath: "/bind",
+	}
+
 	idPathMap := map[string]string{}
-
-	var volumes []corev1.Volume
-	var volumeMounts []corev1.VolumeMount
-	for _, svc := range cfg.Services {
-		for _, desired := range svc.Volumes {
-			// Only run Syncthing on bind volumes.
-			if desired.Type != composeTypes.VolumeTypeBind {
-				continue
-			}
-
-			id := volume.ID(namespace, desired)
-			hostPath := volume.HostPath(namespace, id)
-
-			volume, mount := makeVolumeMount(namespace, id,
-				hostPath, desired.Target)
-
-			if _, ok := idPathMap[id]; ok {
-				continue
-			}
-
-			idPathMap[id] = hostPath
-
-			// In the syncthing container, we always mount at the
-			// hostpath to avoid collisions between different
-			// volumes that may be mounted at the same location in
-			// different containers.
-			mount.MountPath = hostPath
-			volumeMounts = append(volumeMounts, mount)
-
-			volumes = append(volumes, volume)
-		}
+	for id, src := range syncedFolders {
+		idPathMap[id] = filepath.Join("/bind", src)
 	}
 
 	pod := corev1.Pod{
@@ -693,9 +677,9 @@ func (s *server) createSyncthing(namespace string, cfg composeTypes.Config) erro
 				Image:           version.SyncthingImage,
 				ImagePullPolicy: "Always",
 				Args:            syncthing.MapToArgs(idPathMap),
-				VolumeMounts:    volumeMounts,
+				VolumeMounts:    []corev1.VolumeMount{mount},
 			}},
-			Volumes:  volumes,
+			Volumes:  []corev1.Volume{volume},
 			Affinity: sameNodeAffinity(namespace),
 		},
 	}
@@ -1113,11 +1097,11 @@ func getServicePhase(pod corev1.Pod) string {
 		if c.State.Running != nil {
 			switch c.Name {
 			case ContainerNameCopyBusybox, ContainerNameCopyVCP, ContainerNameInitializeVolumeFromImage:
-				return "Waiting for volumes to initialize from image"
+				return "Initializing volumes"
 			case ContainerNameWaitDependsOn:
 				return "Waiting for dependencies to boot"
 			case ContainerNameWaitInitialSync:
-				return "Waiting for bind volumes to sync"
+				return "Syncing volumes. See progress at http://localhost:8834"
 			default:
 				return "Waiting for service to initialize"
 			}
@@ -1137,297 +1121,24 @@ func getServicePhase(pod corev1.Pod) string {
 	return phase
 }
 
-func makeVolumeMount(namespace, id, hostpath, target string) (
-	corev1.Volume,
-	corev1.VolumeMount,
+func toPods(
+	namespace,
+	managerIP string,
+	cfg composeTypes.Config,
+	builtImages map[string]string,
+) (
+	pods []corev1.Pod,
+	configMaps []corev1.ConfigMap,
+	err error,
 ) {
-	// Volumes are backed by a directory on the node's filesystem.
-	hostPathType := corev1.HostPathDirectoryOrCreate
-	volume := corev1.Volume{
-		Name: id,
-		VolumeSource: corev1.VolumeSource{
-			HostPath: &corev1.HostPathVolumeSource{
-				Path: hostpath,
-				Type: &hostPathType,
-			},
-		},
-	}
-	mount := corev1.VolumeMount{
-		Name:      id,
-		MountPath: target,
-	}
-	return volume, mount
-}
-
-func toPods(namespace, managerIP string, cfg composeTypes.Config, builtImages map[string]string) (pods []corev1.Pod, configMaps []corev1.ConfigMap, err error) {
 	for _, svc := range cfg.Services {
-		// Each pod has a corresponding ConfigMap containing the dependencies
-		// it requires before it should boot. This ConfigMap is mounted as a
-		// volume into the pod's init container. The init container passes it
-		// to the sandbox controller, which blocks boot until the requirements
-		// are met.
-
-		waitSpecDependsOn := &sandbox.WaitSpec{DependsOn: svc.DependsOn}
-		waitSpecDependsOnBytes, err := proto.Marshal(waitSpecDependsOn)
-		if err != nil {
-			return nil, nil, fmt.Errorf("marshal wait spec: %w", err)
-		}
-
-		waitSpecSync := &sandbox.WaitSpec{}
-		for _, v := range svc.Volumes {
-			if v.Type != "bind" {
-				continue
-			}
-
-			waitSpecSync.SyncthingFolders = append(waitSpecSync.SyncthingFolders, volume.ID(namespace, v))
-		}
-
-		waitSpecSyncBytes, err := proto.Marshal(waitSpecSync)
-		if err != nil {
-			return nil, nil, fmt.Errorf("marshal wait spec: %w", err)
-		}
-
-		waitSpecDependsOnConfigMap := corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: namespace,
-				Name:      fmt.Sprintf("wait-spec-depends-on-%s", svc.Name),
-			},
-			BinaryData: map[string][]byte{
-				"wait-spec": waitSpecDependsOnBytes,
-			},
-		}
-		waitSpecSyncConfigMap := corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: namespace,
-				Name:      fmt.Sprintf("wait-spec-sync-%s", svc.Name),
-			},
-			BinaryData: map[string][]byte{
-				"wait-spec": waitSpecSyncBytes,
-			},
-		}
-		configMaps = append(configMaps, waitSpecSyncConfigMap, waitSpecDependsOnConfigMap)
-
-		volumes := []corev1.Volume{
-			{
-				Name: "vcpbin",
-				VolumeSource: corev1.VolumeSource{
-					EmptyDir: &corev1.EmptyDirVolumeSource{},
-				},
-			}, {
-				Name: "wait-spec-depends-on",
-				VolumeSource: corev1.VolumeSource{
-					ConfigMap: &corev1.ConfigMapVolumeSource{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: waitSpecDependsOnConfigMap.Name,
-						},
-						Items: []corev1.KeyToPath{
-							{Key: "wait-spec", Path: "wait-spec"},
-						},
-					},
-				},
-			}, {
-				Name: "wait-spec-sync",
-				VolumeSource: corev1.VolumeSource{
-					ConfigMap: &corev1.ConfigMapVolumeSource{
-						LocalObjectReference: corev1.LocalObjectReference{
-							Name: waitSpecSyncConfigMap.Name,
-						},
-						Items: []corev1.KeyToPath{
-							{Key: "wait-spec", Path: "wait-spec"},
-						},
-					},
-				},
-			},
-		}
-
-		// Volumes are backed by a directory on the node's filesystem.
-		var volumeMounts, vcpMounts []corev1.VolumeMount
-		var vcpArgs []string
-		for _, desired := range svc.Volumes {
-			id := volume.ID(namespace, desired)
-			hostPath := volume.HostPath(namespace, id)
-			volume, mount := makeVolumeMount(namespace, id,
-				hostPath, desired.Target)
-			volumes = append(volumes, volume)
-			volumeMounts = append(volumeMounts, mount)
-
-			// Only initialize regular volumes. Bind volumes aren't initalized
-			// based on the contents of the Docker image -- they're supposed to
-			// exactly match what's on the user's filesystem.
-			if desired.Type != composeTypes.VolumeTypeVolume {
-				continue
-			}
-
-			vcpTarget := "/vcp-mount" + desired.Target
-			vcpMounts = append(vcpMounts, corev1.VolumeMount{
-				Name:      id,
-				MountPath: vcpTarget,
-			})
-			vcpArgs = append(vcpArgs, fmt.Sprintf("%s/.:%s", desired.Target, vcpTarget))
-		}
-
-		var envVars []corev1.EnvVar
-		for k, vPtr := range svc.Environment {
-			// vPtr may be nil if only the key is specified.
-			var v string
-			if vPtr != nil {
-				v = *vPtr
-			}
-
-			// Escape dollar signs to disable interpolation by Kubernetes. Any variable
-			// interpolation will have occured by now during the initial parsing of
-			// the Docker Compose file.
-			v = strings.Replace(v, "$", "$$", -1)
-
-			envVars = append(envVars, corev1.EnvVar{
-				Name:  k,
-				Value: v,
-			})
-		}
-
-		image := svc.Image
-		if svc.Build != nil {
-			image = builtImages[svc.Name]
-			// TODO: Error if image DNE.
-		}
-
-		hostname := svc.Name
-		if svc.Hostname != "" {
-			hostname = svc.Hostname
-		}
-
-		// Blimp doesn't support multiple networks, so just aggregate the
-		// aliases from all of them.
-		var aliases []string
-		for _, network := range svc.Networks {
-			if network == nil {
-				continue
-			}
-			aliases = append(aliases, network.Aliases...)
-		}
-
-		annotations := map[string]string{}
-		if len(aliases) > 0 {
-			annotations[metadata.AliasesKey] = metadata.Aliases(aliases)
-		}
-
-		vcpBinMount := []corev1.VolumeMount{{
-			Name:      "vcpbin",
-			MountPath: "/vcpbin",
-		}}
-
-		restartPolicy := corev1.RestartPolicyNever
-		switch svc.Restart {
-		case "no":
-			restartPolicy = corev1.RestartPolicyNever
-		case "always":
-			restartPolicy = corev1.RestartPolicyAlways
-		case "on-failure":
-			restartPolicy = corev1.RestartPolicyOnFailure
-		}
-
-		// TODO: Resources
-		pod := corev1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: namespace,
-				Name:      svc.Name,
-				Labels: map[string]string{
-					"blimp.service":     svc.Name,
-					"blimp.customerPod": "true",
-					"blimp.customer":    namespace,
-				},
-				Annotations: annotations,
-			},
-			Spec: corev1.PodSpec{
-				Hostname: hostname,
-				InitContainers: []corev1.Container{
-					{
-						Name:            ContainerNameCopyBusybox,
-						Image:           version.InitImage,
-						ImagePullPolicy: "Always",
-						Command:         []string{"/bin/cp", "/bin/busybox.static", "/vcpbin/cp"},
-						VolumeMounts:    vcpBinMount,
-					}, {
-						Name:            ContainerNameCopyVCP,
-						Image:           version.InitImage,
-						ImagePullPolicy: "Always",
-						Command:         []string{"/bin/cp", "/bin/blimp-vcp", "/vcpbin/blimp-cp"},
-						VolumeMounts:    vcpBinMount,
-					}, {
-						Name:            ContainerNameInitializeVolumeFromImage,
-						Image:           image,
-						ImagePullPolicy: "Always",
-						Command:         append([]string{"/vcpbin/blimp-cp", "/vcpbin/cp"}, vcpArgs...),
-						VolumeMounts:    append(vcpBinMount, vcpMounts...),
-					}, {
-						Name:            ContainerNameWaitDependsOn,
-						Image:           version.InitImage,
-						ImagePullPolicy: "Always",
-						Env: []corev1.EnvVar{
-							{
-								Name:  "SANDBOX_MANAGER_HOST",
-								Value: managerIP,
-							},
-						},
-						VolumeMounts: append(vcpBinMount, corev1.VolumeMount{
-							Name:      "wait-spec-depends-on",
-							MountPath: "/etc/blimp",
-						}),
-					}, {
-						Name:            ContainerNameWaitInitialSync,
-						Image:           version.InitImage,
-						ImagePullPolicy: "Always",
-						Env: []corev1.EnvVar{
-							{
-								Name:  "SANDBOX_MANAGER_HOST",
-								Value: managerIP,
-							},
-						},
-						VolumeMounts: append(vcpBinMount, corev1.VolumeMount{
-							Name:      "wait-spec-sync",
-							MountPath: "/etc/blimp",
-						}),
-					},
-				},
-				Containers: []corev1.Container{
-					{
-						Name:            svc.Name,
-						Image:           image,
-						ImagePullPolicy: "Always",
-						Command:         svc.Entrypoint,
-						Args:            svc.Command,
-						VolumeMounts:    volumeMounts,
-						Env:             envVars,
-						WorkingDir:      svc.WorkingDir,
-					},
-				},
-				RestartPolicy: restartPolicy,
-				DNSPolicy:     corev1.DNSNone,
-				DNSConfig: &corev1.PodDNSConfig{
-					Nameservers: []string{managerIP},
-					// TODO: There's Searches and Options, look into how to replicate these.
-				},
-				ImagePullSecrets: []corev1.LocalObjectReference{
-					{Name: "registry-auth"},
-				},
-				Volumes:            volumes,
-				ServiceAccountName: "pod-runner",
-				Affinity:           sameNodeAffinity(namespace),
-
-				// Disable the environment variables that are automatically
-				// added by Kubernetes (e.g. SANDBOX_SERVICE_PORT).
-				EnableServiceLinks: falsePtr(),
-			},
-		}
-		pods = append(pods, pod)
+		b := newPodBuilder(namespace, managerIP, builtImages)
+		p, cm := b.ToPod(svc)
+		pods = append(pods, p)
+		configMaps = append(configMaps, cm...)
 	}
 
 	return pods, configMaps, nil
-}
-
-func falsePtr() *bool {
-	f := false
-	return &f
 }
 
 func sameNodeAffinity(namespace string) *corev1.Affinity {
@@ -1515,4 +1226,12 @@ func getKubeClient() (kubernetes.Interface, *rest.Config, error) {
 	}
 
 	return kubeClient, restConfig, nil
+}
+
+func mapToSlice(set map[string]struct{}) (slc []string) {
+	for str := range set {
+		slc = append(slc, str)
+	}
+	sort.Strings(slc)
+	return slc
 }

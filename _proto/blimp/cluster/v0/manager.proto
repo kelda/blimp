@@ -40,6 +40,7 @@ message CreateSandboxRequest {
   string token = 1;
   string composeFile = 2;
   map<string, RegistryCredential> registryCredentials = 3;
+  map<string, string> syncedFolders = 4;
 }
 
 message RegistryCredential {

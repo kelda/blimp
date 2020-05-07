@@ -33,7 +33,6 @@ import (
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
 	"github.com/kelda-inc/blimp/pkg/syncthing"
 	"github.com/kelda-inc/blimp/pkg/tunnel"
-	"github.com/kelda-inc/blimp/pkg/volume"
 )
 
 func New() *cobra.Command {
@@ -104,7 +103,7 @@ type up struct {
 	sandboxCert    string
 }
 
-func (cmd *up) createSandbox(composeCfg string) error {
+func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) error {
 	pp := util.NewProgressPrinter(os.Stderr, "Booting cloud sandbox")
 	go pp.Run()
 	defer pp.Stop()
@@ -119,6 +118,7 @@ func (cmd *up) createSandbox(composeCfg string) error {
 			Token:               cmd.auth.AuthToken,
 			ComposeFile:         string(composeCfg),
 			RegistryCredentials: registryCredentials,
+			SyncedFolders:       idPathMap,
 		})
 	if err != nil {
 		return err
@@ -168,15 +168,15 @@ func (cmd *up) run() error {
 		return err
 	}
 
+	stClient := cmd.makeSyncthingClient(parsedCompose)
+	idPathMap := stClient.GetIDPathMap()
+
 	// Start creating the sandbox immediately so that the systems services
 	// start booting as soon as possible.
-	if err := cmd.createSandbox(string(parsedComposeBytes)); err != nil {
+	if err := cmd.createSandbox(string(parsedComposeBytes), idPathMap); err != nil {
 		log.WithError(err).Fatal("Failed to create development sandbox")
 	}
 
-	haveSyncthing, stopHashSync := cmd.bootSyncthing(parsedCompose)
-
-	// TODO: Does Docker rebuild images when files change?
 	builtImages, err := cmd.buildImages(parsedCompose)
 	if err != nil {
 		return err
@@ -201,9 +201,9 @@ func (cmd *up) run() error {
 		return err
 	}
 	defer sandboxConn.Close()
+	sandboxManager := sandbox.NewControllerClient(sandboxConn)
 
 	// Start the tunnels.
-	sandboxManager := sandbox.NewControllerClient(sandboxConn)
 	for _, svc := range parsedCompose.Services {
 		for _, mapping := range svc.Ports {
 			go startTunnel(sandboxManager, cmd.auth.AuthToken, svc.Name,
@@ -211,9 +211,16 @@ func (cmd *up) run() error {
 		}
 	}
 
-	if haveSyncthing {
+	stopHashSync := make(chan struct{})
+	if len(idPathMap) != 0 {
 		go startTunnel(sandboxManager, cmd.auth.AuthToken, "syncthing",
 			syncthing.Port, syncthing.Port)
+		go func() {
+			output, err := stClient.Run(sandboxManager, stopHashSync)
+			if err != nil {
+				log.WithError(err).WithField("output", string(output)).Warn("syncthing error")
+			}
+		}()
 	}
 
 	services := parsedCompose.ServiceNames()
@@ -222,9 +229,7 @@ func (cmd *up) run() error {
 
 	// Now that the containers have finished booting, we know the initial
 	// filesync is complete, and can stop updating the file hashes.
-	if haveSyncthing {
-		close(stopHashSync)
-	}
+	close(stopHashSync)
 
 	return logs.LogsCommand{
 		Containers: services,
@@ -278,31 +283,18 @@ func startTunnel(scc sandbox.ControllerClient, token, name string,
 	}
 }
 
-func (cmd *up) bootSyncthing(dcCfg composeTypes.Config) (bool, chan<- struct{}) {
-	namespace := cmd.auth.KubeNamespace
-	idPathMap := map[string]string{}
+func (cmd *up) makeSyncthingClient(dcCfg composeTypes.Config) syncthing.Client {
+	var bindVolumes []string
 	for _, svc := range dcCfg.Services {
 		for _, v := range svc.Volumes {
 			if v.Type != "bind" {
 				continue
 			}
-			idPathMap[volume.ID(namespace, v)] = v.Source
+
+			bindVolumes = append(bindVolumes, v.Source)
 		}
 	}
-
-	if len(idPathMap) == 0 {
-		return false, nil
-	}
-
-	stopHashSync := make(chan struct{})
-	go func() {
-		output, err := syncthing.RunClient(stopHashSync, idPathMap)
-		if err != nil {
-			log.WithError(err).WithField("output", string(output)).Warn("syncthing error")
-		}
-	}()
-
-	return true, stopHashSync
+	return syncthing.NewClient(bindVolumes)
 }
 
 func getComposeAbsPath(composePath string) (string, error) {

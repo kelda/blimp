@@ -6,6 +6,7 @@ option go_package = "github.com/kelda-inc/blimp/pkg/proto/sandbox";
 
 service Controller {
   rpc Tunnel(stream TunnelMsg) returns (stream TunnelMsg) {}
+  rpc UpdateVolumeHashes(UpdateVolumeHashesRequest) returns (UpdateVolumeHashesResponse) {}
 }
 
 message TunnelHeader{
@@ -26,3 +27,9 @@ message TunnelMsg {
     EOF eof = 3;
   }
 }
+
+message UpdateVolumeHashesRequest {
+  map<string, string> hashes = 1;
+}
+
+message UpdateVolumeHashesResponse {}

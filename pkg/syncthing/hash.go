@@ -5,87 +5,19 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
-	"time"
-
-	log "github.com/sirupsen/logrus"
-	"github.com/syncthing/syncthing/lib/fs"
-	"github.com/syncthing/syncthing/lib/ignore"
 )
 
-const hashTrackerName = ".blimp-hash"
-
-func syncFileHash(stop <-chan struct{}, folder string) {
-	hashPath := HashTrackerPath(folder)
-	defer os.Remove(hashPath)
-
-	writeOnce := func() {
-		h, err := HashFolder(folder)
-		if err != nil {
-			log.WithError(err).Warn("Failed to calculate bind volume hash")
-			return
-		}
-
-		if err := ioutil.WriteFile(hashPath, []byte(h), 0644); err != nil {
-			log.WithError(err).Warn("Failed to write bind volume hash")
-		}
-	}
-
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-	for {
-		writeOnce()
-
-		select {
-		case <-stop:
-			return
-		case <-ticker.C:
-		}
-	}
-}
-
-func HashTrackerPath(folder string) string {
-	return filepath.Join(folder, hashTrackerName)
-}
-
-func HashFolder(root string) (string, error) {
-	ignoreMatcher := ignore.New(fs.NewFilesystem(fs.FilesystemTypeBasic, ""))
-	ignorePath := filepath.Join(root, ".stignore")
-	if _, err := os.Stat(ignorePath); err == nil {
-		if err := ignoreMatcher.Load(ignorePath); err != nil {
-			return "", fmt.Errorf("load stignore: %w", err)
-		}
-	}
-
-	// If the folder is a symlink, resolve the symlink so that we
-	// `filepath.Walk` reads the files within it. This fixes a bug where we
-	// would calculate the hash as just a single symlink, while the remote
-	// container would (correctly) include the contents of the folder in its
-	// hash.
-	fi, err := os.Lstat(root)
-	if err != nil {
-		return "", fmt.Errorf("stat volume: %w", err)
-	}
-
-	if fi.Mode()&os.ModeSymlink != 0 {
-		link, err := os.Readlink(root)
-		if err != nil {
-			return "", fmt.Errorf("get symlink target for volume: %w", err)
-		}
-
-		if filepath.IsAbs(link) {
-			root = link
-		} else {
-			root = filepath.Join(filepath.Dir(root), link)
-		}
+func HashVolume(volumePath string, isIgnored func(string) bool) (string, error) {
+	// Don't ignore any files by default.
+	if isIgnored == nil {
+		isIgnored = func(_ string) bool { return false }
 	}
 
 	var hashes []string
-	err = filepath.Walk(root, func(path string, fi os.FileInfo, err error) error {
+	err := filepath.Walk(volumePath, func(path string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -94,18 +26,7 @@ func HashFolder(root string) (string, error) {
 			return nil
 		}
 
-		// Don't include the hash tracker file in the hash, or else when we
-		// update the hash file, the next calculation will be different.
-		if fi.Name() == hashTrackerName {
-			return nil
-		}
-
-		relativePath, err := filepath.Rel(root, path)
-		if err != nil || strings.HasPrefix(relativePath, "..") {
-			return fmt.Errorf("get relative path: %w", err)
-		}
-
-		if ignoreMatcher.ShouldIgnore(relativePath) {
+		if isIgnored(path) {
 			return nil
 		}
 

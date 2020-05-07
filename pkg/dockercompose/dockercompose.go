@@ -10,6 +10,7 @@ import (
 	"github.com/compose-spec/compose-go/loader"
 	"github.com/compose-spec/compose-go/types"
 	"github.com/ghodss/yaml"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/kelda-inc/blimp/pkg/hash"
 )
@@ -75,21 +76,43 @@ func Load(path string, b []byte) (types.Config, error) {
 		return types.Config{}, fmt.Errorf("load: %w", err)
 	}
 
-	// Assign names to any volumes that are specified as just paths. E.g.:
-	// services:
-	//   web:
-	//     image: 'ubuntu'
-	//     volumes:
-	//       - '/node_modules'
 	for svcIdx, svc := range cfgPtr.Services {
 		for volumeIdx, volume := range svc.Volumes {
-			if volume.Type != types.VolumeTypeVolume {
-				continue
-			}
-
-			if volume.Source == "" {
+			// Assign names to any volumes that are specified as just paths. E.g.:
+			// services:
+			//   web:
+			//     image: 'ubuntu'
+			//     volumes:
+			//       - '/node_modules'
+			if volume.Type == types.VolumeTypeVolume && volume.Source == "" {
 				name := hash.DnsCompliant(fmt.Sprintf("%s-%s", svc.Name, volume.Target))
 				cfgPtr.Services[svcIdx].Volumes[volumeIdx].Source = name
+			}
+
+			// Resolve any bind volumes that reference symlinks. Docker mounts the
+			// contents of the symlink, rather than the symlink itself.
+			if volume.Type == types.VolumeTypeBind {
+				fi, err := os.Lstat(volume.Source)
+				if err != nil {
+					log.WithError(err).WithField("path", volume.Source).Warn("Failed to stat volume")
+					continue
+				}
+
+				if fi.Mode()&os.ModeSymlink != 0 {
+					link, err := os.Readlink(volume.Source)
+					if err != nil {
+						log.WithError(err).WithField("path", volume.Source).Warn(
+							"Failed to get symlink target for volume")
+						continue
+					}
+
+					newPath := link
+					if !filepath.IsAbs(link) {
+						newPath = filepath.Join(filepath.Dir(volume.Source), link)
+					}
+					cfgPtr.Services[svcIdx].Volumes[volumeIdx].Source = newPath
+				}
+
 			}
 		}
 	}

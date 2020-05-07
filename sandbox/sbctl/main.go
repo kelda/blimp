@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -21,6 +22,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/tunnel"
 	"github.com/kelda-inc/blimp/sandbox/sbctl/dns"
 	"github.com/kelda-inc/blimp/sandbox/sbctl/wait"
+	"github.com/kelda-inc/blimp/sandbox/sbctl/wait/tracker"
 
 	// Install the gzip compressor.
 	_ "google.golang.org/grpc/encoding/gzip"
@@ -63,16 +65,24 @@ func main() {
 		}
 	}
 
+	volumeTracker := tracker.NewVolumeTracker()
+
 	// TODO: Remove need for kubeClient and just query local Docker daemon.
 	go dns.Run(kubeClient, namespace)
-	go wait.Run(kubeClient, namespace)
+	go wait.Run(kubeClient, namespace, volumeTracker)
 
-	s := &server{kubeClient: kubeClient, namespace: namespace}
+	s := &server{kubeClient: kubeClient, namespace: namespace, volumeTracker: volumeTracker}
 	addr := fmt.Sprintf("0.0.0.0:%d", Port)
 	if err := s.listenAndServe(addr); err != nil {
 		log.WithError(err).Error("Unexpected error")
 		os.Exit(1)
 	}
+}
+
+type server struct {
+	kubeClient    kubernetes.Interface
+	namespace     string
+	volumeTracker *tracker.VolumeTracker
 }
 
 func (s *server) listenAndServe(address string) error {
@@ -133,9 +143,11 @@ func (s *server) Tunnel(nsrv sandbox.Controller_TunnelServer) error {
 	return nil
 }
 
-type server struct {
-	kubeClient kubernetes.Interface
-	namespace  string
+func (s *server) UpdateVolumeHashes(_ context.Context, req *sandbox.UpdateVolumeHashesRequest) (
+	*sandbox.UpdateVolumeHashesResponse, error) {
+
+	s.volumeTracker.Set(req.Hashes)
+	return &sandbox.UpdateVolumeHashesResponse{}, nil
 }
 
 func clearDir(dir string) error {

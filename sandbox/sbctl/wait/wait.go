@@ -1,10 +1,11 @@
 package wait
 
 import (
+	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
+	"path/filepath"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -15,7 +16,7 @@ import (
 
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
 	"github.com/kelda-inc/blimp/pkg/syncthing"
-	"github.com/kelda-inc/blimp/pkg/volume"
+	"github.com/kelda-inc/blimp/sandbox/sbctl/wait/tracker"
 
 	// Install the gzip compressor.
 	_ "google.golang.org/grpc/encoding/gzip"
@@ -23,10 +24,11 @@ import (
 
 const Port = 9002
 
-func Run(kubeClient kubernetes.Interface, namespace string) {
+func Run(kubeClient kubernetes.Interface, namespace string, volumeTracker *tracker.VolumeTracker) {
 	s := &server{
-		kubeClient: kubeClient,
-		namespace:  namespace,
+		kubeClient:    kubeClient,
+		namespace:     namespace,
+		volumeTracker: volumeTracker,
 	}
 
 	addr := fmt.Sprintf("0.0.0.0:%d", Port)
@@ -37,8 +39,9 @@ func Run(kubeClient kubernetes.Interface, namespace string) {
 }
 
 type server struct {
-	kubeClient kubernetes.Interface
-	namespace  string
+	kubeClient    kubernetes.Interface
+	namespace     string
+	volumeTracker *tracker.VolumeTracker
 }
 
 func (s *server) listenAndServe(address string) error {
@@ -74,8 +77,8 @@ func (s *server) CheckReady(req *sandbox.CheckReadyRequest, srv sandbox.BootWait
 			}
 		}
 
-		for _, folder := range req.GetWaitSpec().GetSyncthingFolders() {
-			isSynced, err := s.isSynced(folder)
+		for _, volume := range req.GetWaitSpec().GetBindVolumes() {
+			isSynced, err := s.isSynced(volume)
 			if err != nil {
 				return &sandbox.CheckReadyResponse{
 					Ready:  false,
@@ -86,7 +89,7 @@ func (s *server) CheckReady(req *sandbox.CheckReadyRequest, srv sandbox.BootWait
 			if !isSynced {
 				return &sandbox.CheckReadyResponse{
 					Ready:  false,
-					Reason: fmt.Sprintf("folder %s is not synced", folder),
+					Reason: fmt.Sprintf("volume %s is not synced", volume),
 				}
 			}
 		}
@@ -124,14 +127,14 @@ func (s *server) isBooted(service string) (bool, error) {
 	return pod.Status.Phase == "Running", nil
 }
 
-func (s *server) isSynced(folderID string) (bool, error) {
-	folderPath := volume.HostPath(s.namespace, folderID)
-	expHash, err := ioutil.ReadFile(syncthing.HashTrackerPath(folderPath))
-	if err != nil {
-		return false, fmt.Errorf("read expected hash: %w", err)
+func (s *server) isSynced(volumePath string) (bool, error) {
+	folderPath := filepath.Join("/bind", volumePath)
+	expHash, ok := s.volumeTracker.Get(volumePath)
+	if !ok {
+		return false, errors.New("unknown volume")
 	}
 
-	actualHash, err := syncthing.HashFolder(folderPath)
+	actualHash, err := syncthing.HashVolume(folderPath, nil)
 	if err != nil {
 		return false, fmt.Errorf("calculate actual hash: %w", err)
 	}
