@@ -66,6 +66,7 @@ func validateVolumes(volumes map[string]types.VolumeConfig) []string {
 		{ID: ".Name"},
 		{ID: ".Labels"},
 		{ID: ".Extras"},
+		{ID: ".Driver", AllowedValues: []interface{}{"local"}},
 	}}.GetUnsupportedFields(volumes))
 }
 
