@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	composeTypes "github.com/compose-spec/compose-go/types"
@@ -231,6 +232,11 @@ func toEnvVars(vars composeTypes.MappingWithEquals) (kubeVars []corev1.EnvVar) {
 			Value: v,
 		})
 	}
+
+	// Sort for consistency to avoid unnecessary pod restarts.
+	sort.Slice(kubeVars, func(i, j int) bool {
+		return kubeVars[i].Name < kubeVars[j].Name
+	})
 	return
 }
 
