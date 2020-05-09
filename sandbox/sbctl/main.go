@@ -7,15 +7,18 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/kelda-inc/blimp/pkg/analytics"
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
@@ -71,7 +74,17 @@ func main() {
 	go dns.Run(kubeClient, namespace)
 	go wait.Run(kubeClient, namespace, volumeTracker)
 
-	s := &server{kubeClient: kubeClient, namespace: namespace, volumeTracker: volumeTracker}
+	podInformer := informers.NewSharedInformerFactoryWithOptions(
+		kubeClient, 30*time.Second, informers.WithNamespace(namespace)).
+		Core().V1().Pods()
+	go podInformer.Informer().Run(nil)
+	cache.WaitForCacheSync(nil, podInformer.Informer().HasSynced)
+
+	s := &server{
+		namespace:     namespace,
+		volumeTracker: volumeTracker,
+		podLister:     podInformer.Lister(),
+	}
 	addr := fmt.Sprintf("0.0.0.0:%d", Port)
 	if err := s.listenAndServe(addr); err != nil {
 		log.WithError(err).Error("Unexpected error")
@@ -80,9 +93,9 @@ func main() {
 }
 
 type server struct {
-	kubeClient    kubernetes.Interface
 	namespace     string
 	volumeTracker *tracker.VolumeTracker
+	podLister     listers.PodLister
 }
 
 func (s *server) listenAndServe(address string) error {
@@ -108,26 +121,7 @@ func (s *server) Tunnel(nsrv sandbox.Controller_TunnelServer) error {
 		return err
 	}
 
-	// TODO, really bad to make an external call on *each connection*  This
-	// must be cached in future, or ideally, pre-computed before we start
-	// accepting connections.  If kube hangs, every tcp connection will hang
-	// and it will feel supper slow to clients.
-	//
-	// A cache wouldn't be ideal, because you still would have to make the
-	// request in the datapath occaisionally.  I.E. the users first
-	// experience with this thing will feel super slow.
-	//
-	// Another option would be an "updater" go routine that just
-	// occaisionally checks and writes the results to a sync.Map that this
-	// goroutine accesses.  That's likely best case.
-	//
-	// Note, we're moving away from kube in the sandbox controller so this
-	// issue isn't worth fixing with the current code.  Same issue will
-	// occur if we have to request IPs from the docker daemon.  Perhaps
-	// cilium or something can give us the info we need up front?  This
-	// really isn't fixable until we know the new strategy (but it's bad
-	// ...)
-	dstPod, err := s.kubeClient.CoreV1().Pods(s.namespace).Get(name, metav1.GetOptions{})
+	dstPod, err := s.podLister.Pods(s.namespace).Get(name)
 	if err != nil {
 		msg := fmt.Sprintf("unknown destination")
 		return status.New(codes.OutOfRange, msg).Err()
