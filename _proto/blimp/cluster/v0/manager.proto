@@ -92,6 +92,18 @@ message SandboxStatus {
   map<string, ServiceStatus> services = 1;
 }
 
+enum ServicePhase {
+  UNKNOWN = 0;
+  INITIALIZING_VOLUMES = 1;
+  WAIT_DEPENDS_ON = 2;
+  WAIT_SYNC_BIND = 3;
+  PENDING = 4;
+  RUNNING = 5;
+  EXITED = 6;
+}
+
 message ServiceStatus {
-  string phase = 1;
+  ServicePhase phase = 1;
+  string msg = 2;
+  bool has_started = 3;
 }

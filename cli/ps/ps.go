@@ -62,7 +62,7 @@ func printStatus(status cluster.SandboxStatus) {
 	sort.Strings(serviceNames)
 
 	for _, name := range serviceNames {
-		svc := status.Services[name]
-		fmt.Fprintf(w, "%s\t%s\n", name, svc.Phase)
+		statusStr, _, _ := GetStatusString(status.Services[name])
+		fmt.Fprintf(w, "%s\t%s\n", name, statusStr)
 	}
 }

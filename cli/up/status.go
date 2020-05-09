@@ -16,34 +16,25 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/kelda-inc/blimp/cli/manager"
+	"github.com/kelda-inc/blimp/cli/ps"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 )
 
 type statusPrinter struct {
 	services []string
-	tracker  map[string]*tracker
 
 	currStatus map[string]*cluster.ServiceStatus
 	sync.Mutex
 
 	prevLinesPrinted int
-}
-
-type tracker struct {
-	phase string
-	timer int
+	spinnerIdx       int
 }
 
 var spinnerChars = []string{"/", "-", "\\", "|"}
 
 func newStatusPrinter(services []string) *statusPrinter {
-	sp := &statusPrinter{tracker: map[string]*tracker{}, services: services}
+	sp := &statusPrinter{services: services}
 	sort.Strings(sp.services)
-
-	for _, svc := range services {
-		sp.tracker[svc] = &tracker{phase: "Pending"}
-	}
-
 	return sp
 }
 
@@ -105,30 +96,7 @@ func (sp *statusPrinter) syncStatus(ctx context.Context,
 	}
 }
 
-const donePhase = "Running"
-
 func (sp *statusPrinter) printStatus() bool {
-	// Increment the timers on all the statuses.
-	for _, tr := range sp.tracker {
-		tr.timer++
-	}
-
-	// If the state transitioned for any of the services, update its phase, and
-	// reset its clock.
-	sp.Lock()
-	for svc, status := range sp.currStatus {
-		tr, ok := sp.tracker[svc]
-		if !ok {
-			// Ignore services not declared in the Docker Compose file.
-			continue
-		}
-
-		if tr.phase != status.Phase {
-			sp.tracker[svc] = &tracker{phase: status.Phase}
-		}
-	}
-	sp.Unlock()
-
 	// Reset the cursor so that we'll write over the previous status update.
 	// TODO: Doesn't properly work if the previous print spanned multiple lines.
 	for i := 0; i < sp.prevLinesPrinted; i++ {
@@ -137,23 +105,34 @@ func (sp *statusPrinter) printStatus() bool {
 		fmt.Printf(goterm.ResetLine(""))
 	}
 
+	sp.spinnerIdx = (sp.spinnerIdx + 1) % len(spinnerChars)
+	spinner := spinnerChars[sp.spinnerIdx]
+
 	allReady := true
 	out := tabwriter.NewWriter(os.Stdout, 0, 10, 5, ' ', 0)
 	defer out.Flush()
 	for _, svc := range sp.services {
-		tr := sp.tracker[svc]
-		var phaseStr string
-		if tr.phase != donePhase {
+		statusStr, color, done := sp.getServiceStatus(svc)
+		if !done {
+			statusStr += " " + spinner
 			allReady = false
-			spinner := spinnerChars[tr.timer%len(spinnerChars)]
-			phaseStr = goterm.Color(tr.phase+" "+spinner, goterm.YELLOW)
-		} else {
-			phaseStr = goterm.Color(tr.phase, goterm.GREEN)
 		}
 
-		fmt.Fprintf(out, "%s\t%s\n", svc, phaseStr)
+		fmt.Fprintf(out, "%s\t%s\n", svc, goterm.Color(statusStr, color))
 	}
 
 	sp.prevLinesPrinted = len(sp.services)
 	return allReady
+}
+
+func (sp *statusPrinter) getServiceStatus(svc string) (msg string, color int, booted bool) {
+	sp.Lock()
+	defer sp.Unlock()
+
+	svcStatus, ok := sp.currStatus[svc]
+	if !ok {
+		return "Pending", goterm.YELLOW, false
+	}
+
+	return ps.GetStatusString(svcStatus)
 }
