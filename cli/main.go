@@ -1,11 +1,13 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
 	"time"
 
+	"github.com/buger/goterm"
 	"github.com/spf13/cobra"
 
 	"github.com/kelda-inc/blimp/cli/authstore"
@@ -31,9 +33,7 @@ import (
 const verboseLogKey = "BLIMP_LOG_VERBOSE"
 
 func main() {
-	if os.Getenv(verboseLogKey) == "true" {
-		log.SetLevel(log.DebugLevel)
-	}
+	configureLogrus()
 
 	// By default, the random number generator is seeded to 1, so the resulting
 	// numbers aren't actually different unless we explicitly seed it.
@@ -105,4 +105,53 @@ func getNamespace() string {
 
 func closeManager(_ *cobra.Command, _ []string) {
 	manager.C.Close()
+}
+
+func configureLogrus() {
+	if os.Getenv(verboseLogKey) == "true" {
+		log.SetLevel(log.DebugLevel)
+	}
+
+	log.SetFormatter(formatter{&log.TextFormatter{}})
+}
+
+type formatter struct {
+	delegated log.Formatter
+}
+
+func (f formatter) Format(e *log.Entry) ([]byte, error) {
+	if e.Level != log.FatalLevel {
+		return f.delegated.Format(e)
+	}
+
+	colorLine := func(k string, v interface{}, verb string) string {
+		return fmt.Sprintf("%s: "+verb+"\n",
+			goterm.Color(k, goterm.YELLOW),
+			v)
+	}
+	body := colorLine("Message", e.Message, "%s")
+
+	// Print the error first because it's more important than the other fields.
+	if err, ok := e.Data["error"]; ok {
+		body += colorLine("Error", err, "%s")
+	}
+
+	var dataBody string
+	for k, v := range e.Data {
+		if k == "error" {
+			continue
+		}
+		body += " - " + colorLine(k, v, "%+v")
+	}
+
+	if len(dataBody) > 0 {
+		body += goterm.Color("Data", goterm.YELLOW) + ":"
+		body += dataBody
+	}
+
+	fmt.Fprintf(os.Stderr,
+		goterm.Color("FATAL ERROR: Get help at https://kelda.io/blimp/docs/help/", goterm.RED)+"\n"+
+			body)
+	os.Exit(1)
+	return nil, errors.New("unreached")
 }
