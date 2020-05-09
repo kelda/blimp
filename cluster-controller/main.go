@@ -40,6 +40,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/analytics"
 	"github.com/kelda-inc/blimp/pkg/auth"
 	"github.com/kelda-inc/blimp/pkg/dockercompose"
+	"github.com/kelda-inc/blimp/pkg/hash"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 	"github.com/kelda-inc/blimp/pkg/syncthing"
 	"github.com/kelda-inc/blimp/pkg/version"
@@ -181,7 +182,7 @@ func (s *server) ProxyAnalytics(ctx context.Context, req *cluster.ProxyAnalytics
 }
 
 func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRequest) (*cluster.CreateSandboxResponse, error) {
-	log.Info("CreateSandbox called")
+	log.Info("Start CreateSandbox")
 
 	// Validate that the user logged in, and get their information.
 	user, err := auth.ParseIDToken(req.GetToken())
@@ -193,6 +194,12 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 	if err != nil {
 		return &cluster.CreateSandboxResponse{}, fmt.Errorf("unmarshal compose file: %w", err)
 	}
+
+	analytics.Log.
+		WithField("namespace", user.Namespace).
+		WithField("serviceNames", dcCfg.ServiceNames()).
+		WithField("composeHash", hash.DnsCompliant(req.GetComposeFile())).
+		Info("Parsed CreateSandbox request")
 
 	namespace := user.Namespace
 	if err := s.createNamespace(namespace); err != nil {
@@ -280,6 +287,9 @@ func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest
 		}
 	}
 
+	log.WithField("namespace", user.Namespace).
+		WithField("numPods", len(customerPods)).
+		Info("Deploying customer pods")
 	if err := s.deployCustomerPods(namespace, customerPods); err != nil {
 		return &cluster.DeployResponse{}, fmt.Errorf("boot customer pods: %w", err)
 	}
