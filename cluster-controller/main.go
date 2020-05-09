@@ -56,6 +56,7 @@ import (
 type server struct {
 	kubeClient        kubernetes.Interface
 	restConfig        *rest.Config
+	statusFetcher     *statusFetcher
 	certPath, keyPath string
 }
 
@@ -95,13 +96,15 @@ func main() {
 	}
 
 	s := &server{
-		kubeClient: kubeClient,
-		restConfig: restConfig,
-		certPath:   *certPath,
-		keyPath:    *keyPath,
+		statusFetcher: newStatusFetcher(kubeClient),
+		kubeClient:    kubeClient,
+		restConfig:    restConfig,
+		certPath:      *certPath,
+		keyPath:       *keyPath,
 	}
-	addr := fmt.Sprintf("0.0.0.0:%d", Port)
+	s.statusFetcher.Start()
 
+	addr := fmt.Sprintf("0.0.0.0:%d", Port)
 	if err := s.listenAndServe(addr); err != nil {
 		log.WithError(err).Error("Unexpected error")
 		os.Exit(1)
@@ -1051,7 +1054,7 @@ func (s *server) GetStatus(ctx context.Context, req *cluster.GetStatusRequest) (
 		return &cluster.GetStatusResponse{}, err
 	}
 
-	status, err := s.getSandboxStatus(user.Namespace)
+	status, err := s.statusFetcher.Get(user.Namespace)
 	if err != nil {
 		return &cluster.GetStatusResponse{}, err
 	}
@@ -1065,15 +1068,11 @@ func (s *server) WatchStatus(req *cluster.GetStatusRequest, stream cluster.Manag
 		return err
 	}
 
-	watcher, err := s.kubeClient.CoreV1().Pods(user.Namespace).Watch(metav1.ListOptions{})
-	if err != nil {
-		return err
-	}
-	defer watcher.Stop()
+	trig, stop := s.statusFetcher.Watch(user.Namespace)
+	defer close(stop)
 
-	trig := watcher.ResultChan()
 	for {
-		status, err := s.getSandboxStatus(user.Namespace)
+		status, err := s.statusFetcher.Get(user.Namespace)
 		if err != nil {
 			return err
 		}
@@ -1086,50 +1085,6 @@ func (s *server) WatchStatus(req *cluster.GetStatusRequest, stream cluster.Manag
 		case <-trig:
 		}
 	}
-}
-
-func (s *server) getSandboxStatus(namespace string) (cluster.SandboxStatus, error) {
-	pods, err := s.kubeClient.CoreV1().Pods(namespace).List(metav1.ListOptions{
-		LabelSelector: "blimp.customerPod=true",
-	})
-	if err != nil {
-		return cluster.SandboxStatus{}, err
-	}
-
-	services := map[string]*cluster.ServiceStatus{}
-	for _, pod := range pods.Items {
-		services[pod.Name] = &cluster.ServiceStatus{Phase: getServicePhase(pod)}
-	}
-	return cluster.SandboxStatus{Services: services}, nil
-}
-
-func getServicePhase(pod corev1.Pod) string {
-	for _, c := range pod.Status.InitContainerStatuses {
-		if c.State.Running != nil {
-			switch c.Name {
-			case ContainerNameCopyBusybox, ContainerNameCopyVCP, ContainerNameInitializeVolumeFromImage:
-				return "Initializing volumes"
-			case ContainerNameWaitDependsOn:
-				return "Waiting for dependencies to boot"
-			case ContainerNameWaitInitialSync:
-				return "Syncing volumes. See progress at http://localhost:8834"
-			default:
-				return "Waiting for service to initialize"
-			}
-		}
-	}
-
-	phase := string(pod.Status.Phase)
-	if len(pod.Status.ContainerStatuses) == 1 {
-		containerStatus := pod.Status.ContainerStatuses[0]
-		switch {
-		case containerStatus.State.Waiting != nil && containerStatus.State.Waiting.Message != "":
-			phase += ": " + containerStatus.State.Waiting.Message
-		case containerStatus.State.Terminated != nil && containerStatus.State.Terminated.Message != "":
-			phase += ": " + containerStatus.State.Terminated.Message
-		}
-	}
-	return phase
 }
 
 func toPods(
