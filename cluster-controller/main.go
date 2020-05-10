@@ -9,7 +9,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/json"
 	"encoding/pem"
-	"errors"
 	"flag"
 	"fmt"
 	"math/big"
@@ -40,6 +39,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/analytics"
 	"github.com/kelda-inc/blimp/pkg/auth"
 	"github.com/kelda-inc/blimp/pkg/dockercompose"
+	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/hash"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 	"github.com/kelda-inc/blimp/pkg/syncthing"
@@ -119,11 +119,11 @@ func (s *server) listenAndServe(address string) error {
 
 	creds, err := credentials.NewServerTLSFromFile(s.certPath, s.keyPath)
 	if err != nil {
-		return fmt.Errorf("parse cert: %w", err)
+		return errors.WithContext("parse cert", err)
 	}
 
 	log.WithField("address", address).Info("Listening for connections..")
-	grpcServer := grpc.NewServer(grpc.Creds(creds))
+	grpcServer := grpc.NewServer(grpc.Creds(creds), grpc.UnaryInterceptor(errors.UnaryServerInterceptor))
 	cluster.RegisterManagerServer(grpcServer, s)
 	return grpcServer.Serve(lis)
 }
@@ -151,7 +151,7 @@ func (s *server) CheckVersion(ctx context.Context, req *cluster.CheckVersionRequ
 		}, nil
 	}
 
-	c, err := semver.NewConstraint(">= 0.9.0")
+	c, err := semver.NewConstraint(">= 0.10.0")
 	if err != nil {
 		log.WithError(err).Warn("Failed to create version constraint")
 		return &cluster.CheckVersionResponse{
@@ -195,7 +195,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 
 	dcCfg, err := dockercompose.Unmarshal([]byte(req.GetComposeFile()))
 	if err != nil {
-		return &cluster.CreateSandboxResponse{}, fmt.Errorf("unmarshal compose file: %w", err)
+		return &cluster.CreateSandboxResponse{}, errors.WithContext("unmarshal compose file", err)
 	}
 
 	analytics.Log.
@@ -206,16 +206,16 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 
 	namespace := user.Namespace
 	if err := s.createNamespace(namespace); err != nil {
-		return &cluster.CreateSandboxResponse{}, fmt.Errorf("create namespace: %w", err)
+		return &cluster.CreateSandboxResponse{}, errors.WithContext("create namespace", err)
 	}
 
 	if err := s.createSyncthing(namespace, req.GetSyncedFolders()); err != nil {
-		return &cluster.CreateSandboxResponse{}, fmt.Errorf("deploy syncthing: %w", err)
+		return &cluster.CreateSandboxResponse{}, errors.WithContext("deploy syncthing", err)
 	}
 
 	sandboxAddress, sandboxCert, err := s.createSandboxManager(namespace, dcCfg)
 	if err != nil {
-		return &cluster.CreateSandboxResponse{}, fmt.Errorf("deploy customer manager: %w", err)
+		return &cluster.CreateSandboxResponse{}, errors.WithContext("deploy customer manager", err)
 	}
 
 	creds := req.GetRegistryCredentials()
@@ -228,12 +228,12 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		Password: req.GetToken(),
 	}
 	if err := s.createPodRunnerServiceAccount(namespace, creds); err != nil {
-		return &cluster.CreateSandboxResponse{}, fmt.Errorf("create pod runner service account: %w", err)
+		return &cluster.CreateSandboxResponse{}, errors.WithContext("create pod runner service account", err)
 	}
 
 	cliCreds, err := s.createCLICreds(namespace)
 	if err != nil {
-		return &cluster.CreateSandboxResponse{}, fmt.Errorf("get kube credentials: %w", err)
+		return &cluster.CreateSandboxResponse{}, errors.WithContext("get kube credentials", err)
 	}
 
 	var featuresMsg string
@@ -275,18 +275,18 @@ func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest
 	namespace := user.Namespace
 	sandboxControllerIP, err := s.getSandboxControllerIP(namespace)
 	if err != nil {
-		return &cluster.DeployResponse{}, fmt.Errorf("get sandbox controller's internal IP: %w", err)
+		return &cluster.DeployResponse{}, errors.WithContext("get sandbox controller's internal IP", err)
 	}
 
 	customerPods, configMaps, err := toPods(namespace, sandboxControllerIP, dcCfg, req.BuiltImages)
 	if err != nil {
-		return &cluster.DeployResponse{}, fmt.Errorf("make pod specs: %w", err)
+		return &cluster.DeployResponse{}, errors.WithContext("make pod specs", err)
 	}
 
 	// TODO: Garbage collect config maps.
 	for _, configMap := range configMaps {
 		if err := s.updateConfigMap(configMap); err != nil {
-			return &cluster.DeployResponse{}, fmt.Errorf("create configmap: %w", err)
+			return &cluster.DeployResponse{}, errors.WithContext("create configmap", err)
 		}
 	}
 
@@ -294,7 +294,7 @@ func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest
 		WithField("numPods", len(customerPods)).
 		Info("Deploying customer pods")
 	if err := s.deployCustomerPods(namespace, customerPods); err != nil {
-		return &cluster.DeployResponse{}, fmt.Errorf("boot customer pods: %w", err)
+		return &cluster.DeployResponse{}, errors.WithContext("boot customer pods", err)
 	}
 	return &cluster.DeployResponse{}, nil
 }
@@ -388,7 +388,7 @@ func (s *server) createNamespace(namespace string) error {
 		}
 
 		if _, err := networkingClient.Create(policy); err != nil {
-			return fmt.Errorf("create network policy: %w", err)
+			return errors.WithContext("create network policy", err)
 		}
 	}
 	return nil
@@ -559,7 +559,7 @@ func (s *server) createSandboxManager(namespace string, cfg composeTypes.Config)
 	if _, err := servicesClient.Get(service.Name, metav1.GetOptions{}); err != nil {
 		_, err := servicesClient.Create(service)
 		if err != nil {
-			return "", "", fmt.Errorf("create service: %w", err)
+			return "", "", errors.WithContext("create service", err)
 		}
 	}
 
@@ -578,7 +578,7 @@ func (s *server) createSandboxManager(namespace string, cfg composeTypes.Config)
 			return false
 		})
 	if err != nil {
-		return "", "", fmt.Errorf("wait for public IP: %w", err)
+		return "", "", errors.WithContext("wait for public IP", err)
 	}
 
 	// Generate new certificates for the sandbox controller if it's the first
@@ -588,7 +588,7 @@ func (s *server) createSandboxManager(namespace string, cfg composeTypes.Config)
 	if err != nil {
 		cert, key, err := newSelfSignedCert(publicIP)
 		if err != nil {
-			return "", "", fmt.Errorf("generate cert: %s", err)
+			return "", "", errors.WithContext("generate cert", err)
 		}
 
 		certSecret = &corev1.Secret{
@@ -602,7 +602,7 @@ func (s *server) createSandboxManager(namespace string, cfg composeTypes.Config)
 			},
 		}
 		if _, err := secretsClient.Create(certSecret); err != nil {
-			return "", "", fmt.Errorf("create cert secret: %s", err)
+			return "", "", errors.WithContext("create cert secret", err)
 		}
 	}
 
@@ -611,7 +611,7 @@ func (s *server) createSandboxManager(namespace string, cfg composeTypes.Config)
 	}
 
 	if err := s.deployPod(pod); err != nil {
-		return "", "", fmt.Errorf("deploy: %w", err)
+		return "", "", errors.WithContext("deploy", err)
 	}
 
 	return fmt.Sprintf("%s:443", publicIP), string(certSecret.Data["cert.pem"]), nil
@@ -620,13 +620,13 @@ func (s *server) createSandboxManager(namespace string, cfg composeTypes.Config)
 func newSelfSignedCert(ip string) (pemCert, pemKey []byte, err error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create private key: %w", err)
+		return nil, nil, errors.WithContext("create private key", err)
 	}
 
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
-		return nil, nil, fmt.Errorf("generate serial number: %w", err)
+		return nil, nil, errors.WithContext("generate serial number", err)
 	}
 
 	template := x509.Certificate{
@@ -644,21 +644,21 @@ func newSelfSignedCert(ip string) (pemCert, pemKey []byte, err error) {
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create certificate: %w", err)
+		return nil, nil, errors.WithContext("create certificate", err)
 	}
 
 	var certOut bytes.Buffer
 	if err := pem.Encode(&certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
-		return nil, nil, fmt.Errorf("pem encode certificate: %w", err)
+		return nil, nil, errors.WithContext("pem encode certificate", err)
 	}
 
 	var keyOut bytes.Buffer
 	privBytes, err := x509.MarshalPKCS8PrivateKey(priv)
 	if err != nil {
-		return nil, nil, fmt.Errorf("marshal private key: %w", err)
+		return nil, nil, errors.WithContext("marshal private key", err)
 	}
 	if err := pem.Encode(&keyOut, &pem.Block{Type: "PRIVATE KEY", Bytes: privBytes}); err != nil {
-		return nil, nil, fmt.Errorf("pem encode private key: %w", err)
+		return nil, nil, errors.WithContext("pem encode private key", err)
 	}
 
 	return certOut.Bytes(), keyOut.Bytes(), nil
@@ -699,7 +699,7 @@ func (s *server) createSyncthing(namespace string, syncedFolders map[string]stri
 	}
 
 	if err := s.deployPod(pod); err != nil {
-		return fmt.Errorf("deploy pod: %w", err)
+		return errors.WithContext("deploy pod", err)
 	}
 	return nil
 }
@@ -742,7 +742,7 @@ func (s *server) createCLICreds(namespace string) (cluster.KubeCredentials, erro
 	}
 
 	if err := s.createServiceAccount(serviceAccount, role); err != nil {
-		return cluster.KubeCredentials{}, fmt.Errorf("create service account: %w", err)
+		return cluster.KubeCredentials{}, errors.WithContext("create service account", err)
 	}
 
 	// Wait until the ServiceAccount's secret is populated.
@@ -760,13 +760,13 @@ func (s *server) createCLICreds(namespace string) (cluster.KubeCredentials, erro
 			return false
 		})
 	if err != nil {
-		return cluster.KubeCredentials{}, fmt.Errorf("wait for service account secret: %w", err)
+		return cluster.KubeCredentials{}, errors.WithContext("wait for service account secret", err)
 	}
 
 	secret, err := s.kubeClient.CoreV1().Secrets(namespace).
 		Get(secretName, metav1.GetOptions{})
 	if err != nil {
-		return cluster.KubeCredentials{}, fmt.Errorf("get token: %w", err)
+		return cluster.KubeCredentials{}, errors.WithContext("get token", err)
 	}
 
 	token, ok := secret.Data["token"]
@@ -809,11 +809,11 @@ func (s *server) updateConfigMap(configMap corev1.ConfigMap) error {
 	if err == nil {
 		configMap.ResourceVersion = currConfigMap.ResourceVersion
 		if _, err := configMapClient.Update(&configMap); err != nil {
-			return fmt.Errorf("update configMap: %w", err)
+			return errors.WithContext("update configMap", err)
 		}
 	} else {
 		if _, err := configMapClient.Create(&configMap); err != nil {
-			return fmt.Errorf("create configMap: %w", err)
+			return errors.WithContext("create configMap", err)
 		}
 	}
 	return nil
@@ -822,7 +822,7 @@ func (s *server) updateConfigMap(configMap corev1.ConfigMap) error {
 func (s *server) createPodRunnerServiceAccount(namespace string, registryCredentials map[string]*cluster.RegistryCredential) error {
 	dockerAuthConfig, err := toDockerAuthConfig(registryCredentials)
 	if err != nil {
-		return fmt.Errorf("marshal docker auth config: %w", err)
+		return errors.WithContext("marshal docker auth config", err)
 	}
 
 	secret := corev1.Secret{
@@ -852,11 +852,11 @@ func (s *server) createPodRunnerServiceAccount(namespace string, registryCredent
 	if err == nil {
 		secret.ResourceVersion = currSecret.ResourceVersion
 		if _, err := secretClient.Update(&secret); err != nil {
-			return fmt.Errorf("update regcred secret: %w", err)
+			return errors.WithContext("update regcred secret", err)
 		}
 	} else {
 		if _, err := secretClient.Create(&secret); err != nil {
-			return fmt.Errorf("create regcred secret: %w", err)
+			return errors.WithContext("create regcred secret", err)
 		}
 	}
 
@@ -877,12 +877,12 @@ func (s *server) createServiceAccount(serviceAccount corev1.ServiceAccount, role
 		_, err = saClient.Create(&serviceAccount)
 	}
 	if err != nil {
-		return fmt.Errorf("service account: %w", err)
+		return errors.WithContext("service account", err)
 	}
 
 	for _, role := range roles {
 		if err := s.createRole(role); err != nil {
-			return fmt.Errorf("create role: %w", err)
+			return errors.WithContext("create role", err)
 		}
 
 		binding := rbacv1.RoleBinding{
@@ -904,7 +904,7 @@ func (s *server) createServiceAccount(serviceAccount corev1.ServiceAccount, role
 			},
 		}
 		if err := s.createRoleBinding(binding); err != nil {
-			return fmt.Errorf("create role: %w", err)
+			return errors.WithContext("create role", err)
 		}
 	}
 	return nil
@@ -939,14 +939,14 @@ func (s *server) deployCustomerPods(namespace string, desired []corev1.Pod) erro
 		LabelSelector: "blimp.customerPod=true",
 	})
 	if err != nil {
-		return fmt.Errorf("list: %w", err)
+		return errors.WithContext("list", err)
 	}
 
 	// TODO: Parallelize
 	desiredNames := map[string]struct{}{}
 	for _, pod := range desired {
 		if err := s.deployPod(pod); err != nil {
-			return fmt.Errorf("create: %w", err)
+			return errors.WithContext("create", err)
 		}
 		desiredNames[pod.Name] = struct{}{}
 	}
@@ -955,7 +955,7 @@ func (s *server) deployCustomerPods(namespace string, desired []corev1.Pod) erro
 	for _, pod := range currPods.Items {
 		if _, ok := desiredNames[pod.Name]; !ok {
 			if err := s.deletePod(pod.Namespace, pod.Name); err != nil {
-				return fmt.Errorf("delete: %w", err)
+				return errors.WithContext("delete", err)
 			}
 		}
 	}
@@ -968,7 +968,7 @@ func (s *server) deployPod(pod corev1.Pod) error {
 	// changed.
 	applyAnnotation, err := runtime.Encode(unstructured.UnstructuredJSONScheme, &pod)
 	if err != nil {
-		return fmt.Errorf("make apply annotation: %w", err)
+		return errors.WithContext("make apply annotation", err)
 	}
 
 	if pod.Annotations == nil {
@@ -980,7 +980,7 @@ func (s *server) deployPod(pod corev1.Pod) error {
 	podClient := s.kubeClient.CoreV1().Pods(pod.Namespace)
 	curr, err := podClient.Get(pod.Name, metav1.GetOptions{})
 	if err != nil && !kerrors.IsNotFound(err) {
-		return fmt.Errorf("get pod: %w", err)
+		return errors.WithContext("get pod", err)
 	}
 
 	// If the pod already exists.
@@ -993,12 +993,12 @@ func (s *server) deployPod(pod corev1.Pod) error {
 
 		// Delete the existing pod before we recreate it.
 		if err := s.deletePod(pod.Namespace, pod.Name); err != nil {
-			return fmt.Errorf("delete pod: %w", err)
+			return errors.WithContext("delete pod", err)
 		}
 	}
 
 	if _, err := podClient.Create(&pod); err != nil {
-		return fmt.Errorf("create pod: %w", err)
+		return errors.WithContext("create pod", err)
 	}
 	return nil
 }
@@ -1011,14 +1011,14 @@ func (s *server) deletePod(namespace, name string) error {
 
 	podWatcher, err := podClient.Watch(metav1.ListOptions{})
 	if err != nil {
-		return fmt.Errorf("watch pods: %w", err)
+		return errors.WithContext("watch pods", err)
 	}
 
 	defer podWatcher.Stop()
 	for range podWatcher.ResultChan() {
 		currPods, err := podClient.List(metav1.ListOptions{})
 		if err != nil {
-			return fmt.Errorf("list pods: %w", err)
+			return errors.WithContext("list pods", err)
 		}
 
 		foundPod := false
@@ -1132,7 +1132,7 @@ func waitForObject(
 	// Wait until the ServiceAccount's secret is populated.
 	watcher, err := watchFn(metav1.ListOptions{})
 	if err != nil {
-		return fmt.Errorf("watch: %w", err)
+		return errors.WithContext("watch", err)
 	}
 	defer watcher.Stop()
 
@@ -1142,7 +1142,7 @@ func waitForObject(
 	for {
 		obj, err := objectGetter()
 		if err != nil {
-			return fmt.Errorf("get: %w", err)
+			return errors.WithContext("get", err)
 		}
 
 		if validator(obj) {
@@ -1183,12 +1183,12 @@ func getKubeClient() (kubernetes.Interface, *rest.Config, error) {
 
 	restConfig, err := kubeConfig.ClientConfig()
 	if err != nil {
-		return nil, nil, fmt.Errorf("get rest config: %w", err)
+		return nil, nil, errors.WithContext("get rest config", err)
 	}
 
 	kubeClient, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
-		return nil, nil, fmt.Errorf("new kube client: %w", err)
+		return nil, nil, errors.WithContext("new kube client", err)
 	}
 
 	return kubeClient, restConfig, nil

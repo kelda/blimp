@@ -12,6 +12,7 @@ import (
 
 	"github.com/kelda-inc/blimp/cli/authstore"
 	"github.com/kelda-inc/blimp/cli/manager"
+	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 )
 
@@ -32,7 +33,7 @@ func New() *cobra.Command {
 			}
 
 			if err := run(auth.AuthToken); err != nil {
-				log.Fatal(err)
+				errors.HandleFatalError(err)
 			}
 		},
 	}

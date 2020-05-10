@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/kelda-inc/blimp/pkg/auth"
+	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
 )
 
@@ -36,7 +37,7 @@ func ServerHeader(namespace string, nsrv sandbox.Controller_TunnelServer) (
 
 	user, err := auth.ParseIDToken(header.GetToken())
 	if err != nil {
-		return "", 0, fmt.Errorf("bad token: %w", err)
+		return "", 0, errors.WithContext("bad token", err)
 	}
 
 	if user.Namespace != namespace {

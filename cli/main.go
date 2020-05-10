@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -23,6 +22,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/analytics"
 	"github.com/kelda-inc/blimp/pkg/auth"
 	"github.com/kelda-inc/blimp/pkg/cfgdir"
+	"github.com/kelda-inc/blimp/pkg/errors"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -158,11 +158,11 @@ func (f formatter) Format(e *log.Entry) ([]byte, error) {
 		if k == "error" {
 			continue
 		}
-		body += " - " + colorLine(k, v, "%+v")
+		dataBody += " - " + colorLine(k, v, "%+v")
 	}
 
 	if len(dataBody) > 0 {
-		body += goterm.Color("Data", goterm.YELLOW) + ":"
+		body += goterm.Color("Additional Info", goterm.YELLOW) + ":" + "\n"
 		body += dataBody
 	}
 

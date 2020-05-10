@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh/terminal"
 	core "k8s.io/api/core/v1"
@@ -12,6 +11,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 
 	"github.com/kelda-inc/blimp/cli/authstore"
+	"github.com/kelda-inc/blimp/pkg/errors"
 )
 
 func New() *cobra.Command {
@@ -25,7 +25,7 @@ func New() *cobra.Command {
 			}
 
 			if err := run(args[0]); err != nil {
-				log.Fatal(err)
+				errors.HandleFatalError(err)
 			}
 		},
 	}
@@ -34,7 +34,7 @@ func New() *cobra.Command {
 func run(svc string) error {
 	auth, err := authstore.New()
 	if err != nil {
-		return fmt.Errorf("parse auth config: %w", err)
+		return errors.WithContext("parse auth config", err)
 	}
 
 	if auth.AuthToken == "" {
@@ -44,13 +44,13 @@ func run(svc string) error {
 
 	kubeClient, restConfig, err := auth.KubeClient()
 	if err != nil {
-		return fmt.Errorf("get kube client: %w", err)
+		return errors.WithContext("get kube client", err)
 	}
 
 	// Put the terminal into raw mode to prevent it echoing characters twice.
 	oldState, err := terminal.MakeRaw(0)
 	if err != nil {
-		return fmt.Errorf("set terminal mode: %w", err)
+		return errors.WithContext("set terminal mode", err)
 	}
 
 	defer func() {
@@ -79,12 +79,12 @@ func run(svc string) error {
 		VersionedParams(&execOpts, scheme.ParameterCodec)
 	exec, err := remotecommand.NewSPDYExecutor(restConfig, "POST", req.URL())
 	if err != nil {
-		return fmt.Errorf("setup remote shell: %w", err)
+		return errors.WithContext("setup remote shell", err)
 	}
 
 	err = exec.Stream(streamOpts)
 	if err != nil {
-		return fmt.Errorf("stream: %w", err)
+		return errors.WithContext("stream", err)
 	}
 	return nil
 }

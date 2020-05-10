@@ -2,7 +2,6 @@ package up
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/kelda-inc/blimp/cli/manager"
 	"github.com/kelda-inc/blimp/cli/ps"
+	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 )
 
@@ -68,7 +68,7 @@ func (sp *statusPrinter) syncStatus(ctx context.Context,
 					return errors.New("unexpected stream termination")
 				}
 			case err != nil:
-				return fmt.Errorf("read stream: %w", err)
+				return errors.WithContext("read stream", err)
 			}
 
 			sp.Lock()

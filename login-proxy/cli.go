@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -16,6 +15,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/kelda-inc/blimp/pkg/auth"
+	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/proto/login"
 )
 
@@ -47,7 +47,7 @@ func (s *cliLoginServer) ServeGRPC(addr string) error {
 	}
 
 	log.Info("Starting grpc server")
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(errors.UnaryServerInterceptor))
 	login.RegisterLoginServer(grpcServer, s)
 	return grpcServer.Serve(grpcLis)
 }
@@ -65,12 +65,12 @@ func (s *cliLoginServer) cliLoginCallback(w http.ResponseWriter, r *http.Request
 	sessionID, token, err := func() (string, string, error) {
 		sessionID, err := getSession(r)
 		if err != nil {
-			return "", "", fmt.Errorf("get session: %w", err)
+			return "", "", errors.WithContext("get session", err)
 		}
 
 		token, err := getTokenForCode(s.oauthConf, r)
 		if err != nil {
-			return "", "", fmt.Errorf("get token: %w", err)
+			return "", "", errors.WithContext("get token", err)
 		}
 
 		return sessionID, token, nil
@@ -111,7 +111,7 @@ func (s *cliLoginServer) Login(_ *login.LoginRequest, srv login.Login_LoginServe
 	// authentication token back to the right client.
 	sessionID, err := randomSession()
 	if err != nil {
-		return fmt.Errorf("create session: %w", err)
+		return errors.WithContext("create session", err)
 	}
 
 	resChan := make(chan login.LoginResult, 1)
@@ -121,7 +121,7 @@ func (s *cliLoginServer) Login(_ *login.LoginRequest, srv login.Login_LoginServe
 
 	state, err := makeState(sessionID)
 	if err != nil {
-		return fmt.Errorf("marshal state: %w", err)
+		return errors.WithContext("marshal state", err)
 	}
 
 	// Step 1: Send the CLI the URL that the user should log in to. The URL
@@ -135,7 +135,7 @@ func (s *cliLoginServer) Login(_ *login.LoginRequest, srv login.Login_LoginServe
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("send instructions: %w", err)
+		return errors.WithContext("send instructions", err)
 	}
 
 	// Step 2: Wait for the login result to come back, and forward it to the CLI.
@@ -146,7 +146,7 @@ func (s *cliLoginServer) Login(_ *login.LoginRequest, srv login.Login_LoginServe
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("send result: %w", err)
+		return errors.WithContext("send result", err)
 	}
 	return nil
 }
@@ -168,7 +168,7 @@ func makeState(sessionID string) (string, error) {
 		Session: sessionID,
 	})
 	if err != nil {
-		return "", fmt.Errorf("marshal state: %w", err)
+		return "", errors.WithContext("marshal state", err)
 	}
 
 	return base64.URLEncoding.EncodeToString(stateJSON), nil
@@ -185,7 +185,7 @@ func errorToString(err error) string {
 func getSession(r *http.Request) (string, error) {
 	err := r.ParseForm()
 	if err != nil {
-		return "", fmt.Errorf("parse form: %w", err)
+		return "", errors.WithContext("parse form", err)
 	}
 
 	stateBase64 := r.FormValue("state")
@@ -195,12 +195,12 @@ func getSession(r *http.Request) (string, error) {
 
 	stateJSON, err := base64.StdEncoding.DecodeString(stateBase64)
 	if err != nil {
-		return "", fmt.Errorf("base64 decode state: %w", err)
+		return "", errors.WithContext("base64 decode state", err)
 	}
 
 	var state oauthState
 	if err := json.Unmarshal(stateJSON, &state); err != nil {
-		return "", fmt.Errorf("unmarshal state: %w", err)
+		return "", errors.WithContext("unmarshal state", err)
 	}
 
 	if state.Session == "" {

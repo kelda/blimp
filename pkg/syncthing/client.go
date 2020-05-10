@@ -17,6 +17,7 @@ import (
 	"github.com/syncthing/syncthing/lib/ignore"
 
 	"github.com/kelda-inc/blimp/pkg/cfgdir"
+	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/hash"
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
 )
@@ -164,7 +165,7 @@ func (c Client) Run(scc sandbox.ControllerClient, finishedInitialSync <-chan str
 	idPathMap := c.GetIDPathMap()
 	err := MakeMarkers(idPathMap)
 	if err != nil {
-		return nil, fmt.Errorf("make markers: %w", err)
+		return nil, errors.WithContext("make markers", err)
 	}
 
 	for _, m := range c.mounts {
@@ -175,7 +176,7 @@ func (c Client) Run(scc sandbox.ControllerClient, finishedInitialSync <-chan str
 		if contents, err := ioutil.ReadFile(".stignore"); err == nil {
 			if strings.Contains(string(contents), stignoreHeader) {
 				if err := os.Remove(".stignore"); err != nil {
-					return nil, fmt.Errorf("remove stignore: %q", err)
+					return nil, errors.WithContext("remove stignore", err)
 				}
 			}
 		}
@@ -188,7 +189,7 @@ func (c Client) Run(scc sandbox.ControllerClient, finishedInitialSync <-chan str
 		path := filepath.Join(m.Path, ".stignore")
 		err := ioutil.WriteFile(path, []byte(stignore), 0644)
 		if err != nil {
-			return nil, fmt.Errorf("write stignore: %w", err)
+			return nil, errors.WithContext("write stignore", err)
 		}
 
 		go ensureFileExists(path, stignore)
@@ -207,7 +208,7 @@ func (c Client) Run(scc sandbox.ControllerClient, finishedInitialSync <-chan str
 	stbinPath := cfgdir.Expand("stbin")
 	err = ioutil.WriteFile(stbinPath, stbinBytes, 0755)
 	if err != nil {
-		return nil, fmt.Errorf("write stbin error: %w", err)
+		return nil, errors.WithContext("write stbin error", err)
 	}
 
 	fileMap := map[string]string{
@@ -219,7 +220,7 @@ func (c Client) Run(scc sandbox.ControllerClient, finishedInitialSync <-chan str
 	for path, data := range fileMap {
 		err := ioutil.WriteFile(cfgdir.Expand(path), []byte(data), 0666)
 		if err != nil {
-			return nil, fmt.Errorf("write config file error: %w", err)
+			return nil, errors.WithContext("write config file error", err)
 		}
 	}
 

@@ -2,11 +2,12 @@ package util
 
 import (
 	"crypto/x509"
-	"errors"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/encoding/gzip"
+
+	"github.com/kelda-inc/blimp/pkg/errors"
 )
 
 func Dial(addr, certPEM string) (*grpc.ClientConn, error) {
@@ -17,5 +18,6 @@ func Dial(addr, certPEM string) (*grpc.ClientConn, error) {
 
 	return grpc.Dial(addr,
 		grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(cp, "")),
-		grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
+		grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)),
+		grpc.WithUnaryInterceptor(errors.UnaryClientInterceptor))
 }

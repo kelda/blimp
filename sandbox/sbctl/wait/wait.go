@@ -1,7 +1,6 @@
 package wait
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -14,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
 	"github.com/kelda-inc/blimp/pkg/syncthing"
 	"github.com/kelda-inc/blimp/sandbox/sbctl/wait/tracker"
@@ -51,7 +51,7 @@ func (s *server) listenAndServe(address string) error {
 	}
 
 	log.WithField("address", address).Info("Listening for connections to boot blocking manager")
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(errors.UnaryServerInterceptor))
 	sandbox.RegisterBootWaiterServer(grpcServer, s)
 	return grpcServer.Serve(lis)
 }
@@ -136,7 +136,7 @@ func (s *server) isSynced(volumePath string) (bool, error) {
 
 	actualHash, err := syncthing.HashVolume(folderPath, nil)
 	if err != nil {
-		return false, fmt.Errorf("calculate actual hash: %w", err)
+		return false, errors.WithContext("calculate actual hash", err)
 	}
 
 	return string(expHash) == actualHash, nil

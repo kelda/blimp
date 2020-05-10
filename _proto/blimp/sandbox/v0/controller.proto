@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package blimp.sandbox.v0;
 
+import "blimp/errors/v0/errors.proto";
+
 option go_package = "github.com/kelda-inc/blimp/pkg/proto/sandbox";
 
 service Controller {
@@ -22,9 +24,10 @@ message EOF {}
 // direction may send an EOF to indicate they have no more to send.
 message TunnelMsg {
   oneof msg {
-    TunnelHeader header = 1;
-    bytes buf = 2;
-    EOF eof = 3;
+    blimp.errors.v0.Error error = 1;
+    TunnelHeader header = 2;
+    bytes buf = 3;
+    EOF eof = 4;
   }
 }
 
@@ -32,4 +35,6 @@ message UpdateVolumeHashesRequest {
   map<string, string> hashes = 1;
 }
 
-message UpdateVolumeHashesResponse {}
+message UpdateVolumeHashesResponse {
+  blimp.errors.v0.Error error = 2;
+}

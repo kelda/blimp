@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -9,6 +8,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/syncthing"
 )
 
@@ -43,12 +43,12 @@ func main() {
 func clearDir(dir string) error {
 	paths, err := ioutil.ReadDir(dir)
 	if err != nil {
-		return fmt.Errorf("read dir: %w", err)
+		return errors.WithContext("read dir", err)
 	}
 
 	for _, path := range paths {
 		if err := os.RemoveAll(filepath.Join(dir, path.Name())); err != nil {
-			return fmt.Errorf("remove: %w", err)
+			return errors.WithContext("remove", err)
 		}
 	}
 	return nil

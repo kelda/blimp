@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package blimp.login.v0;
 
+import "blimp/errors/v0/errors.proto";
+
 option go_package = "github.com/kelda-inc/blimp/pkg/proto/login";
 
 service Login {
@@ -12,9 +14,11 @@ message LoginRequest {
 }
 
 message LoginResponse {
+    blimp.errors.v0.Error error = 1;
+
     oneof msg {
-        LoginInstructions instructions = 1;
-        LoginResult result = 2;
+        LoginInstructions instructions = 2;
+        LoginResult result = 3;
     }
 }
 

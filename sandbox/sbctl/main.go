@@ -21,6 +21,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/kelda-inc/blimp/pkg/analytics"
+	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
 	"github.com/kelda-inc/blimp/pkg/tunnel"
 	"github.com/kelda-inc/blimp/sandbox/sbctl/dns"
@@ -106,11 +107,11 @@ func (s *server) listenAndServe(address string) error {
 
 	creds, err := credentials.NewServerTLSFromFile(CertPath, KeyPath)
 	if err != nil {
-		return fmt.Errorf("parse cert: %w", err)
+		return errors.WithContext("parse cert", err)
 	}
 
 	log.WithField("address", address).Info("Listening for connections..")
-	grpcServer := grpc.NewServer(grpc.Creds(creds))
+	grpcServer := grpc.NewServer(grpc.Creds(creds), grpc.UnaryInterceptor(errors.UnaryServerInterceptor))
 	sandbox.RegisterControllerServer(grpcServer, s)
 	return grpcServer.Serve(lis)
 }
@@ -147,12 +148,12 @@ func (s *server) UpdateVolumeHashes(_ context.Context, req *sandbox.UpdateVolume
 func clearDir(dir string) error {
 	paths, err := ioutil.ReadDir(dir)
 	if err != nil {
-		return fmt.Errorf("read dir: %w", err)
+		return errors.WithContext("read dir", err)
 	}
 
 	for _, path := range paths {
 		if err := os.RemoveAll(filepath.Join(dir, path.Name())); err != nil {
-			return fmt.Errorf("remove: %w", err)
+			return errors.WithContext("remove", err)
 		}
 	}
 	return nil

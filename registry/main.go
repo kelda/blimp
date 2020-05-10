@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -13,6 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/kelda-inc/blimp/pkg/auth"
+	"github.com/kelda-inc/blimp/pkg/errors"
 )
 
 func init() {
@@ -64,7 +64,7 @@ func authenticate(input string) error {
 
 	user, err := auth.ParseIDToken(credentials[1])
 	if err != nil {
-		return fmt.Errorf("parse id token: %w", err)
+		return errors.WithContext("parse id token", err)
 	}
 
 	fmt.Printf(`{"labels": {"namespace": ["%s"]}}`, user.Namespace)
@@ -77,7 +77,7 @@ func authorize(input string) error {
 	var authReqInfo api.AuthRequestInfo
 	err := json.Unmarshal([]byte(input), &authReqInfo)
 	if err != nil {
-		return fmt.Errorf("parse input: %w", err)
+		return errors.WithContext("parse input", err)
 	}
 
 	if len(authReqInfo.Labels["namespace"]) != 1 {

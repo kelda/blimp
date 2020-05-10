@@ -13,6 +13,7 @@ import (
 	"github.com/ghodss/yaml"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/hash"
 )
 
@@ -21,12 +22,12 @@ func Load(composePath string, overridePaths []string) (types.Config, error) {
 	for _, path := range append([]string{composePath}, overridePaths...) {
 		b, err := ioutil.ReadFile(path)
 		if err != nil {
-			return types.Config{}, fmt.Errorf("read compose file: %w", err)
+			return types.Config{}, errors.WithContext("read compose file", err)
 		}
 
 		configIntf, err := loader.ParseYAML(b)
 		if err != nil {
-			return types.Config{}, fmt.Errorf("parse: %w", err)
+			return types.Config{}, errors.WithContext("parse", err)
 		}
 
 		configFiles = append(configFiles, types.ConfigFile{
@@ -40,7 +41,7 @@ func Load(composePath string, overridePaths []string) (types.Config, error) {
 	if _, err := os.Stat(dotenvPath); err == nil {
 		dotenv, err := parseEnvFile(dotenvPath)
 		if err != nil {
-			return types.Config{}, fmt.Errorf("parse .env file: %w", err)
+			return types.Config{}, errors.WithContext("parse .env file", err)
 		}
 
 		env = dotenv
@@ -78,11 +79,11 @@ func Load(composePath string, overridePaths []string) (types.Config, error) {
 			for property, tip := range forbiddenPropertiesErr.Properties {
 				tips = append(tips, fmt.Sprintf("%s: %s", property, tip))
 			}
-			return types.Config{}, fmt.Errorf("Compose File uses forbidden properties. "+
+			return types.Config{}, errors.NewFriendlyError("Compose File uses forbidden properties. "+
 				"Please upgrade to Compose Spec version 3 (http://link.kelda.io/upgrade-compose).\n\n%s",
 				strings.Join(tips, "\n"))
 		}
-		return types.Config{}, fmt.Errorf("load: %w", err)
+		return types.Config{}, errors.WithContext("load", err)
 	}
 
 	for svcIdx, svc := range cfgPtr.Services {
@@ -149,7 +150,7 @@ func parseEnvFile(path string) (map[string]string, error) {
 func Unmarshal(b []byte) (parsed types.Config, err error) {
 	configIntf, err := loader.ParseYAML(b)
 	if err != nil {
-		return types.Config{}, fmt.Errorf("parse: %w", err)
+		return types.Config{}, errors.WithContext("parse", err)
 	}
 
 	cfgPtr, err := loader.Load(types.ConfigDetails{
@@ -160,7 +161,7 @@ func Unmarshal(b []byte) (parsed types.Config, err error) {
 		},
 	}, withSkipValidation, withSkipInterpolation)
 	if err != nil {
-		return types.Config{}, fmt.Errorf("load: %w", err)
+		return types.Config{}, errors.WithContext("load", err)
 	}
 
 	return *cfgPtr, nil

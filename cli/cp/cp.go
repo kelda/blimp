@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/kelda-inc/blimp/cli/authstore"
 	"github.com/kelda-inc/blimp/cli/cp/kubectlcp"
+	"github.com/kelda-inc/blimp/pkg/errors"
 )
 
 func New() *cobra.Command {
@@ -30,7 +30,7 @@ To copy TO a container:
 			}
 
 			if err := run(args[0], args[1]); err != nil {
-				log.Fatal(err)
+				errors.HandleFatalError(err)
 			}
 		},
 	}
@@ -39,7 +39,7 @@ To copy TO a container:
 func run(src, dst string) error {
 	auth, err := authstore.New()
 	if err != nil {
-		return fmt.Errorf("parse auth config: %w", err)
+		return errors.WithContext("parse auth config", err)
 	}
 
 	if auth.AuthToken == "" {
@@ -49,7 +49,7 @@ func run(src, dst string) error {
 
 	kubeClient, restConfig, err := auth.KubeClient()
 	if err != nil {
-		return fmt.Errorf("get kube client: %w", err)
+		return errors.WithContext("get kube client", err)
 	}
 
 	// Required by `kubectlcp` to access the Kubernetes API.

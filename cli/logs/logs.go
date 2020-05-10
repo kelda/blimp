@@ -3,7 +3,6 @@ package logs
 import (
 	"bufio"
 	"context"
-	"errors"
 	"fmt"
 	"hash/fnv"
 	"io"
@@ -22,6 +21,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/kelda-inc/blimp/cli/authstore"
+	"github.com/kelda-inc/blimp/pkg/errors"
 )
 
 type LogsCommand struct {
@@ -84,7 +84,7 @@ func New() *cobra.Command {
 			cmd.Auth = auth
 			cmd.Containers = args
 			if err := cmd.Run(); err != nil {
-				log.Fatal(err)
+				errors.HandleFatalError(err)
 			}
 		},
 	}
@@ -100,7 +100,7 @@ func New() *cobra.Command {
 func (cmd LogsCommand) Run() error {
 	kubeClient, _, err := cmd.Auth.KubeClient()
 	if err != nil {
-		return fmt.Errorf("connect to cluster: %w", err)
+		return errors.WithContext("connect to cluster", err)
 	}
 
 	// Exit gracefully when the user Ctrl-C's.
@@ -125,7 +125,7 @@ func (cmd LogsCommand) Run() error {
 
 		logsStream, err := logsReq.Stream()
 		if err != nil {
-			return fmt.Errorf("start logs stream: %w", err)
+			return errors.WithContext("start logs stream", err)
 		}
 		defer logsStream.Close()
 
@@ -236,7 +236,7 @@ func printLogs(ctx context.Context, rawLogs <-chan rawLogLine, noColor bool) err
 			}
 
 			if logLine.readError != nil {
-				return fmt.Errorf("read logs for %s: %w", logLine.fromContainer, logLine.readError)
+				return errors.WithContext(fmt.Sprintf("read logs for %s", logLine.fromContainer), logLine.readError)
 			}
 
 			// Wake up later to flush the buffered lines.

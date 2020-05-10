@@ -2,13 +2,13 @@ package auth
 
 import (
 	"context"
-
 	"encoding/base64"
-	"fmt"
 
 	"github.com/coreos/go-oidc"
-	"github.com/kelda-inc/blimp/pkg/hash"
 	"golang.org/x/oauth2"
+
+	"github.com/kelda-inc/blimp/pkg/errors"
+	"github.com/kelda-inc/blimp/pkg/hash"
 )
 
 type User struct {
@@ -48,12 +48,12 @@ var verifier = oidc.NewVerifier(
 func ParseIDToken(token string) (User, error) {
 	idToken, err := verifier.Verify(context.Background(), token)
 	if err != nil {
-		return User{}, fmt.Errorf("verify: %w", err)
+		return User{}, errors.WithContext("verify", err)
 	}
 
 	var user User
 	if err := idToken.Claims(&user); err != nil {
-		return User{}, fmt.Errorf("parse claims: %w", err)
+		return User{}, errors.WithContext("parse claims", err)
 	}
 
 	user.Namespace = hash.DnsCompliant(user.ID)

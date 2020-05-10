@@ -1,14 +1,15 @@
 package authstore
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 
 	"github.com/ghodss/yaml"
-	"github.com/kelda-inc/blimp/pkg/cfgdir"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
+	"github.com/kelda-inc/blimp/pkg/cfgdir"
+	"github.com/kelda-inc/blimp/pkg/errors"
 )
 
 type Store struct {
@@ -40,11 +41,11 @@ func (store Store) Save() error {
 	configPath := getStorePath()
 	configBytes, err := yaml.Marshal(store)
 	if err != nil {
-		return fmt.Errorf("marshal yaml: %w", err)
+		return errors.WithContext("marshal yaml", err)
 	}
 
 	if err := ioutil.WriteFile(configPath, configBytes, 0600); err != nil {
-		return fmt.Errorf("write: %w", err)
+		return errors.WithContext("write", err)
 	}
 	return nil
 }
@@ -56,11 +57,11 @@ func New() (store Store, err error) {
 		if os.IsNotExist(err) {
 			return Store{}, nil
 		}
-		return store, fmt.Errorf("read: %w", err)
+		return store, errors.WithContext("read", err)
 	}
 
 	if err := yaml.Unmarshal(configBytes, &store); err != nil {
-		return store, fmt.Errorf("parse yaml: %w", err)
+		return store, errors.WithContext("parse yaml", err)
 	}
 	return store, nil
 }

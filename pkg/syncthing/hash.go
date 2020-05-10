@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+
+	"github.com/kelda-inc/blimp/pkg/errors"
 )
 
 func HashVolume(volumePath string, isIgnored func(string) bool) (string, error) {
@@ -35,7 +37,7 @@ func HashVolume(volumePath string, isIgnored func(string) bool) (string, error) 
 		case fi.Mode()&os.ModeSymlink != 0:
 			hash, err = os.Readlink(path)
 			if err != nil {
-				return fmt.Errorf("get symlink target for %s: %w", path, err)
+				return errors.WithContext(fmt.Sprintf("get symlink target for %s", path), err)
 			}
 		default:
 			hash, err = hashFile(path)
@@ -63,13 +65,13 @@ func HashVolume(volumePath string, isIgnored func(string) bool) (string, error) 
 func hashFile(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return "", fmt.Errorf("open: %w", err)
+		return "", errors.WithContext("open", err)
 	}
 	defer f.Close()
 
 	hasher := sha512.New()
 	if _, err := io.Copy(hasher, f); err != nil {
-		return "", fmt.Errorf("read: %w", err)
+		return "", errors.WithContext("read", err)
 	}
 
 	return base64.StdEncoding.EncodeToString(hasher.Sum(nil)), nil

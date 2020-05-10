@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding/gzip"
 
+	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
 )
 
@@ -44,6 +45,7 @@ func runOnce(sandboxManagerHost string, waitSpec sandbox.WaitSpec) error {
 	// Connect to the sandbox manager.
 	conn, err := grpc.Dial(sandboxManagerHost+":9002",
 		grpc.WithInsecure(),
+		grpc.WithUnaryInterceptor(errors.UnaryClientInterceptor),
 		grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
 	if err != nil {
 		return err

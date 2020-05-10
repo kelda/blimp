@@ -3,7 +3,6 @@ package login
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/kelda-inc/blimp/cli/authstore"
 	"github.com/kelda-inc/blimp/pkg/auth"
+	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/proto/login"
 )
 
@@ -50,7 +50,9 @@ func getAuthToken() (string, error) {
 	// Use the system's default certificate pool.
 	tlsConfig := &tls.Config{}
 	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", auth.LoginProxyHost, auth.LoginProxyGRPCPort),
-		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithUnaryInterceptor(errors.UnaryClientInterceptor),
+	)
 	if err != nil {
 		return "", err
 	}
@@ -66,7 +68,7 @@ func getAuthToken() (string, error) {
 	// Open the login URL as instructed by the login proxy.
 	loginURL, err := getLoginURL(stream)
 	if err != nil {
-		return "", fmt.Errorf("read instructions: %w", err)
+		return "", errors.WithContext("read instructions", err)
 	}
 
 	fmt.Printf("Your browser has been opened to visit:\n\n%s\n\n", loginURL)
@@ -83,7 +85,7 @@ func getAuthToken() (string, error) {
 func getLoginURL(stream login.Login_LoginClient) (string, error) {
 	msg, err := stream.Recv()
 	if err != nil {
-		return "", fmt.Errorf("receive: %w", err)
+		return "", errors.WithContext("receive", err)
 	}
 
 	if msg.Msg == nil {
@@ -102,7 +104,7 @@ func getLoginURL(stream login.Login_LoginClient) (string, error) {
 func getLoginResult(stream login.Login_LoginClient) (string, error) {
 	msg, err := stream.Recv()
 	if err != nil {
-		return "", fmt.Errorf("receive: %w", err)
+		return "", errors.WithContext("receive", err)
 	}
 
 	if msg.Msg == nil {
@@ -130,7 +132,7 @@ func openBrowser(url string) (err error) {
 	case "darwin":
 		err = exec.Command("open", url).Start()
 	default:
-		err = fmt.Errorf("unsupported platform")
+		err = errors.New("unsupported platform")
 	}
 	return err
 }

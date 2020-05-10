@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/buger/goterm"
 	composeTypes "github.com/compose-spec/compose-go/types"
 	"github.com/docker/cli/cli/config"
 	clitypes "github.com/docker/cli/cli/config/types"
@@ -28,6 +27,7 @@ import (
 	"github.com/kelda-inc/blimp/cli/manager"
 	"github.com/kelda-inc/blimp/cli/util"
 	"github.com/kelda-inc/blimp/pkg/dockercompose"
+	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
 	"github.com/kelda-inc/blimp/pkg/syncthing"
@@ -81,7 +81,7 @@ func New() *cobra.Command {
 			cmd.composePath = composePath
 			cmd.overridePaths = overridePaths
 			if err := cmd.run(); err != nil {
-				log.Fatal(err)
+				errors.HandleFatalError(err)
 			}
 		},
 	}
@@ -110,7 +110,7 @@ func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) err
 
 	registryCredentials, err := getLocalRegistryCredentials()
 	if err != nil {
-		return fmt.Errorf("get local registry credentials: %w", err)
+		return errors.WithContext("get local registry credentials", err)
 	}
 
 	resp, err := manager.C.CreateSandbox(context.TODO(),
@@ -155,7 +155,7 @@ func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) err
 func (cmd *up) run() error {
 	parsedCompose, err := dockercompose.Load(cmd.composePath, cmd.overridePaths)
 	if err != nil {
-		return err
+		return errors.WithContext("load compose file", err)
 	}
 
 	parsedComposeBytes, err := dockercompose.Marshal(parsedCompose)
@@ -239,29 +239,25 @@ func startTunnel(scc sandbox.ControllerClient, token, name string,
 	addr := fmt.Sprintf("127.0.0.1:%d", hostPort)
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		var tip string
 		switch {
 		case strings.Contains(err.Error(), "permission denied"):
-			tip = fmt.Sprintf("Make sure that the local port for the service %q is above 1024", name)
+			err = errors.NewFriendlyError("Permission denied while listening for connections\n"+
+				"Make sure that the local port for the service %q is above 1024.\n\n"+
+				"The full error was:\n%s", name, err)
 		case strings.Contains(err.Error(), "address already in use"):
-			tip = fmt.Sprintf("Make sure that the there aren't any other "+
+			err = errors.NewFriendlyError("Another process is already listening on the same port\n"+
+				"Make sure that the there aren't any other "+
 				"services listening locally on port %d. This can be checked with the following command:\n"+
-				"lsof -i -P -n | grep %d", hostPort, hostPort)
+				"lsof -i -P -n | grep %d\n\n"+
+				"The full error was:\n%s", hostPort, hostPort, err)
 		}
 
 		// TODO.  It's appropriate that this error is fatal, but we need
 		// a better way of handling it.  Log messages are ugly, and we
 		// need to do some cleanup.
-		fmt.Println()
-		fmt.Println(goterm.Color("FATAL: Failed to start tunnels", goterm.RED))
-		if tip != "" {
-			fmt.Println(tip)
-		}
-		fmt.Println()
-		fmt.Printf(`[Extra debugging info follows: {"error": "%s", "address": "%s"}]`, err, addr)
-		fmt.Println()
-		os.Exit(1)
-		return
+		log.WithError(err).
+			WithField("address", addr).
+			Fatal("Failed to started tunnels")
 	}
 
 	err = tunnel.Client(scc, ln, token, name, containerPort)
@@ -368,16 +364,16 @@ func makeTar(dir string) (io.Reader, error) {
 
 		relPath, err := filepath.Rel(dir, path)
 		if err != nil {
-			return fmt.Errorf("get normalized path %q: %w", path, err)
+			return errors.WithContext(fmt.Sprintf("get normalized path %q", path), err)
 		}
 
 		header, err := getHeader(fi, relPath)
 		if err != nil {
-			return fmt.Errorf("get header: %s", err)
+			return errors.WithContext("get header", err)
 		}
 
 		if err := tw.WriteHeader(header); err != nil {
-			return fmt.Errorf("write header %q: %w", header.Name, err)
+			return errors.WithContext(fmt.Sprintf("write header %q", header.Name), err)
 		}
 
 		fileMode := fi.Mode()
@@ -387,12 +383,12 @@ func makeTar(dir string) (io.Reader, error) {
 
 		f, err := os.Open(path)
 		if err != nil {
-			return fmt.Errorf("open file %q: %w", header.Name, err)
+			return errors.WithContext(fmt.Sprintf("open file %q", header.Name), err)
 		}
 		defer f.Close()
 
 		if _, err := io.Copy(tw, f); err != nil {
-			return fmt.Errorf("write file %q: %w", header.Name, err)
+			return errors.WithContext(fmt.Sprintf("write file %q", header.Name), err)
 		}
 		return nil
 	})

@@ -3,7 +3,6 @@ package up
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/terminal"
 
+	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/hash"
 )
 
@@ -33,12 +33,12 @@ func (cmd *up) buildImages(composeFile composeTypes.Config) (map[string]string, 
 
 		imageID, err := cmd.buildImage(*svc.Build, svc.Name)
 		if err != nil {
-			return nil, fmt.Errorf("build %s: %w", svc.Name, err)
+			return nil, errors.WithContext(fmt.Sprintf("build %s", svc.Name), err)
 		}
 
 		imageName, err := cmd.pushImage(svc.Name, imageID)
 		if err != nil {
-			return nil, fmt.Errorf("push %s: %w", svc.Name, err)
+			return nil, errors.WithContext(fmt.Sprintf("push %s", svc.Name), err)
 		}
 
 		images[svc.Name] = imageName
@@ -69,12 +69,12 @@ func (cmd *up) buildImage(spec composeTypes.BuildConfig, svc string) (string, er
 
 	buildContextTar, err := makeTar(spec.Context)
 	if err != nil {
-		return "", fmt.Errorf("tar context: %w", err)
+		return "", errors.WithContext("tar context", err)
 	}
 
 	buildResp, err := cmd.dockerClient.ImageBuild(context.TODO(), buildContextTar, opts)
 	if err != nil {
-		return "", fmt.Errorf("start build: %w", err)
+		return "", errors.WithContext("start build", err)
 	}
 	defer buildResp.Body.Close()
 
@@ -96,7 +96,7 @@ func (cmd *up) buildImage(spec composeTypes.BuildConfig, svc string) (string, er
 	isTerminal := terminal.IsTerminal(int(os.Stderr.Fd()))
 	err = jsonmessage.DisplayJSONMessagesStream(buildResp.Body, os.Stderr, os.Stderr.Fd(), isTerminal, callback)
 	if err != nil {
-		return "", fmt.Errorf("build image: %w", err)
+		return "", errors.WithContext("build image", err)
 	}
 
 	return imageID, nil
@@ -105,28 +105,28 @@ func (cmd *up) buildImage(spec composeTypes.BuildConfig, svc string) (string, er
 func (cmd *up) pushImage(svc, imageID string) (string, error) {
 	name := fmt.Sprintf("%s/%s:%s", cmd.imageNamespace, svc, strings.TrimPrefix(imageID, "sha256:"))
 	if err := cmd.dockerClient.ImageTag(context.TODO(), imageID, name); err != nil {
-		return "", fmt.Errorf("tag image: %w", err)
+		return "", errors.WithContext("tag image", err)
 	}
 
 	fmt.Printf("Pushing image for %s:\n", svc)
 
 	registryAuth, err := makeRegistryAuthHeader(cmd.auth.AuthToken)
 	if err != nil {
-		return "", fmt.Errorf("make registry auth header: %w", err)
+		return "", errors.WithContext("make registry auth header", err)
 	}
 
 	pushResp, err := cmd.dockerClient.ImagePush(context.TODO(), name, types.ImagePushOptions{
 		RegistryAuth: registryAuth,
 	})
 	if err != nil {
-		return "", fmt.Errorf("start image push: %w", err)
+		return "", errors.WithContext("start image push", err)
 	}
 	defer pushResp.Close()
 
 	isTerminal := terminal.IsTerminal(int(os.Stderr.Fd()))
 	err = jsonmessage.DisplayJSONMessagesStream(pushResp, os.Stderr, os.Stderr.Fd(), isTerminal, nil)
 	if err != nil {
-		return "", fmt.Errorf("push image: %w", err)
+		return "", errors.WithContext("push image", err)
 	}
 	return name, nil
 }

@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/metadata"
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
 	"github.com/kelda-inc/blimp/pkg/version"
@@ -273,7 +274,7 @@ func (b *podBuilder) sanitize() {
 func (b *podBuilder) addWaiter(svcName, waitType string, spec sandbox.WaitSpec) error {
 	waitSpecBytes, err := proto.Marshal(&spec)
 	if err != nil {
-		return fmt.Errorf("marshal wait spec: %w", err)
+		return errors.WithContext("marshal wait spec", err)
 	}
 
 	configMap := corev1.ConfigMap{

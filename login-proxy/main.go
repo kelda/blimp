@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -11,6 +10,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/kelda-inc/blimp/pkg/auth"
+	"github.com/kelda-inc/blimp/pkg/errors"
 )
 
 const (
@@ -64,7 +64,7 @@ func main() {
 func getTokenForCode(oauthConf *oauth2.Config, r *http.Request) (string, error) {
 	err := r.ParseForm()
 	if err != nil {
-		return "", fmt.Errorf("parse form: %w", err)
+		return "", errors.WithContext("parse form", err)
 	}
 
 	code := r.FormValue("code")
@@ -75,7 +75,7 @@ func getTokenForCode(oauthConf *oauth2.Config, r *http.Request) (string, error) 
 	log.WithField("code", code).Info("Exchanging oauth code for token")
 	tok, err := oauthConf.Exchange(context.Background(), code)
 	if err != nil {
-		return "", fmt.Errorf("exchange auth code: %w", err)
+		return "", errors.WithContext("exchange auth code", err)
 	}
 
 	idToken, ok := tok.Extra("id_token").(string)

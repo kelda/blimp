@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package blimp.sandbox.v0;
 
+import "blimp/errors/v0/errors.proto";
+
 option go_package = "github.com/kelda-inc/blimp/pkg/proto/sandbox";
 
 service BootWaiter {
@@ -18,9 +20,11 @@ message WaitSpec {
 }
 
 message CheckReadyResponse {
-    bool ready = 1;
+    blimp.errors.v0.Error error = 1;
+
+    bool ready = 2;
 
     // An optional message providing more information on why the container
     // needs to wait.
-    string reason = 2;
+    string reason = 3;
 }
