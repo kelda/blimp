@@ -112,14 +112,31 @@ func configureLogrus() {
 		log.SetLevel(log.DebugLevel)
 	}
 
-	log.SetFormatter(formatter{&log.TextFormatter{}})
+	mirrorFile, err := os.OpenFile(cfgdir.CLILogFile(), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		log.WithError(err).Warn("Failed to open CLI log file")
+		mirrorFile = nil
+	}
+
+	log.SetFormatter(formatter{
+		delegated:  &log.TextFormatter{},
+		mirrorFile: mirrorFile,
+	})
 }
 
 type formatter struct {
-	delegated log.Formatter
+	delegated  log.Formatter
+	mirrorFile *os.File
 }
 
 func (f formatter) Format(e *log.Entry) ([]byte, error) {
+	// Try to write the log entry to disk as well.
+	if f.mirrorFile != nil {
+		if l, err := f.delegated.Format(e); err == nil {
+			f.mirrorFile.Write(l)
+		}
+	}
+
 	if e.Level != log.FatalLevel {
 		return f.delegated.Format(e)
 	}

@@ -28,3 +28,7 @@ func Create() error {
 func Expand(filename string) string {
 	return dir + "/" + filename
 }
+
+func CLILogFile() string {
+	return Expand("blimp-cli.log")
+}
