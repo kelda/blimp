@@ -52,9 +52,18 @@ func (b *podBuilder) ToPod(svc composeTypes.ServiceConfig) (corev1.Pod, []corev1
 		}
 	}
 
-	b.addVolumeSeeder(nativeVolumes)
-	b.addWaiter(svc.Name, ContainerNameWaitDependsOn, sandbox.WaitSpec{DependsOn: svc.DependsOn})
-	b.addWaiter(svc.Name, ContainerNameWaitInitialSync, sandbox.WaitSpec{BindVolumes: bindVolumes})
+	if len(nativeVolumes) != 0 {
+		b.addVolumeSeeder(nativeVolumes)
+	}
+
+	if len(svc.DependsOn) != 0 {
+		b.addWaiter(svc.Name, ContainerNameWaitDependsOn, sandbox.WaitSpec{DependsOn: svc.DependsOn})
+	}
+
+	if len(bindVolumes) != 0 {
+		b.addWaiter(svc.Name, ContainerNameWaitInitialSync, sandbox.WaitSpec{BindVolumes: bindVolumes})
+	}
+
 	b.addRuntimeContainer(svc)
 	b.sanitize()
 	return b.pod, b.configMaps
