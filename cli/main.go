@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/kelda-inc/blimp/cli/authstore"
+	"github.com/kelda-inc/blimp/cli/bugtool"
 	"github.com/kelda-inc/blimp/cli/cp"
 	"github.com/kelda-inc/blimp/cli/down"
 	"github.com/kelda-inc/blimp/cli/exec"
@@ -54,14 +55,15 @@ func main() {
 		SilenceErrors: true,
 	}
 	rootCmd.AddCommand(
+		bugtool.New(),
+		cp.New(),
 		down.New(),
+		exec.New(),
 		login.New(),
 		logs.New(),
 		ps.New(),
 		ssh.New(),
 		up.New(),
-		cp.New(),
-		exec.New(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {
