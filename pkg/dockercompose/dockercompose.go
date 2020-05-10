@@ -2,32 +2,42 @@ package dockercompose
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 
+	"github.com/buger/goterm"
 	"github.com/compose-spec/compose-go/envfile"
 	"github.com/compose-spec/compose-go/loader"
 	"github.com/compose-spec/compose-go/types"
 	"github.com/ghodss/yaml"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/afero"
 
 	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/hash"
 )
 
+var fs = afero.NewOsFs()
+
 func Load(composePath string, overridePaths []string) (types.Config, error) {
 	var configFiles []types.ConfigFile
 	for _, path := range append([]string{composePath}, overridePaths...) {
-		b, err := ioutil.ReadFile(path)
+		b, err := afero.ReadFile(fs, path)
 		if err != nil {
 			return types.Config{}, errors.WithContext("read compose file", err)
 		}
 
 		configIntf, err := loader.ParseYAML(b)
 		if err != nil {
-			return types.Config{}, errors.WithContext("parse", err)
+			msg := fmt.Sprintf("Failed to parse Compose file (%s)\n"+
+				"Error: %s", path, err)
+			if context, ok := getErrorContext(b, err.Error()); ok {
+				msg += "\n\n" + context
+			}
+			return types.Config{}, errors.NewFriendlyError(msg)
 		}
 
 		configFiles = append(configFiles, types.ConfigFile{
@@ -177,4 +187,45 @@ func withSkipValidation(opts *loader.Options) {
 
 func withSkipInterpolation(opts *loader.Options) {
 	opts.SkipInterpolation = true
+}
+
+func getErrorContext(file []byte, errMsg string) (string, bool) {
+	matches := regexp.MustCompile(`yaml: line ?(\d+):`).FindSubmatch([]byte(errMsg))
+	if len(matches) != 2 {
+		return "", false
+	}
+
+	errorLine, err := strconv.Atoi(string(matches[1]))
+	if err != nil {
+		return "", false
+	}
+
+	lines := strings.Split(string(file), "\n")
+	inRange := func(line int) bool {
+		return line <= len(lines)
+	}
+
+	startLine := errorLine - 1
+	if !inRange(startLine) {
+		return "", false
+	}
+
+	endLine := errorLine + 1
+	if !inRange(endLine) {
+		endLine = errorLine
+		if !inRange(endLine) {
+			return "", false
+		}
+	}
+
+	var printLines []string
+	for i := startLine; i <= endLine; i++ {
+		// The line numbers are one-indexed, while `lines` is zero-indexed.
+		line := fmt.Sprintf("%d | %s", i, lines[i-1])
+		if i == errorLine {
+			line = goterm.Color(line, goterm.YELLOW)
+		}
+		printLines = append(printLines, line)
+	}
+	return strings.Join(printLines, "\n"), true
 }

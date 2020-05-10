@@ -41,6 +41,7 @@ require (
 	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
 	github.com/sirupsen/logrus v1.4.2
+	github.com/spf13/afero v1.2.2
 	github.com/spf13/cobra v0.0.6
 	github.com/stretchr/testify v1.4.0
 	github.com/syncthing/syncthing v1.4.2
