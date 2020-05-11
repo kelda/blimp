@@ -1,5 +1,6 @@
 DOCKER_REPO = ${BLIMP_DOCKER_REPO}
 REGISTRY_HOSTNAME ?= blimp-registry.kelda.io
+LOGIN_PROXY_HOSTNAME ?= blimp-login.kelda.io
 REGISTRY_IP ?= 8.8.8.8
 REGISTRY_SIZE ?= "5Gi"
 #VERSION?=$(shell ./scripts/dev_version.sh)
@@ -11,6 +12,7 @@ LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
 	   -X github.com/kelda-inc/blimp/pkg/version.InitImage=${INIT_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/version.SyncthingImage=${SYNCTHING_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/auth.ClusterManagerCertBase64=$(shell base64 ${MANAGER_CERT_PATH} | tr -d "\n") \
+	   -X github.com/kelda-inc/blimp/pkg/auth.LoginProxyHost=${LOGIN_PROXY_HOSTNAME} \
 	   -X main.RegistryHostname=${REGISTRY_HOSTNAME}"
 
 # Include override variables. The production Makefile takes precendence if it exists.

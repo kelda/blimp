@@ -21,9 +21,11 @@ const (
 	AuthHost           = "https://blimp-testing.auth0.com"
 	AuthURL            = AuthHost + "/authorize"
 	TokenURL           = AuthHost + "/oauth/token"
-	LoginProxyHost     = "blimp-login.kelda.io"
 	LoginProxyGRPCPort = 444
 )
+
+// Set by make.
+var LoginProxyHost string
 
 var (
 	// The base64 encoded certificate for the cluster manager. This is set at build time.
