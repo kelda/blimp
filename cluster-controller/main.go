@@ -641,7 +641,9 @@ func newSelfSignedCert(ip string) (pemCert, pemKey []byte, err error) {
 		Subject: pkix.Name{
 			Organization: []string{"Kelda Blimp Sandbox Controller"},
 		},
-		NotBefore:             time.Now(),
+		// Set the NotBefore date to a bit earlier to allow for clients who
+		// have slow clocks.
+		NotBefore:             time.Now().Add(-1 * 24 * time.Hour),
 		NotAfter:              time.Now().Add(365 * time.Hour * 24),
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
