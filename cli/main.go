@@ -132,9 +132,14 @@ type formatter struct {
 func (f formatter) Format(e *log.Entry) ([]byte, error) {
 	// Try to write the log entry to disk as well.
 	if f.mirrorFile != nil {
+		// Disable the entry's buffer so that we don't double print to the
+		// user's terminal.
+		eBuffer := e.Buffer
+		e.Buffer = nil
 		if l, err := f.delegated.Format(e); err == nil {
 			f.mirrorFile.Write(l)
 		}
+		e.Buffer = eBuffer
 	}
 
 	if e.Level != log.FatalLevel {
