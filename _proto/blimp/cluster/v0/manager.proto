@@ -35,10 +35,10 @@ message CheckVersionRequest {
 }
 
 message CheckVersionResponse {
-  blimp.errors.v0.Error error = 1;
-  string version = 2;
-  string display_message = 3;
-  CLIAction action = 4;
+  string version = 1;
+  string display_message = 2;
+  CLIAction action = 3;
+  blimp.errors.v0.Error error = 4;
 }
 
 message CreateSandboxRequest {
