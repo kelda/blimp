@@ -335,23 +335,17 @@ func getComposePaths(composePaths []string) (string, []string, error) {
 	return absPaths[0], absPaths[1:], nil
 }
 
-func getHeader(fi os.FileInfo, relFilePath string) (*tar.Header, error) {
+func getHeader(fi os.FileInfo, path string) (*tar.Header, error) {
 	var link string
 	if fi.Mode()&os.ModeSymlink != 0 {
 		var err error
-		link, err = os.Readlink(relFilePath)
+		link, err = os.Readlink(path)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	hdr, err := tar.FileInfoHeader(fi, link)
-	if err != nil {
-		return nil, err
-	}
-
-	hdr.Name = relFilePath
-	return hdr, nil
+	return tar.FileInfoHeader(fi, link)
 }
 
 func makeTar(dir string) (io.Reader, error) {
@@ -364,15 +358,18 @@ func makeTar(dir string) (io.Reader, error) {
 			return err
 		}
 
+		header, err := getHeader(fi, path)
+		if err != nil {
+			return errors.WithContext("get header", err)
+		}
+
+		// Set the file's path within the archive to be relative to the build
+		// context.
 		relPath, err := filepath.Rel(dir, path)
 		if err != nil {
 			return errors.WithContext(fmt.Sprintf("get normalized path %q", path), err)
 		}
-
-		header, err := getHeader(fi, relPath)
-		if err != nil {
-			return errors.WithContext("get header", err)
-		}
+		header.Name = relPath
 
 		if err := tw.WriteHeader(header); err != nil {
 			return errors.WithContext(fmt.Sprintf("write header %q", header.Name), err)
