@@ -293,7 +293,7 @@ func (sf *statusFetcher) getServiceStatus(pod *corev1.Pod) cluster.ServiceStatus
 			return cluster.ServiceStatus{
 				Phase:      cluster.ServicePhase_EXITED,
 				Msg:        cs.State.Terminated.Message,
-				HasStarted: cs.RestartCount > 0,
+				HasStarted: true,
 			}
 		}
 	}
