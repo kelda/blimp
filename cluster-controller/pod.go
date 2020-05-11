@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/kelda-inc/blimp/pkg/errors"
+	"github.com/kelda-inc/blimp/pkg/hash"
 	"github.com/kelda-inc/blimp/pkg/metadata"
 	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
 	"github.com/kelda-inc/blimp/pkg/version"
@@ -110,7 +111,10 @@ func (b *podBuilder) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig)
 		kubeVol := volume.GetVolume(b.namespace, v.Source)
 		b.addVolume(kubeVol)
 
-		vcpTarget := "/vcp-mount" + v.Source
+		// vcpTarget needs to account for the volume's source and target to avoid
+		// conflicts if the container mounts the same volume to two different
+		// paths.
+		vcpTarget := "/vcp-mount" + hash.DnsCompliant(v.Source+v.Target)
 		vcpMounts = append(vcpMounts, corev1.VolumeMount{
 			Name:      kubeVol.Name,
 			MountPath: vcpTarget,
