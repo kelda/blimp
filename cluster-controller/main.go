@@ -373,7 +373,14 @@ func (s *server) createNamespace(namespace string) error {
 
 	// No need to re-create the namespace if it already exists.
 	namespaceClient := s.kubeClient.CoreV1().Namespaces()
-	if _, err := namespaceClient.Get(ns.Name, metav1.GetOptions{}); err == nil {
+	if existingNs, err := namespaceClient.Get(ns.Name, metav1.GetOptions{}); err == nil {
+		if existingNs.Status.Phase == corev1.NamespaceTerminating {
+			return errors.NewFriendlyError(
+				"Aborting deployment because sandbox is terminating.\n" +
+					"This is a transient error caused by `blimp delete` not completing yet.\n" +
+					"Try again in 30 seconds.")
+		}
+
 		return nil
 	}
 
