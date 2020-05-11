@@ -26,6 +26,7 @@ import (
 	"github.com/kelda-inc/blimp/cli/logs"
 	"github.com/kelda-inc/blimp/cli/manager"
 	"github.com/kelda-inc/blimp/cli/util"
+	"github.com/kelda-inc/blimp/pkg/analytics"
 	"github.com/kelda-inc/blimp/pkg/dockercompose"
 	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
@@ -221,6 +222,7 @@ func (cmd *up) run() error {
 	services := parsedCompose.ServiceNames()
 	statusPrinter := newStatusPrinter(services)
 	statusPrinter.Run(manager.C, cmd.auth.AuthToken)
+	analytics.Log.Info("Containers booted")
 
 	// Now that the containers have finished booting, we know the initial
 	// filesync is complete, and can stop updating the file hashes.
