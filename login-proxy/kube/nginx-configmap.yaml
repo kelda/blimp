@@ -37,5 +37,9 @@ data:
       # Forward requests to the gRPC login coordinator.
       location / {
         grpc_pass grpc://localhost:8001;
+
+        # Give the user ample time (an hour) to login, and trigger the response
+        # to the client.
+        grpc_read_timeout 3600;
       }
     }
