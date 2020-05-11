@@ -173,6 +173,10 @@ func (f formatter) Format(e *log.Entry) ([]byte, error) {
 		body += dataBody
 	}
 
+	// Explicitly log the fatal error because the Logrus hook won't get
+	// triggered.
+	analytics.Log.WithField("msg", body).Error("Fatal error")
+
 	fmt.Fprintf(os.Stderr,
 		goterm.Color("FATAL ERROR: Get help at https://kelda.io/blimp/docs/help/", goterm.RED)+"\n"+
 			body)
