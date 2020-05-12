@@ -63,6 +63,9 @@ func (cmd *up) buildImage(spec composeTypes.BuildConfig, svc string) (string, er
 		Dockerfile: spec.Dockerfile,
 		Tags:       []string{cmd.getCachedImageName(svc)},
 		BuildArgs:  spec.Args,
+		Target:     spec.Target,
+		Labels:     spec.Labels,
+		CacheFrom:  spec.CacheFrom,
 	}
 	if opts.Dockerfile == "" {
 		opts.Dockerfile = "Dockerfile"
