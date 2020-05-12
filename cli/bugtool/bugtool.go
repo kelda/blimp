@@ -6,13 +6,16 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 
+	"github.com/kelda-inc/blimp/pkg/cfgdir"
 	"github.com/kelda-inc/blimp/pkg/version"
 )
 
@@ -67,22 +70,101 @@ func run(out string) error {
 
 func setupReports(dir string) {
 	//Add more bug reports here.
-	err := reportVersion(dir)
+	var err error
+	err = reportCliVersion(dir)
 	if err != nil {
 		log.Errorf("version reporting failed because: %s", err)
 	}
+
+	err = reportDocker(dir)
+	if err != nil {
+		log.Errorf("docker reporting failed because: %s", err)
+	}
+
+	err = reportOs(dir)
+	if err != nil {
+		log.Errorf("os reporting failed because: %s", err)
+	}
+
+	err = copyFileToDir(cfgdir.CLILogFile(), dir)
+	if err != nil {
+		log.Errorf("failed to report cli log file because: %s", err)
+	}
+
+	err = reportSyncthingLogs(cfgdir.ConfigDir, dir)
+	if err != nil {
+		log.Errorf("failed to report syncthing log files because: %s", err)
+	}
 }
 
-func reportVersion(dir string) error {
-	versionInfo, err := fs.Create(filepath.Join(dir, "cli-version.txt"))
-	if err != nil {
-		return fmt.Errorf("failed to create blimp cli info file: %s ", err)
-	}
-	defer versionInfo.Close()
+func reportCliVersion(dir string) error {
+	return writeToReportFile(filepath.Join(dir, "cli-version.txt"), version.Version)
+}
 
-	_, err = versionInfo.WriteString(version.Version)
+func reportDocker(dir string) error {
+	dockerInfo, err := exec.Command("docker", "info").Output()
 	if err != nil {
-		return fmt.Errorf("failed to save %s", versionInfo)
+		return fmt.Errorf("failed to get docker info: %s ", err)
+	}
+	return writeToReportFile(filepath.Join(dir, "docker-info.txt"), string(dockerInfo))
+}
+
+func reportOs(dir string) error {
+	osInfo, err := exec.Command("uname", "-a").Output()
+	if err != nil {
+		return fmt.Errorf("failed to get os info: %s ", err)
+	}
+	return writeToReportFile(filepath.Join(dir, "os-info.txt"), string(osInfo))
+}
+
+func reportSyncthingLogs(logsPath, reportPath string) error {
+	syncthingLogRegex := regexp.MustCompile(`syncthing\.*\d*\.log$`)
+	return afero.Walk(fs, logsPath, func(file string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !fi.Mode().IsRegular() {
+			return nil
+		}
+
+		if isSyncthingLog := syncthingLogRegex.MatchString(file); !isSyncthingLog {
+			return nil
+		}
+		return copyFileToDir(file, reportPath)
+	})
+}
+
+func writeToReportFile(path, content string) error {
+	reportFile, err := fs.Create(path)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %s ", err)
+	}
+	defer reportFile.Close()
+
+	_, err = reportFile.WriteString(content)
+	if err != nil {
+		return fmt.Errorf("failed to save %s", reportFile)
+	}
+	return nil
+}
+
+func copyFileToDir(src, dir string) error {
+	in, err := fs.Open(src)
+	if err != nil {
+		return fmt.Errorf("failed to open: %s", src)
+	}
+	defer in.Close()
+
+	realFileName := filepath.Base(in.Name())
+	out, err := fs.Create(filepath.Join(dir, realFileName))
+	if err != nil {
+		return fmt.Errorf("failed to create: %s", err)
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, in); err != nil {
+		return fmt.Errorf("failed to copy file %s to %s", in, out)
 	}
 	return nil
 }
