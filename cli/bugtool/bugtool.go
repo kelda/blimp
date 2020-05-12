@@ -61,9 +61,9 @@ func run(out string) error {
 	}
 
 	msg := `Created bug information archive at '%s'.
-	Please send it to the Kelda team at 'kevin@kelda.io'.
-	You may want to edit the archive if your deployment contains sensitive information.
-	`
+Please send it to the Kelda team at 'kevin@kelda.io'.
+You may want to edit the archive if your deployment contains sensitive information.
+`
 	fmt.Printf(msg, out)
 	return nil
 }
