@@ -79,6 +79,16 @@ The registry needs a DNS name, even during development. To deploy it:
 1. Running `make run-cluster-controller` will automatically cause your images
    to get pushed to the registry running in your cluster.
 
+# Running Integration Tests
+
+The `./ci` directory contains a test that the local version of `blimp`.
+
+It assumes that you've already authenticated with `blimp login`, and looks for
+the repositories to test in your `$GOPATH`. Right now, it only tests
+`github.com/kelda/node-todo`.
+
+To run the tests, run `go test -v --tags ci -timeout=0 ./ci`.
+
 # Updating Prod
 
 1. Build new versions of the CLI and Docker images.

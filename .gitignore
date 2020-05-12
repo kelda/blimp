@@ -2,3 +2,4 @@ certs/
 local.mk
 syncthing-linux
 syncthing-macos
+ci.test
