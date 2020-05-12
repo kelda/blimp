@@ -36,6 +36,7 @@ func validateServices(services types.Services) []string {
 		{ID: ".Name"},
 		{ID: ".Build.Dockerfile"},
 		{ID: ".Build.Context"},
+		{ID: ".Build.Args"},
 		{ID: ".Command"},
 		{ID: ".Entrypoint"},
 		{ID: ".DependsOn"},
