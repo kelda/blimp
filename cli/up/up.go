@@ -114,7 +114,7 @@ type up struct {
 }
 
 func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) error {
-	pp := util.NewProgressPrinter(os.Stderr, "Booting cloud sandbox")
+	pp := util.NewProgressPrinter(os.Stdout, "Booting cloud sandbox")
 	go pp.Run()
 	defer pp.Stop()
 
@@ -189,7 +189,7 @@ func (cmd *up) run() error {
 	}
 
 	// Send the boot request to the cluster manager.
-	pp := util.NewProgressPrinter(os.Stderr, "Deploying Docker Compose file to sandbox")
+	pp := util.NewProgressPrinter(os.Stdout, "Deploying Docker Compose file to sandbox")
 	go pp.Run()
 
 	_, err = manager.C.DeployToSandbox(context.Background(), &cluster.DeployRequest{
