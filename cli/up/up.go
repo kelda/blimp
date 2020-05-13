@@ -111,7 +111,8 @@ func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) err
 
 	registryCredentials, err := getLocalRegistryCredentials()
 	if err != nil {
-		return errors.WithContext("get local registry credentials", err)
+		log.WithError(err).Warn("Failed to get local registry credentials. Private images will fail to pull.")
+		registryCredentials = map[string]*cluster.RegistryCredential{}
 	}
 
 	resp, err := manager.C.CreateSandbox(context.TODO(),
