@@ -1106,7 +1106,11 @@ func toPods(
 ) {
 	for _, svc := range cfg.Services {
 		b := newPodBuilder(namespace, managerIP, builtImages)
-		p, cm := b.ToPod(svc)
+		p, cm, err := b.ToPod(svc)
+		if err != nil {
+			return nil, nil, err
+		}
+
 		pods = append(pods, p)
 		configMaps = append(configMaps, cm...)
 	}

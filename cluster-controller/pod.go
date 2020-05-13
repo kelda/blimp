@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	composeTypes "github.com/compose-spec/compose-go/types"
@@ -36,7 +37,7 @@ func newPodBuilder(namespace, managerIP string, builtImages map[string]string) *
 	}
 }
 
-func (b *podBuilder) ToPod(svc composeTypes.ServiceConfig) (corev1.Pod, []corev1.ConfigMap) {
+func (b *podBuilder) ToPod(svc composeTypes.ServiceConfig) (corev1.Pod, []corev1.ConfigMap, error) {
 	b.image = svc.Image
 	if svc.Build != nil {
 		b.image = b.builtImages[svc.Name]
@@ -66,9 +67,11 @@ func (b *podBuilder) ToPod(svc composeTypes.ServiceConfig) (corev1.Pod, []corev1
 		b.addWaiter(svc.Name, ContainerNameWaitInitialSync, sandbox.WaitSpec{BindVolumes: bindVolumes})
 	}
 
-	b.addRuntimeContainer(svc)
+	if err := b.addRuntimeContainer(svc); err != nil {
+		return corev1.Pod{}, nil, err
+	}
 	b.sanitize()
-	return b.pod, b.configMaps
+	return b.pod, b.configMaps, nil
 }
 
 func (b *podBuilder) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig) {
@@ -133,7 +136,7 @@ func (b *podBuilder) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig)
 	)
 }
 
-func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig) {
+func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig) error {
 	b.pod.Namespace = b.namespace
 	b.pod.Name = svc.Name
 	b.pod.Labels = map[string]string{
@@ -164,15 +167,49 @@ func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig) {
 		}
 	}
 
+	var securityContext *corev1.SecurityContext
+	if svc.User != "" {
+		securityContext = &corev1.SecurityContext{}
+		var ids []int
+		for _, idStr := range strings.Split(svc.User, ":") {
+			id, err := strconv.Atoi(idStr)
+			if err != nil {
+				return errors.NewFriendlyError("Invalid user field (%s) for service %s.\n"+
+					"Only numeric IDs are allowed. Please convert the user and group name to a numeric ID.",
+					svc.User, svc.Name)
+			}
+
+			ids = append(ids, id)
+		}
+
+		// The first ID is the user, and the second (optional) ID is the group.
+		switch len(ids) {
+		case 1:
+			user := int64(ids[0])
+			securityContext.RunAsUser = &user
+		case 2:
+			user := int64(ids[0])
+			group := int64(ids[1])
+			securityContext.RunAsUser = &user
+			securityContext.RunAsGroup = &group
+		default:
+			return errors.NewFriendlyError("Invalid user field (%s) for service %s.\n" +
+				"Expected at most two values.")
+		}
+	}
+
 	b.pod.Spec.Containers = []corev1.Container{
 		{
-			Name:            svc.Name,
+			Args:            svc.Command,
+			Command:         svc.Entrypoint,
+			Env:             toEnvVars(svc.Environment),
 			Image:           b.image,
 			ImagePullPolicy: "Always",
-			Command:         svc.Entrypoint,
-			Args:            svc.Command,
+			Name:            svc.Name,
+			SecurityContext: securityContext,
+			Stdin:           svc.StdinOpen,
+			TTY:             svc.Tty,
 			VolumeMounts:    volumeMounts,
-			Env:             toEnvVars(svc.Environment),
 			WorkingDir:      svc.WorkingDir,
 		},
 	}
@@ -197,6 +234,32 @@ func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig) {
 	if svc.Hostname != "" {
 		b.pod.Spec.Hostname = svc.Hostname
 	}
+
+	// Collect a map of ips to their aliases.
+	aliasMap := map[string][]string{}
+	for _, hostAlias := range svc.ExtraHosts {
+		aliasParts := strings.Split(hostAlias, ":")
+		if len(aliasParts) != 2 {
+			return errors.NewFriendlyError("Malformed extra_hosts alias: %s.\n"+
+				"Expected format hostname:ip", hostAlias)
+		}
+
+		hostname := aliasParts[0]
+		ip := aliasParts[1]
+		aliasMap[ip] = append(aliasMap[ip], hostname)
+	}
+
+	var hostAliases []corev1.HostAlias
+	for ip, hostnames := range aliasMap {
+		hostAliases = append(hostAliases, corev1.HostAlias{
+			IP:        ip,
+			Hostnames: hostnames,
+		})
+	}
+
+	// Sort for consistency.
+	sort.Slice(hostAliases, func(i, j int) bool { return hostAliases[i].IP < hostAliases[j].IP })
+	b.pod.Spec.HostAliases = hostAliases
 
 	// Set the pod's restart policy.
 	b.pod.Spec.RestartPolicy = corev1.RestartPolicyNever
@@ -226,6 +289,8 @@ func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig) {
 	// Disable the environment variables that are automatically
 	// added by Kubernetes (e.g. SANDBOX_SERVICE_PORT).
 	b.pod.Spec.EnableServiceLinks = falsePtr()
+
+	return nil
 }
 
 func toEnvVars(vars composeTypes.MappingWithEquals) (kubeVars []corev1.EnvVar) {

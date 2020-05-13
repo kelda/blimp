@@ -45,6 +45,7 @@ func validateServices(services types.Services) []string {
 		{ID: ".DependsOn"},
 		{ID: ".Environment"},
 		{ID: ".EnvFile"},
+		{ID: ".ExtraHosts"},
 		{ID: ".Hostname"},
 		{ID: ".Image"},
 		{ID: ".Networks.Aliases"},
@@ -53,14 +54,18 @@ func validateServices(services types.Services) []string {
 		{ID: ".Ports.Protocol", AllowedValues: []interface{}{"tcp"}},
 		{ID: ".Ports.Mode", AllowedValues: []interface{}{"ingress"}},
 		{ID: ".Restart"},
+		{ID: ".StdinOpen"},
+		{ID: ".TTY"},
 		{ID: ".Volumes.Type", AllowedValues: []interface{}{types.VolumeTypeBind, types.VolumeTypeVolume}},
 		{ID: ".Volumes.Source"},
 		{ID: ".Volumes.Target"},
 		{ID: ".WorkingDir"},
+		{ID: ".User"},
 
 		// Meaningless.
 		{ID: ".Labels"},
-		{ID: ".ContainerName"},
+		// Containers can access all ports on other services by default.
+		{ID: ".Expose"},
 		{ID: ".Extras"},
 	}}.GetUnsupportedFields(services))
 }
