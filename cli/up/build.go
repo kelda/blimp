@@ -62,7 +62,7 @@ func (cmd *up) buildImage(spec composeTypes.BuildConfig, svc string) (string, er
 	opts := types.ImageBuildOptions{
 		Dockerfile: spec.Dockerfile,
 		Tags:       []string{cmd.getCachedImageName(svc)},
-		BuildArgs:  spec.Args,
+		BuildArgs:  cmd.dockerConfig.ParseProxyConfig(cmd.dockerClient.DaemonHost(), spec.Args),
 		Target:     spec.Target,
 		Labels:     spec.Labels,
 		CacheFrom:  spec.CacheFrom,

@@ -15,6 +15,7 @@ import (
 
 	composeTypes "github.com/compose-spec/compose-go/types"
 	"github.com/docker/cli/cli/config"
+	"github.com/docker/cli/cli/config/configfile"
 	clitypes "github.com/docker/cli/cli/config/types"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -81,6 +82,13 @@ func New() *cobra.Command {
 
 			cmd.composePath = composePath
 			cmd.overridePaths = overridePaths
+			//import the docker config
+			cfg, err := config.Load(config.Dir())
+			if err != nil {
+				log.WithError(err).Fatal("Failed to load docker config")
+			}
+
+			cmd.dockerConfig = cfg
 			if err := cmd.run(); err != nil {
 				errors.HandleFatalError(err)
 			}
@@ -99,6 +107,7 @@ type up struct {
 	overridePaths  []string
 	alwaysBuild    bool
 	dockerClient   *client.Client
+	dockerConfig   *configfile.ConfigFile
 	imageNamespace string
 	sandboxAddr    string
 	sandboxCert    string
@@ -109,7 +118,7 @@ func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) err
 	go pp.Run()
 	defer pp.Stop()
 
-	registryCredentials, err := getLocalRegistryCredentials()
+	registryCredentials, err := getLocalRegistryCredentials(cmd.dockerConfig)
 	if err != nil {
 		log.WithError(err).Warn("Failed to get local registry credentials. Private images will fail to pull.")
 		registryCredentials = map[string]*cluster.RegistryCredential{}
@@ -409,12 +418,7 @@ func makeRegistryAuthHeader(idToken string) (string, error) {
 
 // getLocalRegistryCredentials reads the user's registry credentials from their
 // local machine.
-func getLocalRegistryCredentials() (map[string]*cluster.RegistryCredential, error) {
-	cfg, err := config.Load(config.Dir())
-	if err != nil {
-		return nil, err
-	}
-
+func getLocalRegistryCredentials(dockerConfig *configfile.ConfigFile) (map[string]*cluster.RegistryCredential, error) {
 	// Get the insecure credentials that were saved directly to
 	// the auths section of ~/.docker/config.json.
 	creds := map[string]*cluster.RegistryCredential{}
@@ -426,11 +430,11 @@ func getLocalRegistryCredentials() (map[string]*cluster.RegistryCredential, erro
 			}
 		}
 	}
-	addCredentials(cfg.GetAuthConfigs())
+	addCredentials(dockerConfig.GetAuthConfigs())
 
 	// Get the secure credentials that are set via credHelpers and credsStore.
 	// These credentials take preference over any insecure credentials.
-	credHelpers, err := cfg.GetAllCredentials()
+	credHelpers, err := dockerConfig.GetAllCredentials()
 	if err != nil {
 		return nil, err
 	}
