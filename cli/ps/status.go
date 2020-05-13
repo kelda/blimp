@@ -1,9 +1,12 @@
 package ps
 
 import (
+	"fmt"
+
 	"github.com/buger/goterm"
 
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
+	"github.com/kelda-inc/blimp/pkg/syncthing"
 )
 
 func GetStatusString(svcStatus *cluster.ServiceStatus) (msg string, color int, booted bool) {
@@ -15,7 +18,7 @@ func GetStatusString(svcStatus *cluster.ServiceStatus) (msg string, color int, b
 	case cluster.ServicePhase_WAIT_DEPENDS_ON:
 		msg = "Waiting for dependencies to boot"
 	case cluster.ServicePhase_WAIT_SYNC_BIND:
-		msg = "Syncing volumes. See progress at http://localhost:8834"
+		msg = fmt.Sprintf("Syncing volumes. See progress at http://localhost:%d", syncthing.APIPort)
 	case cluster.ServicePhase_PENDING:
 		msg = "Pending"
 	case cluster.ServicePhase_RUNNING:

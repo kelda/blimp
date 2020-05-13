@@ -19,7 +19,7 @@ const Marker = ".blimp_syncthing"
 // aren't possible.
 const Port = 22022
 
-const APIPort = 8834
+const APIPort = 8384
 
 // XXX:  It's really not good to be hardcoding these certs.  Ideally we would
 // use openssl to generate them, but then we would need to send the device id
