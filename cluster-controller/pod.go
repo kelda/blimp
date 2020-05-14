@@ -62,7 +62,7 @@ func (b *podBuilder) ToPod(svc composeTypes.ServiceConfig) (corev1.Pod, []corev1
 	}
 
 	if len(svc.DependsOn) != 0 {
-		b.addWaiter(svc.Name, ContainerNameWaitDependsOn, sandbox.WaitSpec{DependsOn: marshalDependencies(svc.DependsOn)})
+		b.addWaiter(svc.Name, ContainerNameWaitDependsOn, sandbox.WaitSpec{DependsOn: marshalDependencies(svc.DependsOn, svc.Links)})
 	}
 
 	if len(bindVolumes) != 0 {
@@ -367,10 +367,26 @@ func toReadinessProbe(healthCheck *composeTypes.HealthCheckConfig) *corev1.Probe
 	return probe
 }
 
-func marshalDependencies(dependsOn composeTypes.DependsOnConfig) map[string]*sandbox.ServiceCondition {
+func marshalDependencies(dependsOn composeTypes.DependsOnConfig, links []string) map[string]*sandbox.ServiceCondition {
 	pbDeps := map[string]*sandbox.ServiceCondition{}
 	for name, condition := range dependsOn {
 		pbDeps[name] = &sandbox.ServiceCondition{Condition: condition.Condition}
+	}
+
+	for _, link := range links {
+		var service string
+		switch linkParts := strings.Split(link, ":"); len(linkParts) {
+		case 1, 2:
+			service = linkParts[0]
+		default:
+			log.WithField("link", link).Warn("Malformed link. Ignoring.")
+			continue
+		}
+
+		// Any dependency conditions specified in `depends_on` take precedence.
+		if _, ok := pbDeps[service]; !ok {
+			pbDeps[service] = &sandbox.ServiceCondition{Condition: composeTypes.ServiceConditionStarted}
+		}
 	}
 
 	return pbDeps
