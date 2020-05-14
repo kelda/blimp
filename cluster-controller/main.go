@@ -378,7 +378,7 @@ func (s *server) createNamespace(namespace string) error {
 		if existingNs.Status.Phase == corev1.NamespaceTerminating {
 			return errors.NewFriendlyError(
 				"Aborting deployment because sandbox is terminating.\n" +
-					"This is a transient error caused by `blimp delete` not completing yet.\n" +
+					"This is a transient error caused by `blimp down` not completing yet.\n" +
 					"Try again in 30 seconds.")
 		}
 
