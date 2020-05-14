@@ -73,7 +73,7 @@ func ArgsToMap(args []string) map[string]string {
 func MakeMarkers(folders map[string]string) error {
 	for _, path := range folders {
 		markerPath := path + "/" + Marker
-		err := os.MkdirAll(markerPath, 0444)
+		err := os.MkdirAll(markerPath, 0755)
 		if err != nil && !os.IsExist(err) {
 			return err
 		}
