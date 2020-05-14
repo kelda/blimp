@@ -13,12 +13,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	composeTypes "github.com/compose-spec/compose-go/types"
 	"github.com/docker/cli/cli/config"
 	"github.com/docker/cli/cli/config/configfile"
 	clitypes "github.com/docker/cli/cli/config/types"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
+	composeTypes "github.com/kelda/compose-go/types"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"

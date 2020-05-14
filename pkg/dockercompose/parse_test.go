@@ -3,7 +3,7 @@ package dockercompose
 import (
 	"testing"
 
-	"github.com/compose-spec/compose-go/types"
+	"github.com/kelda/compose-go/types"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 

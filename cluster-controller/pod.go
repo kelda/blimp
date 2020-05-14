@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	composeTypes "github.com/compose-spec/compose-go/types"
 	"github.com/golang/protobuf/proto"
+	composeTypes "github.com/kelda/compose-go/types"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 

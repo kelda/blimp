@@ -17,7 +17,6 @@ require (
 	github.com/Microsoft/hcsshim v0.8.7 // indirect
 	github.com/buger/goterm v0.0.0-20200322175922-2f3e71b85129
 	github.com/cesanta/docker_auth/auth_server v0.0.0-20200309093330-99bfe0217f59
-	github.com/compose-spec/compose-go v0.0.0-20200325144548-3eee68c9fd46
 	github.com/containerd/continuity v0.0.0-20200228182428-0f16d7a0959c // indirect
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/daaku/go.zipexe v1.0.1 // indirect
@@ -32,6 +31,7 @@ require (
 	github.com/golang/protobuf v1.4.0
 	github.com/googleapis/gnostic v0.4.0 // indirect
 	github.com/gorilla/mux v1.7.4 // indirect
+	github.com/kelda/compose-go v0.0.0-20200514155357-849a71544e9d // indirect
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/lithammer/dedent v1.1.0
 	github.com/miekg/dns v1.1.28
@@ -40,7 +40,7 @@ require (
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
-	github.com/sirupsen/logrus v1.4.2
+	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/afero v1.2.2
 	github.com/spf13/cobra v0.0.6
 	github.com/stretchr/testify v1.4.0

@@ -9,10 +9,10 @@ import (
 	"strings"
 
 	"github.com/buger/goterm"
-	"github.com/compose-spec/compose-go/envfile"
-	"github.com/compose-spec/compose-go/loader"
-	"github.com/compose-spec/compose-go/types"
 	"github.com/ghodss/yaml"
+	"github.com/kelda/compose-go/envfile"
+	"github.com/kelda/compose-go/loader"
+	"github.com/kelda/compose-go/types"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/afero"
 

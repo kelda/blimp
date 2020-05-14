@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver"
-	composeTypes "github.com/compose-spec/compose-go/types"
+	composeTypes "github.com/kelda/compose-go/types"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

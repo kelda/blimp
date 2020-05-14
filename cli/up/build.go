@@ -7,10 +7,10 @@ import (
 	"os"
 	"strings"
 
-	composeTypes "github.com/compose-spec/compose-go/types"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/pkg/jsonmessage"
+	composeTypes "github.com/kelda/compose-go/types"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/terminal"
 

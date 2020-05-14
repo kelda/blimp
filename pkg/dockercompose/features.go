@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/compose-spec/compose-go/types"
+	"github.com/kelda/compose-go/types"
 )
 
 // GetUnsupportedFeatures checks for any references to unsupported features.
