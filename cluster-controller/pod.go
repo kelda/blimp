@@ -454,6 +454,12 @@ func (b *podBuilder) addWaiter(svcName, waitType string, spec sandbox.WaitSpec) 
 				Name:  "SANDBOX_MANAGER_HOST",
 				Value: b.managerIP,
 			},
+
+			// Trigger a restart if the wait spec changes.
+			{
+				Name:  "WAIT_SPEC_HASH",
+				Value: hash.Bytes(waitSpecBytes),
+			},
 		},
 		VolumeMounts: []corev1.VolumeMount{
 			{
