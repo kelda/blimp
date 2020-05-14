@@ -307,6 +307,18 @@ func ensureFileExists(path, contents string) {
 
 var isDir = func(path string) bool {
 	fi, err := os.Stat(path)
+
+	// Create the path as a directory if it doesn't exist.
+	if os.IsNotExist(err) {
+		if err := os.MkdirAll(path, 0755); err != nil {
+			log.
+				WithError(err).
+				WithField("path", path).
+				Fatal("Tried to create directory for non-existent bind volume, but failed")
+		}
+		return true
+	}
+
 	return err == nil && fi.IsDir()
 }
 
