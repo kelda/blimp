@@ -25,9 +25,12 @@ func GetUnsupportedFeatures(cfg types.Config) []string {
 
 func validateNetworks(networks map[string]types.NetworkConfig) []string {
 	return addPrefix("Network", validator{[]field{
+		// Bridge is the default network, and just signals that the containers
+		// can talk to each other.
+		{ID: ".Driver", AllowedValues: []interface{}{"bridge"}},
+		{ID: ".Extras"},
 		{ID: ".Name"},
 		{ID: ".Labels"},
-		{ID: ".Extras"},
 	}}.GetUnsupportedFields(networks))
 }
 
