@@ -16,11 +16,14 @@ func GetStatusString(svcStatus *cluster.ServiceStatus) (msg string, color int, b
 	case cluster.ServicePhase_INITIALIZING_VOLUMES:
 		msg = "Initializing volumes"
 	case cluster.ServicePhase_WAIT_DEPENDS_ON:
-		msg = "Waiting for dependencies to boot"
+		msg = "Waiting for dependencies to be ready"
 	case cluster.ServicePhase_WAIT_SYNC_BIND:
 		msg = fmt.Sprintf("Syncing volumes. See progress at http://localhost:%d", syncthing.APIPort)
 	case cluster.ServicePhase_PENDING:
 		msg = "Pending"
+	case cluster.ServicePhase_UNHEALTHY:
+		msg = "Unhealthy"
+		color = goterm.YELLOW
 	case cluster.ServicePhase_RUNNING:
 		msg = "Running"
 		color = goterm.GREEN

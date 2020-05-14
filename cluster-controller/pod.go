@@ -5,9 +5,11 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/golang/protobuf/proto"
 	composeTypes "github.com/kelda/compose-go/types"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -60,7 +62,7 @@ func (b *podBuilder) ToPod(svc composeTypes.ServiceConfig) (corev1.Pod, []corev1
 	}
 
 	if len(svc.DependsOn) != 0 {
-		b.addWaiter(svc.Name, ContainerNameWaitDependsOn, sandbox.WaitSpec{DependsOn: svc.DependsOn})
+		b.addWaiter(svc.Name, ContainerNameWaitDependsOn, sandbox.WaitSpec{DependsOn: marshalDependencies(svc.DependsOn)})
 	}
 
 	if len(bindVolumes) != 0 {
@@ -211,6 +213,7 @@ func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig) error {
 			TTY:             svc.Tty,
 			VolumeMounts:    volumeMounts,
 			WorkingDir:      svc.WorkingDir,
+			ReadinessProbe:  toReadinessProbe(svc.HealthCheck),
 		},
 	}
 
@@ -317,6 +320,60 @@ func toEnvVars(vars composeTypes.MappingWithEquals) (kubeVars []corev1.EnvVar) {
 		return kubeVars[i].Name < kubeVars[j].Name
 	})
 	return
+}
+
+func toReadinessProbe(healthCheck *composeTypes.HealthCheckConfig) *corev1.Probe {
+	if healthCheck == nil || len(healthCheck.Test) <= 1 {
+		return nil
+	}
+
+	var command []string
+	switch healthCheck.Test[0] {
+	case "NONE":
+		return nil
+	case "CMD":
+		command = healthCheck.Test[1:]
+	case "CMD-SHELL":
+		command = []string{"sh", "-c", healthCheck.Test[1]}
+	default:
+		// XXX: We should really inform the user that we failed to parse the
+		// healthcheck, but we currently don't have a way of sending warnings
+		// back to the CLI.
+		log.WithField("command", command).Warn("Ignoring healthcheck with unrecognized command")
+		return nil
+	}
+
+	probe := &corev1.Probe{
+		Handler: corev1.Handler{
+			Exec: &corev1.ExecAction{
+				Command: command,
+			},
+		},
+	}
+
+	if healthCheck.Timeout != nil {
+		probe.TimeoutSeconds = int32(time.Duration(*healthCheck.Timeout).Seconds())
+	}
+	if healthCheck.Interval != nil {
+		probe.PeriodSeconds = int32(time.Duration(*healthCheck.Interval).Seconds())
+	}
+	if healthCheck.StartPeriod != nil {
+		probe.InitialDelaySeconds = int32(time.Duration(*healthCheck.StartPeriod).Seconds())
+	}
+	if healthCheck.Retries != nil {
+		probe.FailureThreshold = int32(*healthCheck.Retries)
+	}
+
+	return probe
+}
+
+func marshalDependencies(dependsOn composeTypes.DependsOnConfig) map[string]*sandbox.ServiceCondition {
+	pbDeps := map[string]*sandbox.ServiceCondition{}
+	for name, condition := range dependsOn {
+		pbDeps[name] = &sandbox.ServiceCondition{Condition: condition.Condition}
+	}
+
+	return pbDeps
 }
 
 func (b *podBuilder) sanitize() {

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	composeTypes "github.com/kelda/compose-go/types"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -60,8 +61,8 @@ func (s *server) listenAndServe(address string) error {
 // are satisfied.
 func (s *server) CheckReady(req *sandbox.CheckReadyRequest, srv sandbox.BootWaiter_CheckReadyServer) error {
 	checkOnce := func() *sandbox.CheckReadyResponse {
-		for _, dep := range req.GetWaitSpec().GetDependsOn() {
-			isBooted, err := s.isBooted(dep)
+		for name, condition := range req.GetWaitSpec().GetDependsOn() {
+			isBooted, err := s.testServiceCondition(name, *condition)
 			if err != nil {
 				return &sandbox.CheckReadyResponse{
 					Ready:  false,
@@ -72,7 +73,7 @@ func (s *server) CheckReady(req *sandbox.CheckReadyRequest, srv sandbox.BootWait
 			if !isBooted {
 				return &sandbox.CheckReadyResponse{
 					Ready:  false,
-					Reason: fmt.Sprintf("service %s is not running yet", dep),
+					Reason: fmt.Sprintf("service %s is either not running or not healthy", name),
 				}
 			}
 		}
@@ -115,8 +116,8 @@ func (s *server) CheckReady(req *sandbox.CheckReadyRequest, srv sandbox.BootWait
 	}
 }
 
-func (s *server) isBooted(service string) (bool, error) {
-	pod, err := s.kubeClient.CoreV1().Pods(s.namespace).Get(service, metav1.GetOptions{})
+func (s *server) testServiceCondition(name string, condition sandbox.ServiceCondition) (bool, error) {
+	pod, err := s.kubeClient.CoreV1().Pods(s.namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
 		if kerrors.IsNotFound(err) {
 			return false, nil
@@ -124,6 +125,21 @@ func (s *server) isBooted(service string) (bool, error) {
 		return false, err
 	}
 
+	switch condition.Condition {
+	case composeTypes.ServiceConditionHealthy:
+		// Make sure that all the pod's containers have passed their
+		// healthchecks. The healthchecks are configured at pod creation by the
+		// cluster manager.
+		for _, container := range pod.Status.ContainerStatuses {
+			if !container.Ready {
+				return false, nil
+			}
+		}
+	case composeTypes.ServiceConditionStarted:
+		return pod.Status.Phase == "Running", nil
+	}
+
+	// If the service condition is unknown, just ignore it.
 	return pod.Status.Phase == "Running", nil
 }
 

@@ -31,7 +31,7 @@ require (
 	github.com/golang/protobuf v1.4.0
 	github.com/googleapis/gnostic v0.4.0 // indirect
 	github.com/gorilla/mux v1.7.4 // indirect
-	github.com/kelda/compose-go v0.0.0-20200514155357-849a71544e9d // indirect
+	github.com/kelda/compose-go v0.0.0-20200514165240-955c80c756a9
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/lithammer/dedent v1.1.0
 	github.com/miekg/dns v1.1.28

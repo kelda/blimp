@@ -263,6 +263,12 @@ func (sf *statusFetcher) getServiceStatus(pod *corev1.Pod) cluster.ServiceStatus
 		cs := pod.Status.ContainerStatuses[0]
 		switch {
 		case cs.State.Running != nil:
+			if !cs.Ready {
+				return cluster.ServiceStatus{
+					Phase:      cluster.ServicePhase_UNHEALTHY,
+					HasStarted: true,
+				}
+			}
 			return cluster.ServiceStatus{
 				Phase:      cluster.ServicePhase_RUNNING,
 				HasStarted: true,

@@ -15,8 +15,12 @@ message CheckReadyRequest {
 }
 
 message WaitSpec {
-	repeated string depends_on = 1;
+	map<string, ServiceCondition> depends_on = 1;
 	repeated string bind_volumes = 2;
+}
+
+message ServiceCondition {
+    string Condition = 1;
 }
 
 message CheckReadyResponse {
