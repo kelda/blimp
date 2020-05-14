@@ -280,7 +280,7 @@ func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig, svcAlia
 	switch svc.Restart {
 	case "no":
 		b.pod.Spec.RestartPolicy = corev1.RestartPolicyNever
-	case "always":
+	case "always", "unless-stopped":
 		b.pod.Spec.RestartPolicy = corev1.RestartPolicyAlways
 	case "on-failure":
 		b.pod.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
