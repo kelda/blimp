@@ -114,7 +114,9 @@ func Load(composePath string, overridePaths []string) (types.Config, error) {
 			if volume.Type == types.VolumeTypeBind {
 				fi, err := os.Lstat(volume.Source)
 				if err != nil {
-					log.WithError(err).WithField("path", volume.Source).Warn("Failed to stat volume")
+					if !os.IsNotExist(err) {
+						log.WithError(err).WithField("path", volume.Source).Warn("Failed to stat volume")
+					}
 					continue
 				}
 
