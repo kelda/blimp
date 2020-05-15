@@ -10,7 +10,9 @@ data:
 
     token:
       issuer: "Blimp Docker Auth"
-      expiration: 900
+      # Use a generous token expiration (1 day) so that the token doesn't
+      # expire mid-push for large images.
+      expiration: 86400
       certificate: "/registry-https-cert/cert.pem"
       key: "/registry-https-cert/key.pem"
 
