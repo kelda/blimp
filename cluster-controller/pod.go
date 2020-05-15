@@ -227,10 +227,14 @@ func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig) error {
 		aliases = append(aliases, network.Aliases...)
 	}
 
+	if svc.ContainerName != ""{
+		aliases = append(aliases, svc.ContainerName)
+	}
 	b.pod.Annotations = map[string]string{}
 	if len(aliases) > 0 {
 		b.pod.Annotations[metadata.AliasesKey] = metadata.Aliases(aliases)
 	}
+
 
 	// Set the pod's hostname.
 	b.pod.Spec.Hostname = svc.Name
