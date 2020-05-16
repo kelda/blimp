@@ -26,14 +26,7 @@ func main() {
 		log.Fatal("CLIENT_SECRET is required")
 	}
 
-	oauthConf := oauth2.Config{
-		ClientID:     auth.ClientID,
-		ClientSecret: clientSecret,
-		Endpoint:     auth.Endpoint,
-		Scopes: []string{
-			"openid",
-		},
-	}
+	oauthConf := auth.GetOAuthConfig(clientSecret)
 	cliLoginServer := newCLILoginServer(oauthConf)
 	manualLoginServer := newManualLoginServer(oauthConf)
 

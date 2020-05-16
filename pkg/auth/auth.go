@@ -47,6 +47,17 @@ var verifier = oidc.NewVerifier(
 	oidc.NewRemoteKeySet(context.Background(), "https://blimp-testing.auth0.com/.well-known/jwks.json"),
 	&oidc.Config{ClientID: ClientID})
 
+func GetOAuthConfig(clientSecret string) oauth2.Config {
+	return oauth2.Config{
+		ClientID:     ClientID,
+		ClientSecret: clientSecret,
+		Endpoint:     Endpoint,
+		Scopes: []string{
+			"openid",
+		},
+	}
+}
+
 func ParseIDToken(token string) (User, error) {
 	idToken, err := verifier.Verify(context.Background(), token)
 	if err != nil {
@@ -60,6 +71,23 @@ func ParseIDToken(token string) (User, error) {
 
 	user.Namespace = hash.DnsCompliant(user.ID)
 	return user, nil
+}
+
+// PasswordLogin obtains an authentication token by directly exchanging the
+// provided username and password, rather than using OAuth. It should only
+// be used for authenticating test accounts during continuous integration tests.
+func PasswordLogin(username, password string) (string, error) {
+	oauthConfig := GetOAuthConfig("")
+	token, err := oauthConfig.PasswordCredentialsToken(context.Background(), username, password)
+	if err != nil {
+		return "", err
+	}
+
+	idToken, ok := token.Extra("id_token").(string)
+	if !ok {
+		return "", errors.New("missing id token")
+	}
+	return idToken, nil
 }
 
 func mustDecodeBase64(encoded string) string {
