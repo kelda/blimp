@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"os"
 
+	"google.golang.org/grpc"
+
 	"github.com/kelda-inc/blimp/cli/util"
 	"github.com/kelda-inc/blimp/pkg/auth"
+	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 	"github.com/kelda-inc/blimp/pkg/version"
-	"google.golang.org/grpc"
 )
 
 var C Client
@@ -37,7 +39,7 @@ func getHost() string {
 func dial() (Client, error) {
 	conn, err := util.Dial(Host, auth.ClusterManagerCert)
 	if err != nil {
-		return Client{}, err
+		return Client{}, errors.WithContext("dial", err)
 	}
 
 	client := Client{
@@ -49,7 +51,7 @@ func dial() (Client, error) {
 		Version: version.Version,
 	})
 	if err != nil {
-		return client, err
+		return client, errors.WithContext("check version", err)
 	}
 
 	if resp.DisplayMessage != "" {
