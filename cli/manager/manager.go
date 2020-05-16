@@ -61,9 +61,9 @@ func dial() (Client, error) {
 	switch resp.Action {
 	case cluster.CLIAction_OK:
 	case cluster.CLIAction_EXIT:
-		os.Exit(0)
+		os.Exit(1)
 	default:
-		os.Exit(0)
+		os.Exit(1)
 	}
 
 	return client, nil
