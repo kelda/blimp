@@ -238,9 +238,15 @@ func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig, svcAlia
 	}
 
 	// Set the pod's hostname.
-	b.pod.Spec.Hostname = svc.Name
+	// Ignore the hostname setting if it's not a valid Kubernetes hostname.
+	// Although this may break some applications, it's better than aborting the deployment entirely since
+	// most applications don't seem to rely on the container's hostname.
 	if svc.Hostname != "" {
-		b.pod.Spec.Hostname = svc.Hostname
+		if !strings.Contains(svc.Hostname, "_") {
+			b.pod.Spec.Hostname = svc.Hostname
+		}
+	} else {
+		b.pod.Spec.Hostname = svc.Name
 	}
 
 	// Collect a map of ips to their aliases.
