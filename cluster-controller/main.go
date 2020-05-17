@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/Masterminds/semver"
@@ -1106,9 +1107,33 @@ func toPods(
 	configMaps []corev1.ConfigMap,
 	err error,
 ) {
+	serviceToAliases := make(map[string][]string)
+	aliasToService := make(map[string]string)
+	for _, svc := range cfg.Services {
+		for _, link := range svc.Links {
+			linkParts := strings.Split(link, ":")
+			if len(linkParts) != 2 && len(linkParts) != 1 {
+				log.Warn("Link is not in a right format")
+				continue
+			}
+			svcToBeAliased := linkParts[0]
+			alias := linkParts[1]
+
+			// Error if two services are using the same alias for different services.
+			if svcPresent, added := aliasToService[alias]; added && svcPresent != svcToBeAliased {
+				return nil, nil, errors.NewFriendlyError(
+					"links error: service %s and %s are using %s to refer to different services",
+					svcPresent, svcToBeAliased, alias)
+			}
+
+			aliasToService[alias] = svcToBeAliased
+			serviceToAliases[svcToBeAliased] = append(serviceToAliases[svcToBeAliased], alias)
+		}
+	}
+
 	for _, svc := range cfg.Services {
 		b := newPodBuilder(namespace, managerIP, builtImages)
-		p, cm, err := b.ToPod(svc)
+		p, cm, err := b.ToPod(svc, serviceToAliases)
 		if err != nil {
 			return nil, nil, err
 		}

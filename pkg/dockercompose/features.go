@@ -53,6 +53,7 @@ func validateServices(services types.Services) []string {
 		{ID: ".Hostname"},
 		{ID: ".HealthCheck"},
 		{ID: ".Image"},
+		{ID: ".Links"},
 		{ID: ".Networks.Aliases"},
 		{ID: ".Ports.Target"},
 		{ID: ".Ports.Published"},

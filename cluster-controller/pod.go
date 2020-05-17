@@ -39,7 +39,7 @@ func newPodBuilder(namespace, managerIP string, builtImages map[string]string) *
 	}
 }
 
-func (b *podBuilder) ToPod(svc composeTypes.ServiceConfig) (corev1.Pod, []corev1.ConfigMap, error) {
+func (b *podBuilder) ToPod(svc composeTypes.ServiceConfig, svcAliasesMapping map[string][]string) (corev1.Pod, []corev1.ConfigMap, error) {
 	b.image = svc.Image
 	if svc.Build != nil {
 		b.image = b.builtImages[svc.Name]
@@ -69,7 +69,7 @@ func (b *podBuilder) ToPod(svc composeTypes.ServiceConfig) (corev1.Pod, []corev1
 		b.addWaiter(svc.Name, ContainerNameWaitInitialSync, sandbox.WaitSpec{BindVolumes: bindVolumes})
 	}
 
-	if err := b.addRuntimeContainer(svc); err != nil {
+	if err := b.addRuntimeContainer(svc, svcAliasesMapping); err != nil {
 		return corev1.Pod{}, nil, err
 	}
 	b.sanitize()
@@ -138,7 +138,7 @@ func (b *podBuilder) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig)
 	)
 }
 
-func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig) error {
+func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig, svcAliasesMapping map[string][]string) error {
 	b.pod.Namespace = b.namespace
 	b.pod.Name = svc.Name
 	b.pod.Labels = map[string]string{
@@ -227,14 +227,15 @@ func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig) error {
 		aliases = append(aliases, network.Aliases...)
 	}
 
-	if svc.ContainerName != ""{
+	aliases = append(aliases, svcAliasesMapping[svc.Name]...)
+	if svc.ContainerName != "" {
 		aliases = append(aliases, svc.ContainerName)
 	}
+
 	b.pod.Annotations = map[string]string{}
 	if len(aliases) > 0 {
 		b.pod.Annotations[metadata.AliasesKey] = metadata.Aliases(aliases)
 	}
-
 
 	// Set the pod's hostname.
 	b.pod.Spec.Hostname = svc.Name
