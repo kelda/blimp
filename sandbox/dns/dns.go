@@ -211,7 +211,8 @@ func podsToDNS(pods []corev1.Pod) map[string]net.IP {
 			continue
 		}
 
-		records[strings.ToLower(pod.Name)] = ip
+		serviceName := pod.Labels["blimp.service"]
+		records[strings.ToLower(serviceName)] = ip
 
 		// Add aliases to DNS.
 		aliases, ok := pod.Annotations[metadata.AliasesKey]

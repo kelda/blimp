@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/lithammer/dedent"
 	"github.com/spf13/cobra"
 
@@ -130,14 +131,14 @@ func extractFileSpec(arg string) (fileSpec, error) {
 		pieces := strings.Split(pod, "/")
 		if len(pieces) == 1 {
 			return fileSpec{
-				PodName: pieces[0],
+				PodName: kube.PodName(pieces[0]),
 				File:    file,
 			}, nil
 		}
 		if len(pieces) == 2 {
 			return fileSpec{
 				PodNamespace: pieces[0],
-				PodName:      pieces[1],
+				PodName:      kube.PodName(pieces[1]),
 				File:         file,
 			}, nil
 		}

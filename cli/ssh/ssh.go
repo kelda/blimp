@@ -12,6 +12,7 @@ import (
 
 	"github.com/kelda-inc/blimp/cli/authstore"
 	"github.com/kelda-inc/blimp/pkg/errors"
+	"github.com/kelda-inc/blimp/pkg/kube"
 )
 
 func New() *cobra.Command {
@@ -74,7 +75,7 @@ func run(svc string) error {
 	req := kubeClient.CoreV1().RESTClient().Post().
 		Resource("pods").
 		SubResource("exec").
-		Name(svc).
+		Name(kube.PodName(svc)).
 		Namespace(auth.KubeNamespace).
 		VersionedParams(&execOpts, scheme.ParameterCodec)
 	exec, err := remotecommand.NewSPDYExecutor(restConfig, "POST", req.URL())

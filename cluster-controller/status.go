@@ -211,8 +211,9 @@ func (sf *statusFetcher) Get(namespace string) (cluster.SandboxStatus, error) {
 
 	services := map[string]*cluster.ServiceStatus{}
 	for _, pod := range pods {
+		svcName := pod.GetLabels()["blimp.service"]
 		serviceStatus := sf.getServiceStatus(pod)
-		services[pod.Name] = &serviceStatus
+		services[svcName] = &serviceStatus
 	}
 	return cluster.SandboxStatus{
 		Phase:    cluster.SandboxStatus_RUNNING,

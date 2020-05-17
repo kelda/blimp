@@ -16,6 +16,7 @@ import (
 
 	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/hash"
+	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/metadata"
 	"github.com/kelda-inc/blimp/pkg/proto/node"
 	"github.com/kelda-inc/blimp/pkg/version"
@@ -143,7 +144,7 @@ func (b *podBuilder) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig)
 
 func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig, svcAliasesMapping map[string][]string) error {
 	b.pod.Namespace = b.namespace
-	b.pod.Name = svc.Name
+	b.pod.Name = kube.PodName(svc.Name)
 	b.pod.Labels = map[string]string{
 		"blimp.service":     svc.Name,
 		"blimp.customerPod": "true",
@@ -210,7 +211,7 @@ func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig, svcAlia
 			Env:             toEnvVars(svc.Environment),
 			Image:           b.image,
 			ImagePullPolicy: "Always",
-			Name:            svc.Name,
+			Name:            kube.PodName(svc.Name),
 			SecurityContext: securityContext,
 			Stdin:           svc.StdinOpen,
 			TTY:             svc.Tty,
@@ -256,11 +257,9 @@ func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig, svcAlia
 	// Ignore the hostname setting if it's not a valid Kubernetes hostname.
 	// Although this may break some applications, it's better than aborting the deployment entirely since
 	// most applications don't seem to rely on the container's hostname.
-	if svc.Hostname != "" {
-		if !strings.Contains(svc.Hostname, "_") {
-			b.pod.Spec.Hostname = svc.Hostname
-		}
-	} else {
+	if svc.Hostname != "" && !strings.Contains(svc.Hostname, "_") {
+		b.pod.Spec.Hostname = svc.Hostname
+	} else if !strings.Contains(svc.Name, "_") {
 		b.pod.Spec.Hostname = svc.Name
 	}
 
@@ -448,7 +447,7 @@ func (b *podBuilder) addWaiter(svcName, waitType string, spec node.WaitSpec) err
 	configMap := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: b.namespace,
-			Name:      fmt.Sprintf("wait-spec-%s-%s", waitType, svcName),
+			Name:      fmt.Sprintf("wait-spec-%s-%s", waitType, kube.PodName(svcName)),
 		},
 		BinaryData: map[string][]byte{
 			"wait-spec": waitSpecBytes,
@@ -457,7 +456,7 @@ func (b *podBuilder) addWaiter(svcName, waitType string, spec node.WaitSpec) err
 	b.addConfigMap(configMap)
 
 	volume := corev1.Volume{
-		Name: fmt.Sprintf("wait-spec-%s-%s", waitType, svcName),
+		Name: configMap.Name,
 		VolumeSource: corev1.VolumeSource{
 			ConfigMap: &corev1.ConfigMapVolumeSource{
 				LocalObjectReference: corev1.LocalObjectReference{

@@ -24,6 +24,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/analytics"
 	"github.com/kelda-inc/blimp/pkg/auth"
 	"github.com/kelda-inc/blimp/pkg/errors"
+	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/ports"
 	"github.com/kelda-inc/blimp/pkg/proto/node"
 	"github.com/kelda-inc/blimp/pkg/tunnel"
@@ -105,12 +106,22 @@ func (s *server) listenAndServe(address string) error {
 }
 
 func (s *server) Tunnel(nsrv node.Controller_TunnelServer) error {
-	name, port, namespace, err := tunnel.ServerHeader(nsrv)
+	serviceName, port, namespace, err := tunnel.ServerHeader(nsrv)
 	if err != nil {
 		return err
 	}
 
-	dstPod, err := s.podLister.Pods(namespace).Get(name)
+	// XXX: We don't hash the name of the syncthing pod when deploying it.
+	// This weird special case is a sign that the API between the CLI and the
+	// Node Controller is poorly designed. We should revisit this when we
+	// redesign the other APIs that refer to service names, such as logs and
+	// SSH.
+	podName := serviceName
+	if serviceName != "syncthing" {
+		podName = kube.PodName(serviceName)
+	}
+
+	dstPod, err := s.podLister.Pods(namespace).Get(podName)
 	if err != nil {
 		msg := fmt.Sprintf("unknown destination")
 		return status.New(codes.OutOfRange, msg).Err()

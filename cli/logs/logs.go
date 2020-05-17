@@ -22,6 +22,7 @@ import (
 
 	"github.com/kelda-inc/blimp/cli/authstore"
 	"github.com/kelda-inc/blimp/pkg/errors"
+	"github.com/kelda-inc/blimp/pkg/kube"
 )
 
 type LogsCommand struct {
@@ -121,7 +122,7 @@ func (cmd LogsCommand) Run() error {
 		cmd.Opts.Timestamps = true
 		logsReq := kubeClient.CoreV1().
 			Pods(cmd.Auth.KubeNamespace).
-			GetLogs(container, &cmd.Opts)
+			GetLogs(kube.PodName(container), &cmd.Opts)
 
 		logsStream, err := logsReq.Stream()
 		if err != nil {

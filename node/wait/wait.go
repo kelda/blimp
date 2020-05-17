@@ -16,6 +16,7 @@ import (
 
 	"github.com/kelda-inc/blimp/node/wait/tracker"
 	"github.com/kelda-inc/blimp/pkg/errors"
+	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/proto/node"
 	"github.com/kelda-inc/blimp/pkg/syncthing"
 	"github.com/kelda-inc/blimp/pkg/volume"
@@ -117,7 +118,7 @@ func (s *server) CheckReady(req *node.CheckReadyRequest, srv node.BootWaiter_Che
 }
 
 func (s *server) testServiceCondition(namespace, name string, condition node.ServiceCondition) (bool, error) {
-	pod, err := s.kubeClient.CoreV1().Pods(namespace).Get(name, metav1.GetOptions{})
+	pod, err := s.kubeClient.CoreV1().Pods(namespace).Get(kube.PodName(name), metav1.GetOptions{})
 	if err != nil {
 		if kerrors.IsNotFound(err) {
 			return false, nil
