@@ -100,6 +100,14 @@ message GetStatusResponse {
 
 message SandboxStatus {
   map<string, ServiceStatus> services = 1;
+  SandboxPhase phase = 2;
+
+  enum SandboxPhase {
+    UNKNOWN = 0;
+    RUNNING = 1;
+    TERMINATING = 2;
+    DOES_NOT_EXIST = 3;
+  }
 }
 
 enum ServicePhase {

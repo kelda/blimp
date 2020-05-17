@@ -7,6 +7,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	meta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -16,6 +17,7 @@ import (
 	listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 )
 
@@ -29,10 +31,12 @@ const (
 // subscribing to changes to namespaces.
 // It caches pod statuses.
 type statusFetcher struct {
-	podInformer    cache.SharedIndexInformer
-	podLister      listers.PodLister
-	eventsInformer cache.SharedIndexInformer
-	eventsLister   listers.EventLister
+	podInformer       cache.SharedIndexInformer
+	podLister         listers.PodLister
+	eventsInformer    cache.SharedIndexInformer
+	eventsLister      listers.EventLister
+	namespaceInformer cache.SharedIndexInformer
+	namespaceLister   listers.NamespaceLister
 
 	// A map from namespace to a map of clients that are watching the
 	// namespace.
@@ -49,20 +53,67 @@ func newStatusFetcher(kubeClient kubernetes.Interface) *statusFetcher {
 	factory := informers.NewSharedInformerFactory(kubeClient, 30*time.Second)
 	podInformer := factory.Core().V1().Pods()
 	eventsInformer := factory.Core().V1().Events()
+	namespaceInformer := factory.Core().V1().Namespaces()
 
 	sf := &statusFetcher{
-		podInformer:    podInformer.Informer(),
-		podLister:      podInformer.Lister(),
-		eventsInformer: eventsInformer.Informer(),
-		eventsLister:   eventsInformer.Lister(),
-		watchers:       map[string]map[int]chan struct{}{},
+		podInformer:       podInformer.Informer(),
+		podLister:         podInformer.Lister(),
+		eventsInformer:    eventsInformer.Informer(),
+		eventsLister:      eventsInformer.Lister(),
+		namespaceInformer: namespaceInformer.Informer(),
+		namespaceLister:   namespaceInformer.Lister(),
+		watchers:          map[string]map[int]chan struct{}{},
 	}
 
+	podNotifier := func(intf interface{}) {
+		obj, ok := intf.(runtime.Object)
+		if !ok {
+			log.WithField("obj", obj).
+				Warn("Unexpected non-runtime.Object type")
+			return
+		}
+
+		namespace, err := meta.NewAccessor().Namespace(obj)
+		if err != nil {
+			log.WithError(err).
+				WithField("obj", obj).
+				Warn("Failed to get namespace for object")
+			return
+		}
+
+		sf.notifyWatchers(namespace)
+	}
 	sf.podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    sf.notifyWatchers,
-		DeleteFunc: sf.notifyWatchers,
+		AddFunc:    podNotifier,
+		DeleteFunc: podNotifier,
 		UpdateFunc: func(_, intf interface{}) {
-			sf.notifyWatchers(intf)
+			podNotifier(intf)
+		},
+	})
+
+	namespaceNotifier := func(intf interface{}) {
+		obj, ok := intf.(runtime.Object)
+		if !ok {
+			log.WithField("obj", obj).
+				Warn("Unexpected non-runtime.Object type")
+			return
+		}
+
+		namespace, err := meta.NewAccessor().Name(obj)
+		if err != nil {
+			log.WithError(err).
+				WithField("obj", obj).
+				Warn("Failed to get name for object")
+			return
+		}
+
+		sf.notifyWatchers(namespace)
+	}
+	sf.namespaceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    namespaceNotifier,
+		DeleteFunc: namespaceNotifier,
+		UpdateFunc: func(_, intf interface{}) {
+			namespaceNotifier(intf)
 		},
 	})
 
@@ -72,8 +123,10 @@ func newStatusFetcher(kubeClient kubernetes.Interface) *statusFetcher {
 func (sf *statusFetcher) Start() {
 	go sf.podInformer.Run(nil)
 	go sf.eventsInformer.Run(nil)
+	go sf.namespaceInformer.Run(nil)
 	cache.WaitForCacheSync(nil, sf.podInformer.HasSynced)
 	cache.WaitForCacheSync(nil, sf.eventsInformer.HasSynced)
+	cache.WaitForCacheSync(nil, sf.namespaceInformer.HasSynced)
 }
 
 func (sf *statusFetcher) Watch(namespace string) (notifier chan struct{}, stop chan struct{}) {
@@ -103,22 +156,7 @@ func (sf *statusFetcher) Watch(namespace string) (notifier chan struct{}, stop c
 	return notifier, stop
 }
 
-func (sf *statusFetcher) notifyWatchers(intf interface{}) {
-	obj, ok := intf.(runtime.Object)
-	if !ok {
-		log.WithField("obj", obj).
-			Warn("Unexpected non-runtime.Object type")
-		return
-	}
-
-	namespace, err := meta.NewAccessor().Namespace(obj)
-	if err != nil {
-		log.WithError(err).
-			WithField("obj", obj).
-			Warn("Failed to get namespace for object")
-		return
-	}
-
+func (sf *statusFetcher) notifyWatchers(namespace string) {
 	// Send notifications to all watchers.
 	sf.watchersLock.Lock()
 	defer sf.watchersLock.Unlock()
@@ -150,13 +188,25 @@ func (sf *statusFetcher) removeWatcher(namespace string, id int) {
 }
 
 func (sf *statusFetcher) Get(namespace string) (cluster.SandboxStatus, error) {
+	ns, err := sf.namespaceLister.Get(namespace)
+	if err != nil {
+		if kerrors.IsNotFound(err) {
+			return cluster.SandboxStatus{Phase: cluster.SandboxStatus_DOES_NOT_EXIST}, nil
+		}
+		return cluster.SandboxStatus{}, errors.WithContext("get sandbox", err)
+	}
+
+	if ns.Status.Phase == corev1.NamespaceTerminating {
+		return cluster.SandboxStatus{Phase: cluster.SandboxStatus_TERMINATING}, nil
+	}
+
 	pods, err := sf.podLister.
 		Pods(namespace).
 		List(labels.Set(
 			map[string]string{"blimp.customerPod": "true"},
 		).AsSelector())
 	if err != nil {
-		return cluster.SandboxStatus{}, err
+		return cluster.SandboxStatus{}, errors.WithContext("get services", err)
 	}
 
 	services := map[string]*cluster.ServiceStatus{}
@@ -164,7 +214,10 @@ func (sf *statusFetcher) Get(namespace string) (cluster.SandboxStatus, error) {
 		serviceStatus := sf.getServiceStatus(pod)
 		services[pod.Name] = &serviceStatus
 	}
-	return cluster.SandboxStatus{Services: services}, nil
+	return cluster.SandboxStatus{
+		Phase:    cluster.SandboxStatus_RUNNING,
+		Services: services,
+	}, nil
 }
 
 func (sf *statusFetcher) isPulling(namespace, pod, fieldPath string) bool {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/kelda-inc/blimp/cli/authstore"
 	"github.com/kelda-inc/blimp/cli/manager"
+	"github.com/kelda-inc/blimp/cli/util"
 	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 )
@@ -44,8 +45,33 @@ func run(authToken string) error {
 	_, err := manager.C.DeleteSandbox(context.Background(), &cluster.DeleteSandboxRequest{
 		Token: authToken,
 	})
-	if err == nil {
-		fmt.Println("Sandbox deletion successfully started")
+	if err != nil {
+		return errors.WithContext("start sandbox deletion", err)
 	}
-	return err
+
+	fmt.Println("Sandbox deletion successfully started")
+	fmt.Println("Note that `blimp up` won't work until the previous sandbox is completely deleted")
+	pp := util.NewProgressPrinter(os.Stdout, "Waiting for sandbox deletion to complete")
+	go pp.Run()
+	defer pp.Stop()
+
+	watchCtx, cancelWatch := context.WithCancel(context.Background())
+	defer cancelWatch()
+	statusStream, err := manager.C.WatchStatus(watchCtx, &cluster.GetStatusRequest{
+		Token: authToken,
+	})
+	if err != nil {
+		return errors.WithContext("start sandbox status watch", err)
+	}
+
+	for {
+		update, err := statusStream.Recv()
+		if err != nil {
+			return errors.WithContext("read stream", err)
+		}
+
+		if update.Status.Phase == cluster.SandboxStatus_DOES_NOT_EXIST {
+			return nil
+		}
+	}
 }
