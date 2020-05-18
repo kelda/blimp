@@ -10,8 +10,10 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/docker/cli/cli/config"
 	"github.com/docker/cli/cli/config/configfile"
@@ -223,15 +225,26 @@ func (cmd *up) run() error {
 
 	stopHashSync := make(chan struct{})
 	syncthingError := make(chan error, 1)
+	syncthingCtx, cancelSyncthing := context.WithCancel(context.Background())
 	if len(idPathMap) != 0 {
 		go startTunnel(sandboxManager, cmd.auth.AuthToken, "syncthing",
 			"127.0.0.1", syncthing.Port, syncthing.Port)
 		go func() {
-			output, err := stClient.Run(sandboxManager, stopHashSync)
-			if err != nil {
-				syncthingError <- errors.WithContext(fmt.Sprintf("syncthing crashed (%s)", string(output)), err)
-			} else {
-				syncthingError <- errors.New("syncthing crashed")
+			defer close(syncthingError)
+
+			output, err := stClient.Run(syncthingCtx, sandboxManager, stopHashSync)
+			select {
+			// We intentionally killed the Syncthing process, so exiting was expected.
+			case <-syncthingCtx.Done():
+				return
+
+			// Syncthing crashed prematurely.
+			default:
+				if err != nil {
+					syncthingError <- errors.WithContext(fmt.Sprintf("syncthing crashed (%s)", string(output)), err)
+				} else {
+					syncthingError <- errors.New("syncthing crashed")
+				}
 			}
 		}()
 	}
@@ -241,11 +254,23 @@ func (cmd *up) run() error {
 		guiError <- cmd.runGUI(parsedCompose, stopHashSync)
 	}()
 
+	exit := make(chan os.Signal, 1)
+	signal.Notify(exit, syscall.SIGINT, syscall.SIGTERM)
+
 	select {
 	case err := <-syncthingError:
 		return errors.WithContext("syncthing error", err)
 	case err := <-guiError:
 		return errors.WithContext("run gui error", err)
+	case <-exit:
+		fmt.Println("Cleaning up local processes. The remote containers will continue running.")
+
+		// If we spawned a child process for Syncthing, terminate it gracefully.
+		if len(idPathMap) != 0 {
+			cancelSyncthing()
+			<-syncthingError
+		}
+		return nil
 	}
 	return nil
 }

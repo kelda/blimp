@@ -159,7 +159,7 @@ func NewClient(volumes []string) Client {
 	}
 }
 
-func (c Client) Run(scc sandbox.ControllerClient, finishedInitialSync <-chan struct{}) ([]byte, error) {
+func (c Client) Run(ctx context.Context, scc sandbox.ControllerClient, finishedInitialSync <-chan struct{}) ([]byte, error) {
 	box := rice.MustFindBox("stbin")
 
 	idPathMap := c.GetIDPathMap()
@@ -224,7 +224,7 @@ func (c Client) Run(scc sandbox.ControllerClient, finishedInitialSync <-chan str
 		}
 	}
 
-	return exec.Command(stbinPath, "-verbose", "-home", cfgdir.Expand(""),
+	return exec.CommandContext(ctx, stbinPath, "-verbose", "-home", cfgdir.Expand(""),
 		"-logfile", cfgdir.Expand("syncthing.log")).CombinedOutput()
 }
 
