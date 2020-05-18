@@ -222,17 +222,35 @@ func (cmd *up) run() error {
 	}
 
 	stopHashSync := make(chan struct{})
+	syncthingError := make(chan error, 1)
 	if len(idPathMap) != 0 {
 		go startTunnel(sandboxManager, cmd.auth.AuthToken, "syncthing",
 			"127.0.0.1", syncthing.Port, syncthing.Port)
 		go func() {
 			output, err := stClient.Run(sandboxManager, stopHashSync)
 			if err != nil {
-				log.WithError(err).WithField("output", string(output)).Warn("syncthing error")
+				syncthingError <- errors.WithContext(fmt.Sprintf("syncthing crashed (%s)", string(output)), err)
+			} else {
+				syncthingError <- errors.New("syncthing crashed")
 			}
 		}()
 	}
 
+	guiError := make(chan error, 1)
+	go func() {
+		guiError <- cmd.runGUI(parsedCompose, stopHashSync)
+	}()
+
+	select {
+	case err := <-syncthingError:
+		return errors.WithContext("syncthing error", err)
+	case err := <-guiError:
+		return errors.WithContext("run gui error", err)
+	}
+	return nil
+}
+
+func (cmd *up) runGUI(parsedCompose composeTypes.Config, stopHashSync chan struct{}) error {
 	services := parsedCompose.ServiceNames()
 	statusPrinter := newStatusPrinter(services)
 	statusPrinter.Run(manager.C, cmd.auth.AuthToken)
