@@ -74,7 +74,7 @@ func New() *cobra.Command {
 			composePath, overridePaths, err := getComposePaths(composePaths)
 			if err != nil {
 				if os.IsNotExist(err) {
-					fmt.Fprintf(os.Stderr, "Docker compose file not found: %s\n", cmd.composePath)
+					fmt.Fprintf(os.Stderr, "Docker compose file not found\n")
 					os.Exit(1)
 				}
 				log.WithError(err).Fatal("Failed to get absolute path to Compose file")
