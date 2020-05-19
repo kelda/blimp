@@ -11,6 +11,7 @@ import (
 	composeTypes "github.com/kelda/compose-go/types"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/kelda-inc/blimp/pkg/errors"
@@ -214,6 +215,18 @@ func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig, svcAlia
 			VolumeMounts:    volumeMounts,
 			WorkingDir:      svc.WorkingDir,
 			ReadinessProbe:  toReadinessProbe(svc.HealthCheck),
+			Resources: corev1.ResourceRequirements{
+				Limits: corev1.ResourceList{
+					"cpu":    resource.MustParse("4"),
+					"memory": resource.MustParse("16Gi"),
+				},
+				// If Requests are not set, they will default to the
+				// same as the Limits, which are too high.
+				Requests: corev1.ResourceList{
+					"cpu":    resource.MustParse("100m"),
+					"memory": resource.MustParse("100Mi"),
+				},
+			},
 		},
 	}
 
