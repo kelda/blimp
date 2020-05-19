@@ -96,18 +96,18 @@ push-docker: build-docker
 	wait # Wait for all background jobs to exit before continuing so that we can guarantee the images are pushed.
 
 deploy-registry:
-	sed -i '' 's|<DOCKER_AUTH_IMAGE>|${DOCKER_AUTH_IMAGE}|' ./registry/kube/registry-deployment.yaml
-	sed -i '' 's|<REGISTRY_HOSTNAME>|${REGISTRY_HOSTNAME}|' ./registry/kube/registry-deployment.yaml
-	sed -i '' 's|<REGISTRY_IP>|${REGISTRY_IP}|' ./registry/kube/registry-service.yaml
-	sed -i '' 's|<REGISTRY_STORAGE>|${REGISTRY_STORAGE}|' ./registry/kube/registry-pvc.yaml
+	sed -i.bak 's|<DOCKER_AUTH_IMAGE>|${DOCKER_AUTH_IMAGE}|' ./registry/kube/registry-deployment.yaml
+	sed -i.bak 's|<REGISTRY_HOSTNAME>|${REGISTRY_HOSTNAME}|' ./registry/kube/registry-deployment.yaml
+	sed -i.bak 's|<REGISTRY_IP>|${REGISTRY_IP}|' ./registry/kube/registry-service.yaml
+	sed -i.bak 's|<REGISTRY_STORAGE>|${REGISTRY_STORAGE}|' ./registry/kube/registry-pvc.yaml
 	kubectl apply -f ./registry/kube
 
 deploy-manager:
-	sed -i '' 's|<CLUSTER_MANAGER_IMAGE>|${CLUSTER_CONTROLLER_IMAGE}|' ./cluster-controller/kube/manager-deployment.yaml
+	sed -i.bak 's|<CLUSTER_MANAGER_IMAGE>|${CLUSTER_CONTROLLER_IMAGE}|' ./cluster-controller/kube/manager-deployment.yaml
 	kubectl apply -f ./cluster-controller/kube
 
 deploy-login-proxy:
-	sed -i '' 's|<LOGIN_PROXY_IMAGE>|${LOGIN_PROXY_IMAGE}|' ./login-proxy/kube/login-deployment.yaml
-	sed -i '' 's|<LOGIN_PROXY_HOSTNAME>|${LOGIN_PROXY_HOSTNAME}|' ./login-proxy/kube/login-deployment.yaml
-	sed -i '' 's|<LOGIN_PROXY_IP>|${LOGIN_PROXY_IP}|' ./login-proxy/kube/login-service.yaml
+	sed -i.bak 's|<LOGIN_PROXY_IMAGE>|${LOGIN_PROXY_IMAGE}|' ./login-proxy/kube/login-deployment.yaml
+	sed -i.bak 's|<LOGIN_PROXY_HOSTNAME>|${LOGIN_PROXY_HOSTNAME}|' ./login-proxy/kube/login-deployment.yaml
+	sed -i.bak 's|<LOGIN_PROXY_IP>|${LOGIN_PROXY_IP}|' ./login-proxy/kube/login-service.yaml
 	kubectl apply -f ./login-proxy/kube
