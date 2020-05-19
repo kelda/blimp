@@ -17,26 +17,28 @@ import (
 	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/hash"
 	"github.com/kelda-inc/blimp/pkg/metadata"
-	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
+	"github.com/kelda-inc/blimp/pkg/proto/node"
 	"github.com/kelda-inc/blimp/pkg/version"
 	"github.com/kelda-inc/blimp/pkg/volume"
 )
 
 type podBuilder struct {
-	namespace   string
-	managerIP   string
-	builtImages map[string]string
+	namespace        string
+	dnsIP            string
+	nodeControllerIP string
+	builtImages      map[string]string
 
 	image      string
 	pod        corev1.Pod
 	configMaps []corev1.ConfigMap
 }
 
-func newPodBuilder(namespace, managerIP string, builtImages map[string]string) *podBuilder {
+func newPodBuilder(namespace, dnsIP, nodeControllerIP string, builtImages map[string]string) *podBuilder {
 	return &podBuilder{
-		namespace:   namespace,
-		managerIP:   managerIP,
-		builtImages: builtImages,
+		namespace:        namespace,
+		dnsIP:            dnsIP,
+		nodeControllerIP: nodeControllerIP,
+		builtImages:      builtImages,
 	}
 }
 
@@ -63,11 +65,11 @@ func (b *podBuilder) ToPod(svc composeTypes.ServiceConfig, svcAliasesMapping map
 	}
 
 	if len(svc.DependsOn) != 0 {
-		b.addWaiter(svc.Name, ContainerNameWaitDependsOn, sandbox.WaitSpec{DependsOn: marshalDependencies(svc.DependsOn, svc.Links)})
+		b.addWaiter(svc.Name, ContainerNameWaitDependsOn, node.WaitSpec{DependsOn: marshalDependencies(svc.DependsOn, svc.Links)})
 	}
 
 	if len(bindVolumes) != 0 {
-		b.addWaiter(svc.Name, ContainerNameWaitInitialSync, sandbox.WaitSpec{BindVolumes: bindVolumes})
+		b.addWaiter(svc.Name, ContainerNameWaitInitialSync, node.WaitSpec{BindVolumes: bindVolumes})
 	}
 
 	if err := b.addRuntimeContainer(svc, svcAliasesMapping); err != nil {
@@ -302,7 +304,7 @@ func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig, svcAlia
 	// Setup DNS.
 	b.pod.Spec.DNSPolicy = corev1.DNSNone
 	b.pod.Spec.DNSConfig = &corev1.PodDNSConfig{
-		Nameservers: []string{b.managerIP},
+		Nameservers: []string{b.dnsIP},
 		// TODO: There's Searches and Options, look into how to replicate these.
 	}
 
@@ -391,10 +393,10 @@ func toReadinessProbe(healthCheck *composeTypes.HealthCheckConfig) *corev1.Probe
 	return probe
 }
 
-func marshalDependencies(dependsOn composeTypes.DependsOnConfig, links []string) map[string]*sandbox.ServiceCondition {
-	pbDeps := map[string]*sandbox.ServiceCondition{}
+func marshalDependencies(dependsOn composeTypes.DependsOnConfig, links []string) map[string]*node.ServiceCondition {
+	pbDeps := map[string]*node.ServiceCondition{}
 	for name, condition := range dependsOn {
-		pbDeps[name] = &sandbox.ServiceCondition{Condition: condition.Condition}
+		pbDeps[name] = &node.ServiceCondition{Condition: condition.Condition}
 	}
 
 	for _, link := range links {
@@ -409,7 +411,7 @@ func marshalDependencies(dependsOn composeTypes.DependsOnConfig, links []string)
 
 		// Any dependency conditions specified in `depends_on` take precedence.
 		if _, ok := pbDeps[service]; !ok {
-			pbDeps[service] = &sandbox.ServiceCondition{Condition: composeTypes.ServiceConditionStarted}
+			pbDeps[service] = &node.ServiceCondition{Condition: composeTypes.ServiceConditionStarted}
 		}
 	}
 
@@ -435,9 +437,9 @@ func (b *podBuilder) sanitize() {
 // Each pod has a corresponding ConfigMap containing the dependencies
 // it requires before it should boot. This ConfigMap is mounted as a
 // volume into the pod's init container. The init container passes it
-// to the sandbox controller, which blocks boot until the requirements
+// to the node controller, which blocks boot until the requirements
 // are met.
-func (b *podBuilder) addWaiter(svcName, waitType string, spec sandbox.WaitSpec) error {
+func (b *podBuilder) addWaiter(svcName, waitType string, spec node.WaitSpec) error {
 	waitSpecBytes, err := proto.Marshal(&spec)
 	if err != nil {
 		return errors.WithContext("marshal wait spec", err)
@@ -475,8 +477,16 @@ func (b *podBuilder) addWaiter(svcName, waitType string, spec sandbox.WaitSpec) 
 		ImagePullPolicy: "Always",
 		Env: []corev1.EnvVar{
 			{
-				Name:  "SANDBOX_MANAGER_HOST",
-				Value: b.managerIP,
+				Name:  "NODE_CONTROLLER_HOST",
+				Value: b.nodeControllerIP,
+			},
+			{
+				Name: "NAMESPACE",
+				ValueFrom: &corev1.EnvVarSource{
+					FieldRef: &corev1.ObjectFieldSelector{
+						FieldPath: "metadata.namespace",
+					},
+				},
 			},
 
 			// Trigger a restart if the wait spec changes.

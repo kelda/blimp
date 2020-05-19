@@ -55,8 +55,8 @@ message RegistryCredential {
 
 message CreateSandboxResponse {
   blimp.errors.v0.Error error = 1;
-  string SandboxAddress = 2;
-  string SandboxCert = 3;
+  string NodeAddress = 2;
+  string NodeCert = 3;
   KubeCredentials kubeCredentials = 4;
   string ImageNamespace = 5;
 

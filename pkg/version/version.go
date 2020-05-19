@@ -1,8 +1,9 @@
 package version
 
 var (
-	Version                = ""
-	SandboxControllerImage = ""
-	InitImage              = ""
-	SyncthingImage         = ""
+	Version             = ""
+	NodeControllerImage = ""
+	InitImage           = ""
+	SyncthingImage      = ""
+	DNSImage            = ""
 )

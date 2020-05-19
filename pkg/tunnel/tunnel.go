@@ -13,46 +13,42 @@ import (
 
 	"github.com/kelda-inc/blimp/pkg/auth"
 	"github.com/kelda-inc/blimp/pkg/errors"
-	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
+	"github.com/kelda-inc/blimp/pkg/proto/node"
 )
 
 type tunnel interface {
-	Send(*sandbox.TunnelMsg) error
-	Recv() (*sandbox.TunnelMsg, error)
+	Send(*node.TunnelMsg) error
+	Recv() (*node.TunnelMsg, error)
 }
 
-func ServerHeader(namespace string, nsrv sandbox.Controller_TunnelServer) (
-	name string, port uint32, err error) {
+func ServerHeader(nsrv node.Controller_TunnelServer) (
+	name string, port uint32, namespace string, err error) {
 
 	msg, err := nsrv.Recv()
 	if err != nil {
-		return "", 0, err
+		return "", 0, "", err
 	}
 
 	header := msg.GetHeader()
 	if header == nil {
 		msg := fmt.Sprintf("first message must be a header")
-		return "", 0, status.New(codes.Internal, msg).Err()
+		return "", 0, "", status.New(codes.Internal, msg).Err()
 	}
 
 	user, err := auth.ParseIDToken(header.GetToken())
 	if err != nil {
-		return "", 0, errors.WithContext("bad token", err)
+		return "", 0, "", errors.WithContext("bad token", err)
 	}
 
-	if user.Namespace != namespace {
-		return "", 0, fmt.Errorf("user is only allowed to access namespace %q", user.Namespace)
-	}
-
-	return header.Name, header.Port, nil
+	return header.Name, header.Port, user.Namespace, nil
 }
 
-func ServerStream(nsrv sandbox.Controller_TunnelServer, stream net.Conn) {
+func ServerStream(nsrv node.Controller_TunnelServer, stream net.Conn) {
 	streamBidirectional(stream, nsrv, func() {})
 }
 
 // TODO, How does this thing get cleaned up?  Do we leak a go routine here?
-func Client(scc sandbox.ControllerClient, ln net.Listener, token,
+func Client(scc node.ControllerClient, ln net.Listener, token,
 	name string, port uint32) error {
 
 	fields := log.Fields{
@@ -77,7 +73,7 @@ func Client(scc sandbox.ControllerClient, ln net.Listener, token,
 	return nil
 }
 
-func connect(scc sandbox.ControllerClient, stream net.Conn,
+func connect(scc node.ControllerClient, stream net.Conn,
 	token, name string, port uint32) {
 	defer stream.Close()
 
@@ -88,8 +84,8 @@ func connect(scc sandbox.ControllerClient, stream net.Conn,
 		return
 	}
 
-	err = tnl.Send(&sandbox.TunnelMsg{Msg: &sandbox.TunnelMsg_Header{
-		Header: &sandbox.TunnelHeader{
+	err = tnl.Send(&node.TunnelMsg{Msg: &node.TunnelMsg_Header{
+		Header: &node.TunnelHeader{
 			Token: token,
 			Name:  name,
 			Port:  port,
@@ -172,8 +168,8 @@ loop:
 		}
 
 		if result.buf != nil {
-			msg := sandbox.TunnelMsg{
-				Msg: &sandbox.TunnelMsg_Buf{Buf: result.buf}}
+			msg := node.TunnelMsg{
+				Msg: &node.TunnelMsg_Buf{Buf: result.buf}}
 			if err := tnl.Send(&msg); err != nil {
 				log.WithError(err).Debug("tunnel send error")
 				return
@@ -189,8 +185,8 @@ loop:
 		}
 	}
 
-	msg := sandbox.TunnelMsg{
-		Msg: &sandbox.TunnelMsg_Eof{Eof: &sandbox.EOF{}}}
+	msg := node.TunnelMsg{
+		Msg: &node.TunnelMsg_Eof{Eof: &node.EOF{}}}
 	if err := tnl.Send(&msg); err != nil &&
 		status.Code(err) != codes.Canceled {
 		log.WithError(err).Debug("failed to send eof")

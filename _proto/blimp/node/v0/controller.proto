@@ -1,10 +1,10 @@
 syntax = "proto3";
 
-package blimp.sandbox.v0;
+package blimp.node.v0;
 
 import "blimp/errors/v0/errors.proto";
 
-option go_package = "github.com/kelda-inc/blimp/pkg/proto/sandbox";
+option go_package = "github.com/kelda-inc/blimp/pkg/proto/node";
 
 service Controller {
   rpc Tunnel(stream TunnelMsg) returns (stream TunnelMsg) {}
@@ -13,7 +13,7 @@ service Controller {
 
 message TunnelHeader{
     string name = 1;
-    uint32 port = 2; // Unused for volume streams
+    uint32 port = 2;
     string token = 3;
 }
 
@@ -32,7 +32,8 @@ message TunnelMsg {
 }
 
 message UpdateVolumeHashesRequest {
-  map<string, string> hashes = 1;
+  string token = 1;
+  map<string, string> hashes = 2;
 }
 
 message UpdateVolumeHashesResponse {

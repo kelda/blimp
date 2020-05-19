@@ -26,8 +26,32 @@ func DeployRole(kubeClient kubernetes.Interface, role rbacv1.Role) error {
 	return err
 }
 
+func DeployClusterRole(kubeClient kubernetes.Interface, role rbacv1.ClusterRole) error {
+	c := kubeClient.RbacV1().ClusterRoles()
+	currRole, err := c.Get(role.Name, metav1.GetOptions{})
+	if exists := err == nil; exists {
+		role.ResourceVersion = currRole.ResourceVersion
+		_, err = c.Update(&role)
+	} else {
+		_, err = c.Create(&role)
+	}
+	return err
+}
+
 func DeployRoleBinding(kubeClient kubernetes.Interface, binding rbacv1.RoleBinding) error {
 	c := kubeClient.RbacV1().RoleBindings(binding.Namespace)
+	currBinding, err := c.Get(binding.Name, metav1.GetOptions{})
+	if exists := err == nil; exists {
+		binding.ResourceVersion = currBinding.ResourceVersion
+		_, err = c.Update(&binding)
+	} else {
+		_, err = c.Create(&binding)
+	}
+	return err
+}
+
+func DeployClusterRoleBinding(kubeClient kubernetes.Interface, binding rbacv1.ClusterRoleBinding) error {
+	c := kubeClient.RbacV1().ClusterRoleBindings()
 	currBinding, err := c.Get(binding.Name, metav1.GetOptions{})
 	if exists := err == nil; exists {
 		binding.ResourceVersion = currBinding.ResourceVersion
@@ -42,6 +66,8 @@ func DeployPod(kubeClient kubernetes.Interface, pod corev1.Pod) error {
 	// Add an annotation to track the spec that was used to deploy the pod.
 	// This way, we can avoid recreating pods when the underlying spec hasn't
 	// changed.
+	// We can't just use podClient.Update and let Kubernetes handle it  because
+	// some of the PodSpec fields are immutable.
 	applyAnnotation, err := runtime.Encode(unstructured.UnstructuredJSONScheme, &pod)
 	if err != nil {
 		return errors.WithContext("make apply annotation", err)
@@ -79,10 +105,19 @@ func DeployPod(kubeClient kubernetes.Interface, pod corev1.Pod) error {
 	return nil
 }
 
-func DeployServiceAccount(kubeClient kubernetes.Interface, serviceAccount corev1.ServiceAccount, roles ...rbacv1.Role) error {
-	saClient := kubeClient.CoreV1().ServiceAccounts(serviceAccount.Namespace)
+func DeployServiceAccount(kubeClient kubernetes.Interface, sa corev1.ServiceAccount, roles ...rbacv1.Role) error {
+	return deployServiceAccount(kubeClient, sa, roles, nil)
+}
+
+func DeployClusterServiceAccount(kubeClient kubernetes.Interface, sa corev1.ServiceAccount, roles ...rbacv1.ClusterRole) error {
+	return deployServiceAccount(kubeClient, sa, nil, roles)
+}
+
+func deployServiceAccount(kubeClient kubernetes.Interface, serviceAccount corev1.ServiceAccount,
+	namespaceRoles []rbacv1.Role, clusterRoles []rbacv1.ClusterRole) error {
 
 	// Create the service account.
+	saClient := kubeClient.CoreV1().ServiceAccounts(serviceAccount.Namespace)
 	currServiceAccount, err := saClient.Get(serviceAccount.Name, metav1.GetOptions{})
 	if exists := err == nil; exists {
 		serviceAccount.ResourceVersion = currServiceAccount.ResourceVersion
@@ -96,34 +131,60 @@ func DeployServiceAccount(kubeClient kubernetes.Interface, serviceAccount corev1
 		return errors.WithContext("service account", err)
 	}
 
-	for _, role := range roles {
+	for _, role := range namespaceRoles {
 		if err := DeployRole(kubeClient, role); err != nil {
 			return errors.WithContext("create role", err)
 		}
 
+		meta, subjects, roleRef := roleBindingForRole(serviceAccount, "Role", role.Name)
 		binding := rbacv1.RoleBinding{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("%s-%s", serviceAccount.Name, role.Name),
-				Namespace: serviceAccount.Namespace,
-			},
-			Subjects: []rbacv1.Subject{
-				{
-					Kind:      "ServiceAccount",
-					Name:      serviceAccount.Name,
-					Namespace: serviceAccount.Namespace,
-				},
-			},
-			RoleRef: rbacv1.RoleRef{
-				APIGroup: "rbac.authorization.k8s.io",
-				Kind:     "Role",
-				Name:     role.Name,
-			},
+			ObjectMeta: meta,
+			Subjects:   subjects,
+			RoleRef:    roleRef,
 		}
 		if err := DeployRoleBinding(kubeClient, binding); err != nil {
 			return errors.WithContext("create role", err)
 		}
 	}
+
+	for _, role := range clusterRoles {
+		if err := DeployClusterRole(kubeClient, role); err != nil {
+			return errors.WithContext("create role", err)
+		}
+
+		meta, subjects, roleRef := roleBindingForRole(serviceAccount, "ClusterRole", role.Name)
+		binding := rbacv1.ClusterRoleBinding{
+			ObjectMeta: meta,
+			Subjects:   subjects,
+			RoleRef:    roleRef,
+		}
+		if err := DeployClusterRoleBinding(kubeClient, binding); err != nil {
+			return errors.WithContext("create role", err)
+		}
+	}
+
 	return nil
+}
+
+func roleBindingForRole(sa corev1.ServiceAccount, roleKind, roleName string) (metav1.ObjectMeta, []rbacv1.Subject, rbacv1.RoleRef) {
+	meta := metav1.ObjectMeta{
+		Name:      fmt.Sprintf("%s-%s", sa.Name, roleName),
+		Namespace: sa.Namespace,
+	}
+	subjects := []rbacv1.Subject{
+		{
+			Kind:      "ServiceAccount",
+			Name:      sa.Name,
+			Namespace: sa.Namespace,
+		},
+	}
+	roleRef := rbacv1.RoleRef{
+		APIGroup: "rbac.authorization.k8s.io",
+		Kind:     roleKind,
+		Name:     roleName,
+	}
+
+	return meta, subjects, roleRef
 }
 
 func DeployConfigMap(kubeClient kubernetes.Interface, configMap corev1.ConfigMap) error {

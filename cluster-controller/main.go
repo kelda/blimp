@@ -1,17 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/json"
-	"encoding/pem"
 	"flag"
 	"fmt"
-	"math/big"
 	"net"
 	"os"
 	"path/filepath"
@@ -28,17 +21,19 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/retry"
 
+	"github.com/kelda-inc/blimp/cluster-controller/node"
 	"github.com/kelda-inc/blimp/pkg/analytics"
 	"github.com/kelda-inc/blimp/pkg/auth"
 	"github.com/kelda-inc/blimp/pkg/dockercompose"
 	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/hash"
 	"github.com/kelda-inc/blimp/pkg/kube"
+	"github.com/kelda-inc/blimp/pkg/ports"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 	"github.com/kelda-inc/blimp/pkg/syncthing"
 	"github.com/kelda-inc/blimp/pkg/version"
@@ -57,11 +52,6 @@ type server struct {
 	statusFetcher     *statusFetcher
 	certPath, keyPath string
 }
-
-const (
-	Port        = 9000
-	SandboxPort = 9001
-)
 
 // Set by make.
 var RegistryHostname string
@@ -106,7 +96,9 @@ func main() {
 	}
 	s.statusFetcher.Start()
 
-	addr := fmt.Sprintf("0.0.0.0:%d", Port)
+	node.StartControllerBooter(kubeClient)
+
+	addr := fmt.Sprintf("0.0.0.0:%d", ports.ClusterManagerInternalPort)
 	if err := s.listenAndServe(addr); err != nil {
 		log.WithError(err).Error("Unexpected error")
 		os.Exit(1)
@@ -153,7 +145,7 @@ func (s *server) CheckVersion(ctx context.Context, req *cluster.CheckVersionRequ
 		}, nil
 	}
 
-	c, err := semver.NewConstraint(">= 0.11.0")
+	c, err := semver.NewConstraint(">= 0.12.0")
 	if err != nil {
 		log.WithError(err).Warn("Failed to create version constraint")
 		return &cluster.CheckVersionResponse{
@@ -215,9 +207,24 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, errors.WithContext("deploy syncthing", err)
 	}
 
-	sandboxAddress, sandboxCert, err := s.createSandboxManager(namespace, dcCfg)
+	if err := s.deployDNS(namespace); err != nil {
+		return &cluster.CreateSandboxResponse{}, errors.WithContext("deploy dns", err)
+	}
+
+	// Wait until the DNS pod is scheduled so that we know what node the other
+	// pods in the namespace will get scheduled on.
+	dnsPod, err := s.getDNSPod(ctx, namespace, podIsScheduled)
 	if err != nil {
-		return &cluster.CreateSandboxResponse{}, errors.WithContext("deploy customer manager", err)
+		return &cluster.CreateSandboxResponse{}, errors.WithContext("get dns pod", err)
+	}
+
+	if err := s.addVolumeFinalizer(namespace, dnsPod.Spec.NodeName); err != nil {
+		return &cluster.CreateSandboxResponse{}, errors.WithContext("add volume finalizer", err)
+	}
+
+	nodeAddress, nodeCert, err := node.GetConnectionInfo(ctx, s.kubeClient, dnsPod.Spec.NodeName)
+	if err != nil {
+		return &cluster.CreateSandboxResponse{}, errors.WithContext("get node controller", err)
 	}
 
 	creds := req.GetRegistryCredentials()
@@ -233,7 +240,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, errors.WithContext("create pod runner service account", err)
 	}
 
-	cliCreds, err := s.createCLICreds(namespace)
+	cliCreds, err := s.createCLICreds(ctx, namespace)
 	if err != nil {
 		return &cluster.CreateSandboxResponse{}, errors.WithContext("get kube credentials", err)
 	}
@@ -254,8 +261,8 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 	}
 
 	return &cluster.CreateSandboxResponse{
-		SandboxAddress:  sandboxAddress,
-		SandboxCert:     sandboxCert,
+		NodeAddress:     nodeAddress,
+		NodeCert:        nodeCert,
 		ImageNamespace:  fmt.Sprintf("%s/%s", RegistryHostname, namespace),
 		KubeCredentials: &cliCreds,
 		Message:         featuresMsg,
@@ -275,12 +282,17 @@ func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest
 	}
 
 	namespace := user.Namespace
-	sandboxControllerIP, err := s.getSandboxControllerIP(namespace)
+	dnsPod, err := s.getDNSPod(ctx, namespace, podIsRunning)
 	if err != nil {
-		return &cluster.DeployResponse{}, errors.WithContext("get sandbox controller's internal IP", err)
+		return &cluster.DeployResponse{}, errors.WithContext("get dns server's IP", err)
 	}
 
-	customerPods, configMaps, err := toPods(namespace, sandboxControllerIP, dcCfg, req.BuiltImages)
+	nodeControllerIP, err := node.GetNodeControllerInternalIP(s.kubeClient, dnsPod.Spec.NodeName)
+	if err != nil {
+		return &cluster.DeployResponse{}, errors.WithContext("get node controller's IP", err)
+	}
+
+	customerPods, configMaps, err := toPods(namespace, dnsPod.Status.PodIP, nodeControllerIP, dcCfg, req.BuiltImages)
 	if err != nil {
 		return &cluster.DeployResponse{}, errors.WithContext("make pod specs", err)
 	}
@@ -312,7 +324,7 @@ func (s *server) createNamespace(namespace string) error {
 		},
 	}
 
-	namespaceNetworkPolicy := &networkingv1.NetworkPolicy{
+	policy := &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: ns.Name,
 			Name:      "namespace",
@@ -324,6 +336,9 @@ func (s *server) createNamespace(namespace string) error {
 					From: []networkingv1.NetworkPolicyPeer{
 
 						// Allow traffic any pod in the same namespace.
+						// Pods in this namespace can also communicate with the
+						// node controller since we don't have an ingress rule
+						// for the blimp-system namespace.
 						{
 							NamespaceSelector: &metav1.LabelSelector{
 								MatchLabels: map[string]string{
@@ -331,37 +346,14 @@ func (s *server) createNamespace(namespace string) error {
 								},
 							},
 						},
-					},
-				},
-			},
-			PolicyTypes: []networkingv1.PolicyType{
-				networkingv1.PolicyTypeIngress,
-			},
-		},
-	}
 
-	sandboxControllerNetworkPolicy := &networkingv1.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: ns.Name,
-			Name:      "sandbox-manager",
-		},
-		Spec: networkingv1.NetworkPolicySpec{
-			PodSelector: metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"service": "sandbox-manager",
-				},
-			},
-			Ingress: []networkingv1.NetworkPolicyIngressRule{
-				{
-					From: []networkingv1.NetworkPolicyPeer{
-
-						// Allow traffic from all IPs so that the load balancer
-						// can forward public connections to the pod.
-						// The above network policy also allows traffic from
-						// other pods in the same namespace.
+						// Allow the node controllers to forward traffic to
+						// customer pods.
 						{
-							IPBlock: &networkingv1.IPBlock{
-								CIDR: "0.0.0.0/0",
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"namespace": node.NodeControllerNamespace,
+								},
 							},
 						},
 					},
@@ -391,288 +383,53 @@ func (s *server) createNamespace(namespace string) error {
 	}
 
 	networkingClient := s.kubeClient.NetworkingV1().NetworkPolicies(ns.Name)
-	for _, policy := range []*networkingv1.NetworkPolicy{namespaceNetworkPolicy, sandboxControllerNetworkPolicy} {
-		if _, err := networkingClient.Get(policy.Name, metav1.GetOptions{}); err == nil {
-			continue
-		}
+	if _, err := networkingClient.Get(policy.Name, metav1.GetOptions{}); err == nil {
+		return nil
+	}
 
-		if _, err := networkingClient.Create(policy); err != nil {
-			return errors.WithContext("create network policy", err)
-		}
+	if _, err := networkingClient.Create(policy); err != nil {
+		return errors.WithContext("create network policy", err)
 	}
 	return nil
 }
 
-func (s *server) getSandboxControllerIP(namespace string) (string, error) {
-	var internalIP string
-	err := kube.WaitForObject(
-		kube.PodGetter(s.kubeClient, namespace, "sandbox-manager"),
+// addVolumeFinalizer adds a finalizer to the given namespace signaling that
+// the given namespace shouldn't be considered terminated until the specified
+// node has cleaned up the volumes.
+func (s *server) addVolumeFinalizer(namespace, node string) error {
+	namespaceClient := s.kubeClient.CoreV1().Namespaces()
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		curr, err := namespaceClient.Get(namespace, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		finalizer := kube.VolumeFinalizer(node)
+		if contains(curr.Finalizers, finalizer) {
+			return nil
+		}
+
+		curr.Finalizers = append(curr.Finalizers, finalizer)
+		_, err = namespaceClient.Finalize(curr)
+		return err
+	})
+	return err
+}
+
+func (s *server) getDNSPod(ctx context.Context, namespace string, cond podCondition) (pod *corev1.Pod, err error) {
+	ctx, _ = context.WithTimeout(ctx, 3*time.Minute)
+	err = kube.WaitForObject(ctx,
+		kube.PodGetter(s.kubeClient, namespace, "dns"),
 		s.kubeClient.CoreV1().Pods(namespace).Watch,
 		func(podIntf interface{}) bool {
-			pod := podIntf.(*corev1.Pod)
-
-			// Wait for the pod to be ready to accept connections.
-			for _, container := range pod.Status.ContainerStatuses {
-				if !container.Ready {
-					return false
-				}
-			}
-
-			if pod.Status.PodIP != "" {
-				internalIP = pod.Status.PodIP
-				return true
-			}
-			return false
+			pod = podIntf.(*corev1.Pod)
+			return cond(pod)
 		})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return internalIP, nil
-}
-
-func (s *server) createSandboxManager(namespace string, cfg composeTypes.Config) (sandboxAddr, certPEM string, err error) {
-	serviceAccount := corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "sandbox-manager",
-			Namespace: namespace,
-		},
-	}
-
-	role := rbacv1.Role{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      "sandbox-manager-role",
-		},
-		Rules: []rbacv1.PolicyRule{
-			// TODO: Limit access.
-			{
-				APIGroups: []string{"*"},
-				Resources: []string{"*"},
-				Verbs:     []string{"*"},
-			},
-		},
-	}
-
-	bindVolumeRoot := volume.BindVolumeRoot(namespace)
-	volumes := []corev1.Volume{
-		{
-			Name: "cert",
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName: "sandbox-cert",
-				},
-			},
-		},
-		bindVolumeRoot,
-	}
-	volumeMounts := []corev1.VolumeMount{
-		{
-			Name:      "cert",
-			MountPath: "/etc/blimp/certs",
-		},
-		{
-			Name:      bindVolumeRoot.Name,
-			MountPath: "/bind",
-		},
-	}
-
-	// Collect the volumes that need to be reset.
-	resetPaths := map[string]struct{}{}
-	for _, svc := range cfg.Services {
-		for _, vol := range svc.Volumes {
-			if vol.Type != composeTypes.VolumeTypeVolume {
-				continue
-			}
-
-			kubeVol := volume.GetVolume(namespace, vol.Source)
-			path := kubeVol.VolumeSource.HostPath.Path
-			if _, ok := resetPaths[path]; ok {
-				continue
-			}
-
-			volumes = append(volumes, kubeVol)
-			volumeMounts = append(volumeMounts, corev1.VolumeMount{
-				Name:      kubeVol.Name,
-				MountPath: path,
-			})
-			resetPaths[path] = struct{}{}
-		}
-	}
-
-	pod := corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      "sandbox-manager",
-			Labels: map[string]string{
-				"service":        "sandbox-manager",
-				"blimp.customer": namespace,
-			},
-		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:            "sandbox-manager",
-					Image:           version.SandboxControllerImage,
-					ImagePullPolicy: "Always",
-					Env: []corev1.EnvVar{
-						{
-							Name: "NAMESPACE",
-							ValueFrom: &corev1.EnvVarSource{
-								FieldRef: &corev1.ObjectFieldSelector{
-									FieldPath: "metadata.namespace",
-								},
-							},
-						},
-					},
-					Args:         mapToSlice(resetPaths),
-					VolumeMounts: volumeMounts,
-					ReadinessProbe: &corev1.Probe{
-						Handler: corev1.Handler{
-							TCPSocket: &corev1.TCPSocketAction{
-								Port: intstr.FromInt(SandboxPort),
-							},
-						},
-
-						// Give the sandbox controller some time to startup.
-						InitialDelaySeconds: 5,
-					},
-				},
-			},
-			Volumes:            volumes,
-			Affinity:           sameNodeAffinity(namespace),
-			ServiceAccountName: serviceAccount.Name,
-		},
-	}
-
-	service := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "sandbox",
-			Namespace: namespace,
-		},
-		Spec: corev1.ServiceSpec{
-			Type:     corev1.ServiceTypeLoadBalancer,
-			Selector: pod.Labels,
-			Ports: []corev1.ServicePort{
-				{
-					Port:       443,
-					TargetPort: intstr.FromInt(SandboxPort),
-				},
-			},
-		},
-	}
-
-	// Create the Service first so that we can generate a certificate for the
-	// sandbox's public IP.
-	servicesClient := s.kubeClient.CoreV1().Services(namespace)
-	if _, err := servicesClient.Get(service.Name, metav1.GetOptions{}); err != nil {
-		_, err := servicesClient.Create(service)
-		if err != nil {
-			return "", "", errors.WithContext("create service", err)
-		}
-	}
-
-	var publicIP string
-	err = kube.WaitForObject(
-		kube.ServiceGetter(s.kubeClient, namespace, service.Name),
-		s.kubeClient.CoreV1().Services(namespace).Watch,
-		func(svcIntf interface{}) bool {
-			svc := svcIntf.(*corev1.Service)
-
-			ingress := svc.Status.LoadBalancer.Ingress
-			if len(ingress) == 1 && ingress[0].IP != "" {
-				publicIP = ingress[0].IP
-				return true
-			}
-			return false
-		})
-	if err != nil {
-		return "", "", errors.WithContext("wait for public IP", err)
-	}
-
-	// Generate new certificates for the sandbox controller if it's the first
-	// time deploying the controller.
-	secretsClient := s.kubeClient.CoreV1().Secrets(namespace)
-	certSecret, err := secretsClient.Get("sandbox-cert", metav1.GetOptions{})
-	if err != nil {
-		cert, key, err := newSelfSignedCert(publicIP)
-		if err != nil {
-			return "", "", errors.WithContext("generate cert", err)
-		}
-
-		certSecret = &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "sandbox-cert",
-				Namespace: namespace,
-			},
-			Data: map[string][]byte{
-				"cert.pem": cert,
-				"key.pem":  key,
-			},
-		}
-		if _, err := secretsClient.Create(certSecret); err != nil {
-			return "", "", errors.WithContext("create cert secret", err)
-		}
-	}
-
-	if err := kube.DeployServiceAccount(s.kubeClient, serviceAccount, role); err != nil {
-		return "", "", err
-	}
-
-	if err := kube.DeployPod(s.kubeClient, pod); err != nil {
-		return "", "", errors.WithContext("deploy", err)
-	}
-
-	return fmt.Sprintf("%s:443", publicIP), string(certSecret.Data["cert.pem"]), nil
-}
-
-func newSelfSignedCert(ip string) (pemCert, pemKey []byte, err error) {
-	priv, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, nil, errors.WithContext("create private key", err)
-	}
-
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	if err != nil {
-		return nil, nil, errors.WithContext("generate serial number", err)
-	}
-
-	template := x509.Certificate{
-		SerialNumber: serialNumber,
-		Subject: pkix.Name{
-			Organization: []string{"Kelda Blimp Sandbox Controller"},
-		},
-		// Set the NotBefore date to a bit earlier to allow for clients who
-		// have slow clocks.
-		NotBefore:             time.Now().Add(-1 * 24 * time.Hour),
-		NotAfter:              time.Now().Add(365 * time.Hour * 24),
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-		IPAddresses:           []net.IP{net.ParseIP(ip)},
-	}
-
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
-	if err != nil {
-		return nil, nil, errors.WithContext("create certificate", err)
-	}
-
-	var certOut bytes.Buffer
-	if err := pem.Encode(&certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
-		return nil, nil, errors.WithContext("pem encode certificate", err)
-	}
-
-	var keyOut bytes.Buffer
-	privBytes, err := x509.MarshalPKCS8PrivateKey(priv)
-	if err != nil {
-		return nil, nil, errors.WithContext("marshal private key", err)
-	}
-	if err := pem.Encode(&keyOut, &pem.Block{Type: "PRIVATE KEY", Bytes: privBytes}); err != nil {
-		return nil, nil, errors.WithContext("pem encode private key", err)
-	}
-
-	return certOut.Bytes(), keyOut.Bytes(), nil
+	return pod, nil
 }
 
 func (s *server) createSyncthing(namespace string, syncedFolders map[string]string) error {
@@ -715,7 +472,69 @@ func (s *server) createSyncthing(namespace string, syncedFolders map[string]stri
 	return nil
 }
 
-func (s *server) createCLICreds(namespace string) (cluster.KubeCredentials, error) {
+func (s *server) deployDNS(namespace string) error {
+	serviceAccount := corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "dns",
+			Namespace: namespace,
+		},
+	}
+
+	role := rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      "dns-role",
+		},
+		Rules: []rbacv1.PolicyRule{
+			// List all pods in the namespace.
+			{
+				APIGroups: []string{""},
+				Resources: []string{"pods"},
+				Verbs:     []string{"get", "list", "watch"},
+			},
+		},
+	}
+	if err := kube.DeployServiceAccount(s.kubeClient, serviceAccount, role); err != nil {
+		return errors.WithContext("create dns service account", err)
+	}
+
+	pod := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      "dns",
+			Labels: map[string]string{
+				"service":        "dns",
+				"blimp.customer": namespace,
+			},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{
+				Name: "dns",
+				Env: []corev1.EnvVar{
+					{
+						Name: "NAMESPACE",
+						ValueFrom: &corev1.EnvVarSource{
+							FieldRef: &corev1.ObjectFieldSelector{
+								FieldPath: "metadata.namespace",
+							},
+						},
+					},
+				},
+				Image:           version.DNSImage,
+				ImagePullPolicy: "Always",
+			}},
+			Affinity:           sameNodeAffinity(namespace),
+			ServiceAccountName: serviceAccount.Name,
+		},
+	}
+
+	if err := kube.DeployPod(s.kubeClient, pod); err != nil {
+		return errors.WithContext("deploy pod", err)
+	}
+	return nil
+}
+
+func (s *server) createCLICreds(ctx context.Context, namespace string) (cluster.KubeCredentials, error) {
 	serviceAccount := corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
@@ -758,7 +577,8 @@ func (s *server) createCLICreds(namespace string) (cluster.KubeCredentials, erro
 
 	// Wait until the ServiceAccount's secret is populated.
 	var secretName string
-	err := kube.WaitForObject(
+	ctx, _ = context.WithTimeout(ctx, 3*time.Minute)
+	err := kube.WaitForObject(ctx,
 		kube.ServiceAccountGetter(s.kubeClient, namespace, serviceAccount.Name),
 		s.kubeClient.CoreV1().ServiceAccounts(namespace).Watch,
 		func(saIntf interface{}) bool {
@@ -939,7 +759,8 @@ func (s *server) WatchStatus(req *cluster.GetStatusRequest, stream cluster.Manag
 
 func toPods(
 	namespace,
-	managerIP string,
+	dnsIP,
+	nodeControllerIP string,
 	cfg composeTypes.Config,
 	builtImages map[string]string,
 ) (
@@ -978,7 +799,7 @@ func toPods(
 	}
 
 	for _, svc := range cfg.Services {
-		b := newPodBuilder(namespace, managerIP, builtImages)
+		b := newPodBuilder(namespace, dnsIP, nodeControllerIP, builtImages)
 		p, cm, err := b.ToPod(svc, serviceToAliases)
 		if err != nil {
 			return nil, nil, err
@@ -1028,10 +849,29 @@ func getKubeClient() (kubernetes.Interface, *rest.Config, error) {
 	return kubeClient, restConfig, nil
 }
 
+type podCondition func(*corev1.Pod) bool
+
+func podIsRunning(pod *corev1.Pod) bool {
+	return pod.Status.Phase == corev1.PodRunning
+}
+
+func podIsScheduled(pod *corev1.Pod) bool {
+	return pod.Spec.NodeName != ""
+}
+
 func mapToSlice(set map[string]struct{}) (slc []string) {
 	for str := range set {
 		slc = append(slc, str)
 	}
 	sort.Strings(slc)
 	return slc
+}
+
+func contains(slc []string, exp string) bool {
+	for _, x := range slc {
+		if x == exp {
+			return true
+		}
+	}
+	return false
 }

@@ -1,17 +1,18 @@
 syntax = "proto3";
 
-package blimp.sandbox.v0;
+package blimp.node.v0;
 
 import "blimp/errors/v0/errors.proto";
 
-option go_package = "github.com/kelda-inc/blimp/pkg/proto/sandbox";
+option go_package = "github.com/kelda-inc/blimp/pkg/proto/node";
 
 service BootWaiter {
   rpc CheckReady(CheckReadyRequest) returns (stream CheckReadyResponse) {}
 }
 
 message CheckReadyRequest {
-    WaitSpec wait_spec = 1;
+    string namespace = 1;
+    WaitSpec wait_spec = 2;
 }
 
 message WaitSpec {

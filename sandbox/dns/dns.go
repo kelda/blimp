@@ -1,7 +1,8 @@
-package dns
+package main
 
 import (
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -11,9 +12,38 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
+	"github.com/kelda-inc/blimp/pkg/analytics"
 	"github.com/kelda-inc/blimp/pkg/metadata"
 )
+
+func main() {
+	namespace := os.Getenv("NAMESPACE")
+	if namespace == "" {
+		log.Error("NAMESPACE environment variable is required")
+		os.Exit(1)
+	}
+
+	analytics.Init(analytics.DirectPoster{}, analytics.StreamID{
+		Source:    "dns",
+		Namespace: namespace,
+	})
+
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		log.WithError(err).Error("Get rest config")
+		os.Exit(1)
+	}
+
+	kubeClient, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		log.WithError(err).Error("Get kube client")
+		os.Exit(1)
+	}
+
+	run(kubeClient, namespace)
+}
 
 const dnsTTL = 60 // Seconds
 
@@ -24,7 +54,7 @@ type dnsTable struct {
 	records    map[string]net.IP
 }
 
-func Run(kubeClient kubernetes.Interface, namespace string) {
+func run(kubeClient kubernetes.Interface, namespace string) {
 	table := makeTable()
 
 	// There could be multiple messages depending on how listenAndServe is

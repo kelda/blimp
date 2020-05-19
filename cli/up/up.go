@@ -33,7 +33,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/dockercompose"
 	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
-	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
+	"github.com/kelda-inc/blimp/pkg/proto/node"
 	"github.com/kelda-inc/blimp/pkg/syncthing"
 	"github.com/kelda-inc/blimp/pkg/tunnel"
 )
@@ -112,8 +112,8 @@ type up struct {
 	dockerConfig   *configfile.ConfigFile
 	regCreds       map[string]types.AuthConfig
 	imageNamespace string
-	sandboxAddr    string
-	sandboxCert    string
+	nodeAddr       string
+	nodeCert       string
 }
 
 func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) error {
@@ -145,8 +145,8 @@ func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) err
 	}
 
 	cmd.imageNamespace = resp.ImageNamespace
-	cmd.sandboxAddr = resp.SandboxAddress
-	cmd.sandboxCert = resp.SandboxCert
+	cmd.nodeAddr = resp.NodeAddress
+	cmd.nodeCert = resp.NodeCert
 
 	// Save the Kubernetes API credentials for use by other Blimp commands.
 	kubeCreds := resp.GetKubeCredentials()
@@ -206,18 +206,18 @@ func (cmd *up) run() error {
 		return err
 	}
 
-	sandboxConn, err := util.Dial(cmd.sandboxAddr, cmd.sandboxCert)
+	nodeConn, err := util.Dial(cmd.nodeAddr, cmd.nodeCert)
 	if err != nil {
 		return err
 	}
-	defer sandboxConn.Close()
-	sandboxManager := sandbox.NewControllerClient(sandboxConn)
+	defer nodeConn.Close()
+	nodeController := node.NewControllerClient(nodeConn)
 
 	// Start the tunnels.
 	for _, svc := range parsedCompose.Services {
 		for _, mapping := range svc.Ports {
 			if mapping.Protocol == "tcp" {
-				go startTunnel(sandboxManager, cmd.auth.AuthToken, svc.Name,
+				go startTunnel(nodeController, cmd.auth.AuthToken, svc.Name,
 					mapping.HostIP, mapping.Published, mapping.Target)
 			}
 		}
@@ -227,12 +227,12 @@ func (cmd *up) run() error {
 	syncthingError := make(chan error, 1)
 	syncthingCtx, cancelSyncthing := context.WithCancel(context.Background())
 	if len(idPathMap) != 0 {
-		go startTunnel(sandboxManager, cmd.auth.AuthToken, "syncthing",
+		go startTunnel(nodeController, cmd.auth.AuthToken, "syncthing",
 			"127.0.0.1", syncthing.Port, syncthing.Port)
 		go func() {
 			defer close(syncthingError)
 
-			output, err := stClient.Run(syncthingCtx, sandboxManager, stopHashSync)
+			output, err := stClient.Run(syncthingCtx, nodeController, cmd.auth.AuthToken, stopHashSync)
 			select {
 			// We intentionally killed the Syncthing process, so exiting was expected.
 			case <-syncthingCtx.Done():
@@ -292,7 +292,7 @@ func (cmd *up) runGUI(parsedCompose composeTypes.Config, stopHashSync chan struc
 	}.Run()
 }
 
-func startTunnel(scc sandbox.ControllerClient, token, name, hostIP string,
+func startTunnel(ncc node.ControllerClient, token, name, hostIP string,
 	hostPort, containerPort uint32) {
 
 	addr := fmt.Sprintf("%s:%d", hostIP, hostPort)
@@ -320,7 +320,7 @@ func startTunnel(scc sandbox.ControllerClient, token, name, hostIP string,
 			Fatal("Failed to started tunnels")
 	}
 
-	err = tunnel.Client(scc, ln, token, name, containerPort)
+	err = tunnel.Client(ncc, ln, token, name, containerPort)
 	if err != nil {
 		// TODO.  Same question about Fatal.  Also if accept errors
 		// maybe wes hould have retried inside accept tunnels instead of

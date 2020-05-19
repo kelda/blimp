@@ -16,6 +16,9 @@ func main() {
 	folders := syncthing.ArgsToMap(os.Args[1:])
 
 	// Reset the bind volume so that we don't sync stale files back to the user.
+	// The volume should already be empty because of the volume finalizer that
+	// gets run when a namespace is deleted, but we check again here just in
+	// case.
 	if err := clearDir("/bind"); err != nil {
 		log.WithError(err).Fatal("Failed to clear path")
 	}
@@ -43,6 +46,9 @@ func main() {
 func clearDir(dir string) error {
 	paths, err := ioutil.ReadDir(dir)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
 		return errors.WithContext("read dir", err)
 	}
 

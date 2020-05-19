@@ -1,3 +1,3 @@
 FROM blimp-go-build as builder
 
-ENTRYPOINT ["blimp-sbctl"]
+ENTRYPOINT ["blimp-dns"]

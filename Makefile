@@ -8,7 +8,8 @@ VERSION?=latest
 MANAGER_KEY_PATH = "./certs/cluster-manager.key.pem"
 MANAGER_CERT_PATH = "./certs/cluster-manager.crt.pem"
 LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
-	   -X github.com/kelda-inc/blimp/pkg/version.SandboxControllerImage=${SANDBOX_CONTROLLER_IMAGE} \
+	   -X github.com/kelda-inc/blimp/pkg/version.NodeControllerImage=${NODE_CONTROLLER_IMAGE} \
+	   -X github.com/kelda-inc/blimp/pkg/version.DNSImage=${DNS_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/version.InitImage=${INIT_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/version.SyncthingImage=${SYNCTHING_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/auth.ClusterManagerCertBase64=$(shell base64 ${MANAGER_CERT_PATH} | tr -d "\n") \
@@ -42,8 +43,8 @@ go-get:
 	go get -u github.com/GeertJohan/go.rice/rice
 
 generate:
-	protoc -I _proto _proto/blimp/sandbox/v0/controller.proto --go_out=plugins=grpc:$$GOPATH/src
-	protoc -I _proto _proto/blimp/sandbox/v0/waiter.proto --go_out=plugins=grpc:$$GOPATH/src
+	protoc -I _proto _proto/blimp/node/v0/controller.proto --go_out=plugins=grpc:$$GOPATH/src
+	protoc -I _proto _proto/blimp/node/v0/waiter.proto --go_out=plugins=grpc:$$GOPATH/src
 	protoc -I _proto _proto/blimp/cluster/v0/manager.proto --go_out=plugins=grpc:$$GOPATH/src
 	protoc -I _proto _proto/blimp/login/v0/login.proto --go_out=plugins=grpc:$$GOPATH/src
 	protoc _proto/blimp/errors/v0/errors.proto --go_out=plugins=grpc:$$GOPATH/src
@@ -69,7 +70,8 @@ run-cluster-controller: certs
 build-circle-image:
 	docker build -f .circleci/Dockerfile . -t keldaio/circleci-blimp
 
-SANDBOX_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-sandbox-controller:${VERSION}
+NODE_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-node-controller:${VERSION}
+DNS_IMAGE = ${DOCKER_REPO}/blimp-dns:${VERSION}
 CLUSTER_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-cluster-controller:${VERSION}
 INIT_IMAGE = ${DOCKER_REPO}/blimp-init:${VERSION}
 SYNCTHING_IMAGE = ${DOCKER_REPO}/sandbox-syncthing:${VERSION}
@@ -80,15 +82,17 @@ build-docker: certs
 	docker build -t blimp-go-build --build-arg COMPILE_FLAGS=${LD_FLAGS} . ; \
 	docker build -t sandbox-syncthing -t ${SYNCTHING_IMAGE} -f ./sandbox/syncthing/Dockerfile . & \
 	docker build -t blimp-cluster-controller -t ${CLUSTER_CONTROLLER_IMAGE} - < ./cluster-controller/Dockerfile & \
-	docker build -t blimp-sandbox-controller -t ${SANDBOX_CONTROLLER_IMAGE} - < ./sandbox/sbctl/Dockerfile & \
+	docker build -t blimp-node-controller -t ${NODE_CONTROLLER_IMAGE} - < ./node/Dockerfile & \
+	docker build -t blimp-dns -t ${DNS_IMAGE} - < ./sandbox/dns/Dockerfile & \
 	docker build -t blimp-init -t ${INIT_IMAGE} - < ./sandbox/init/Dockerfile & \
 	docker build -t blimp-docker-auth -t ${DOCKER_AUTH_IMAGE} - < ./registry/Dockerfile & \
 	docker build -t login-proxy -t ${LOGIN_PROXY_IMAGE} - < ./login-proxy/Dockerfile & \
 	wait # Wait for all background jobs to exit before continuing so that we can guarantee the images are built.
 
 push-docker: build-docker
-	docker push ${SANDBOX_CONTROLLER_IMAGE} ; \
+	docker push ${NODE_CONTROLLER_IMAGE} ;
 	docker push ${CLUSTER_CONTROLLER_IMAGE} & \
+	docker push ${DNS_IMAGE} & \
 	docker push ${SYNCTHING_IMAGE} & \
 	docker push ${INIT_IMAGE} & \
 	docker push ${DOCKER_AUTH_IMAGE} & \

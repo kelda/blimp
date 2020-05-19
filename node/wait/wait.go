@@ -14,10 +14,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/kelda-inc/blimp/node/wait/tracker"
 	"github.com/kelda-inc/blimp/pkg/errors"
-	"github.com/kelda-inc/blimp/pkg/proto/sandbox"
+	"github.com/kelda-inc/blimp/pkg/proto/node"
 	"github.com/kelda-inc/blimp/pkg/syncthing"
-	"github.com/kelda-inc/blimp/sandbox/sbctl/wait/tracker"
+	"github.com/kelda-inc/blimp/pkg/volume"
 
 	// Install the gzip compressor.
 	_ "google.golang.org/grpc/encoding/gzip"
@@ -25,10 +26,9 @@ import (
 
 const Port = 9002
 
-func Run(kubeClient kubernetes.Interface, namespace string, volumeTracker *tracker.VolumeTracker) {
+func Run(kubeClient kubernetes.Interface, volumeTracker *tracker.VolumeTracker) {
 	s := &server{
 		kubeClient:    kubeClient,
-		namespace:     namespace,
 		volumeTracker: volumeTracker,
 	}
 
@@ -41,7 +41,6 @@ func Run(kubeClient kubernetes.Interface, namespace string, volumeTracker *track
 
 type server struct {
 	kubeClient    kubernetes.Interface
-	namespace     string
 	volumeTracker *tracker.VolumeTracker
 }
 
@@ -53,25 +52,26 @@ func (s *server) listenAndServe(address string) error {
 
 	log.WithField("address", address).Info("Listening for connections to boot blocking manager")
 	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(errors.UnaryServerInterceptor))
-	sandbox.RegisterBootWaiterServer(grpcServer, s)
+	node.RegisterBootWaiterServer(grpcServer, s)
 	return grpcServer.Serve(lis)
 }
 
 // CheckReady returns whether the boot requirements specified in the request
 // are satisfied.
-func (s *server) CheckReady(req *sandbox.CheckReadyRequest, srv sandbox.BootWaiter_CheckReadyServer) error {
-	checkOnce := func() *sandbox.CheckReadyResponse {
+func (s *server) CheckReady(req *node.CheckReadyRequest, srv node.BootWaiter_CheckReadyServer) error {
+	checkOnce := func() *node.CheckReadyResponse {
+		namespace := req.GetNamespace()
 		for name, condition := range req.GetWaitSpec().GetDependsOn() {
-			isBooted, err := s.testServiceCondition(name, *condition)
+			isBooted, err := s.testServiceCondition(namespace, name, *condition)
 			if err != nil {
-				return &sandbox.CheckReadyResponse{
+				return &node.CheckReadyResponse{
 					Ready:  false,
 					Reason: fmt.Sprintf("failed to get pod status: %s", err),
 				}
 			}
 
 			if !isBooted {
-				return &sandbox.CheckReadyResponse{
+				return &node.CheckReadyResponse{
 					Ready:  false,
 					Reason: fmt.Sprintf("service %s is either not running or not healthy", name),
 				}
@@ -79,23 +79,23 @@ func (s *server) CheckReady(req *sandbox.CheckReadyRequest, srv sandbox.BootWait
 		}
 
 		for _, volume := range req.GetWaitSpec().GetBindVolumes() {
-			isSynced, err := s.isSynced(volume)
+			isSynced, err := s.isSynced(namespace, volume)
 			if err != nil {
-				return &sandbox.CheckReadyResponse{
+				return &node.CheckReadyResponse{
 					Ready:  false,
 					Reason: fmt.Sprintf("failed to get sync status: %s", err),
 				}
 			}
 
 			if !isSynced {
-				return &sandbox.CheckReadyResponse{
+				return &node.CheckReadyResponse{
 					Ready:  false,
 					Reason: fmt.Sprintf("volume %s is not synced", volume),
 				}
 			}
 		}
 
-		return &sandbox.CheckReadyResponse{Ready: true}
+		return &node.CheckReadyResponse{Ready: true}
 	}
 
 	pollInterval := 1 * time.Second
@@ -116,8 +116,8 @@ func (s *server) CheckReady(req *sandbox.CheckReadyRequest, srv sandbox.BootWait
 	}
 }
 
-func (s *server) testServiceCondition(name string, condition sandbox.ServiceCondition) (bool, error) {
-	pod, err := s.kubeClient.CoreV1().Pods(s.namespace).Get(name, metav1.GetOptions{})
+func (s *server) testServiceCondition(namespace, name string, condition node.ServiceCondition) (bool, error) {
+	pod, err := s.kubeClient.CoreV1().Pods(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
 		if kerrors.IsNotFound(err) {
 			return false, nil
@@ -143,9 +143,9 @@ func (s *server) testServiceCondition(name string, condition sandbox.ServiceCond
 	return pod.Status.Phase == "Running", nil
 }
 
-func (s *server) isSynced(volumePath string) (bool, error) {
-	folderPath := filepath.Join("/bind", volumePath)
-	expHash, ok := s.volumeTracker.Get(volumePath)
+func (s *server) isSynced(namespace, volumePath string) (bool, error) {
+	folderPath := filepath.Join(volume.BindVolumeRoot(namespace).VolumeSource.HostPath.Path, volumePath)
+	expHash, ok := s.volumeTracker.Get(namespace, volumePath)
 	if !ok {
 		return false, errors.New("unknown volume")
 	}

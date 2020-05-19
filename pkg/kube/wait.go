@@ -1,8 +1,10 @@
 package kube
 
 import (
+	"context"
 	"time"
 
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
@@ -11,6 +13,7 @@ import (
 )
 
 func WaitForObject(
+	ctx context.Context,
 	objectGetter func() (interface{}, error),
 	watchFn func(metav1.ListOptions) (watch.Interface, error),
 	validator func(interface{}) bool) error {
@@ -27,17 +30,19 @@ func WaitForObject(
 	defer ticker.Stop()
 	for {
 		obj, err := objectGetter()
-		if err != nil {
+		if err != nil && !kerrors.IsNotFound(err) {
 			return errors.WithContext("get", err)
 		}
 
-		if validator(obj) {
+		if !kerrors.IsNotFound(err) && validator(obj) {
 			return nil
 		}
 
 		select {
 		case <-watcherChan:
 		case <-ticker.C:
+		case <-ctx.Done():
+			return errors.New("cancelled")
 		}
 	}
 }
