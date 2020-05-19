@@ -60,12 +60,13 @@ func (cmd *up) buildImage(spec composeTypes.BuildConfig, svc string) (string, er
 
 	// Do a full image build.
 	opts := types.ImageBuildOptions{
-		Dockerfile: spec.Dockerfile,
-		Tags:       []string{cmd.getCachedImageName(svc)},
-		BuildArgs:  cmd.dockerConfig.ParseProxyConfig(cmd.dockerClient.DaemonHost(), spec.Args),
-		Target:     spec.Target,
-		Labels:     spec.Labels,
-		CacheFrom:  spec.CacheFrom,
+		Dockerfile:  spec.Dockerfile,
+		Tags:        []string{cmd.getCachedImageName(svc)},
+		AuthConfigs: cmd.regCreds,
+		BuildArgs:   cmd.dockerConfig.ParseProxyConfig(cmd.dockerClient.DaemonHost(), spec.Args),
+		Target:      spec.Target,
+		Labels:      spec.Labels,
+		CacheFrom:   spec.CacheFrom,
 	}
 	if opts.Dockerfile == "" {
 		opts.Dockerfile = "Dockerfile"

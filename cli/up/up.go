@@ -108,6 +108,7 @@ type up struct {
 	alwaysBuild    bool
 	dockerClient   *client.Client
 	dockerConfig   *configfile.ConfigFile
+	regCreds       map[string]types.AuthConfig
 	imageNamespace string
 	sandboxAddr    string
 	sandboxCert    string
@@ -118,17 +119,11 @@ func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) err
 	go pp.Run()
 	defer pp.Stop()
 
-	registryCredentials, err := getLocalRegistryCredentials(cmd.dockerConfig)
-	if err != nil {
-		log.WithError(err).Warn("Failed to get local registry credentials. Private images will fail to pull.")
-		registryCredentials = map[string]*cluster.RegistryCredential{}
-	}
-
 	resp, err := manager.C.CreateSandbox(context.TODO(),
 		&cluster.CreateSandboxRequest{
 			Token:               cmd.auth.AuthToken,
 			ComposeFile:         string(composeCfg),
-			RegistryCredentials: registryCredentials,
+			RegistryCredentials: registryCredentialsToProtobuf(cmd.regCreds),
 			SyncedFolders:       idPathMap,
 		})
 	if err != nil {
@@ -176,6 +171,13 @@ func (cmd *up) run() error {
 
 	stClient := cmd.makeSyncthingClient(parsedCompose)
 	idPathMap := stClient.GetIDPathMap()
+
+	regCreds, err := getLocalRegistryCredentials(cmd.dockerConfig)
+	if err != nil {
+		log.WithError(err).Warn("Failed to get local registry credentials. Private images will fail to pull.")
+		regCreds = map[string]types.AuthConfig{}
+	}
+	cmd.regCreds = regCreds
 
 	// Start creating the sandbox immediately so that the systems services
 	// start booting as soon as possible.
@@ -421,15 +423,20 @@ func makeRegistryAuthHeader(idToken string) (string, error) {
 
 // getLocalRegistryCredentials reads the user's registry credentials from their
 // local machine.
-func getLocalRegistryCredentials(dockerConfig *configfile.ConfigFile) (map[string]*cluster.RegistryCredential, error) {
+func getLocalRegistryCredentials(dockerConfig *configfile.ConfigFile) (map[string]types.AuthConfig, error) {
 	// Get the insecure credentials that were saved directly to
 	// the auths section of ~/.docker/config.json.
-	creds := map[string]*cluster.RegistryCredential{}
+	creds := map[string]types.AuthConfig{}
 	addCredentials := func(authConfigs map[string]clitypes.AuthConfig) {
 		for host, cred := range authConfigs {
-			creds[host] = &cluster.RegistryCredential{
-				Username: cred.Username,
-				Password: cred.Password,
+			creds[host] = types.AuthConfig{
+				Username:      cred.Username,
+				Password:      cred.Password,
+				Auth:          cred.Auth,
+				Email:         cred.Email,
+				ServerAddress: cred.ServerAddress,
+				IdentityToken: cred.IdentityToken,
+				RegistryToken: cred.RegistryToken,
 			}
 		}
 	}
@@ -444,4 +451,15 @@ func getLocalRegistryCredentials(dockerConfig *configfile.ConfigFile) (map[strin
 	addCredentials(credHelpers)
 
 	return creds, nil
+}
+
+func registryCredentialsToProtobuf(creds map[string]types.AuthConfig) map[string]*cluster.RegistryCredential {
+	pb := map[string]*cluster.RegistryCredential{}
+	for host, cred := range creds {
+		pb[host] = &cluster.RegistryCredential{
+			Username: cred.Username,
+			Password: cred.Password,
+		}
+	}
+	return pb
 }
