@@ -77,6 +77,10 @@ const (
 	ContainerNameWaitInitialSync           = "wait-sync"
 )
 
+// MaxServices is the maximum number of service pods allowed in a single
+// sandbox.
+const MaxServices = 150
+
 func main() {
 	analytics.Init(analytics.DirectPoster{}, analytics.StreamID{
 		Source: "manager",
@@ -1107,6 +1111,12 @@ func toPods(
 	configMaps []corev1.ConfigMap,
 	err error,
 ) {
+	if len(cfg.Services) > MaxServices {
+		return nil, nil, errors.NewFriendlyError(
+			"Blimp supports a maximum of %d services, but %d are defined.",
+			MaxServices, len(cfg.Services))
+	}
+
 	serviceToAliases := make(map[string][]string)
 	aliasToService := make(map[string]string)
 	for _, svc := range cfg.Services {
