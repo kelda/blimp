@@ -97,6 +97,15 @@ func Load(composePath string, overridePaths []string) (types.Config, error) {
 	}
 
 	for svcIdx, svc := range cfgPtr.Services {
+		if svc.ContainerName != "" {
+			continue
+		}
+
+		cfgPtr.Services[svcIdx].ContainerName = fmt.Sprintf("%s_%s_1",
+			filepath.Base(filepath.Dir(composePath)), svc.Name)
+	}
+
+	for svcIdx, svc := range cfgPtr.Services {
 		for volumeIdx, volume := range svc.Volumes {
 			// Assign names to any volumes that are specified as just paths. E.g.:
 			// services:
