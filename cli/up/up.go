@@ -212,15 +212,17 @@ func (cmd *up) run() error {
 	// Start the tunnels.
 	for _, svc := range parsedCompose.Services {
 		for _, mapping := range svc.Ports {
-			go startTunnel(sandboxManager, cmd.auth.AuthToken, svc.Name,
-				mapping.Published, mapping.Target)
+			if mapping.Protocol == "tcp" {
+				go startTunnel(sandboxManager, cmd.auth.AuthToken, svc.Name,
+					mapping.HostIP, mapping.Published, mapping.Target)
+			}
 		}
 	}
 
 	stopHashSync := make(chan struct{})
 	if len(idPathMap) != 0 {
 		go startTunnel(sandboxManager, cmd.auth.AuthToken, "syncthing",
-			syncthing.Port, syncthing.Port)
+			"127.0.0.1", syncthing.Port, syncthing.Port)
 		go func() {
 			output, err := stClient.Run(sandboxManager, stopHashSync)
 			if err != nil {
@@ -245,10 +247,10 @@ func (cmd *up) run() error {
 	}.Run()
 }
 
-func startTunnel(scc sandbox.ControllerClient, token, name string,
+func startTunnel(scc sandbox.ControllerClient, token, name, hostIP string,
 	hostPort, containerPort uint32) {
 
-	addr := fmt.Sprintf("127.0.0.1:%d", hostPort)
+	addr := fmt.Sprintf("%s:%d", hostIP, hostPort)
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		switch {
@@ -258,9 +260,10 @@ func startTunnel(scc sandbox.ControllerClient, token, name string,
 				"The full error was:\n%s", name, err)
 		case strings.Contains(err.Error(), "address already in use"):
 			err = errors.NewFriendlyError("Another process is already listening on the same port\n"+
+				"If you have been using docker-compose, make sure to run docker-compose down.\n"+
 				"Make sure that the there aren't any other "+
 				"services listening locally on port %d. This can be checked with the following command:\n"+
-				"lsof -i -P -n | grep %d\n\n"+
+				"sudo lsof -i -P -n | grep :%d\n\n"+
 				"The full error was:\n%s", hostPort, hostPort, err)
 		}
 
