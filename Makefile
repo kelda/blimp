@@ -79,7 +79,9 @@ DOCKER_AUTH_IMAGE = ${DOCKER_REPO}/blimp-docker-auth:${VERSION}
 LOGIN_PROXY_IMAGE = ${DOCKER_REPO}/login-proxy:${VERSION}
 
 build-docker: certs
-	docker build -t blimp-go-build --build-arg COMPILE_FLAGS=${LD_FLAGS} . ; \
+	# Exit if the base container fails to build.
+	docker build -t blimp-go-build --build-arg COMPILE_FLAGS=${LD_FLAGS} .
+
 	docker build -t sandbox-syncthing -t ${SYNCTHING_IMAGE} -f ./sandbox/syncthing/Dockerfile . & \
 	docker build -t blimp-cluster-controller -t ${CLUSTER_CONTROLLER_IMAGE} - < ./cluster-controller/Dockerfile & \
 	docker build -t blimp-node-controller -t ${NODE_CONTROLLER_IMAGE} - < ./node/Dockerfile & \
