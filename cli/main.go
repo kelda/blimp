@@ -123,7 +123,12 @@ func configureLogrus() {
 	}
 
 	log.SetFormatter(formatter{
-		delegated:  &log.TextFormatter{},
+		delegated: &log.TextFormatter{
+			// Print out timestamps rather than how long it's been since the
+			// process started.
+			// This is more useful for correlating logs.
+			FullTimestamp: true,
+		},
 		mirrorFile: mirrorFile,
 	})
 }
