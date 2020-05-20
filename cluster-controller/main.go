@@ -27,12 +27,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -42,6 +38,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/dockercompose"
 	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/hash"
+	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 	"github.com/kelda-inc/blimp/pkg/syncthing"
 	"github.com/kelda-inc/blimp/pkg/version"
@@ -290,7 +287,7 @@ func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest
 
 	// TODO: Garbage collect config maps.
 	for _, configMap := range configMaps {
-		if err := s.updateConfigMap(configMap); err != nil {
+		if err := kube.DeployConfigMap(s.kubeClient, configMap); err != nil {
 			return &cluster.DeployResponse{}, errors.WithContext("create configmap", err)
 		}
 	}
@@ -408,8 +405,8 @@ func (s *server) createNamespace(namespace string) error {
 
 func (s *server) getSandboxControllerIP(namespace string) (string, error) {
 	var internalIP string
-	err := waitForObject(
-		podGetter(s.kubeClient, namespace, "sandbox-manager"),
+	err := kube.WaitForObject(
+		kube.PodGetter(s.kubeClient, namespace, "sandbox-manager"),
 		s.kubeClient.CoreV1().Pods(namespace).Watch,
 		func(podIntf interface{}) bool {
 			pod := podIntf.(*corev1.Pod)
@@ -576,8 +573,8 @@ func (s *server) createSandboxManager(namespace string, cfg composeTypes.Config)
 	}
 
 	var publicIP string
-	err = waitForObject(
-		serviceGetter(s.kubeClient, namespace, service.Name),
+	err = kube.WaitForObject(
+		kube.ServiceGetter(s.kubeClient, namespace, service.Name),
 		s.kubeClient.CoreV1().Services(namespace).Watch,
 		func(svcIntf interface{}) bool {
 			svc := svcIntf.(*corev1.Service)
@@ -618,11 +615,11 @@ func (s *server) createSandboxManager(namespace string, cfg composeTypes.Config)
 		}
 	}
 
-	if err := s.createServiceAccount(serviceAccount, role); err != nil {
+	if err := kube.DeployServiceAccount(s.kubeClient, serviceAccount, role); err != nil {
 		return "", "", err
 	}
 
-	if err := s.deployPod(pod); err != nil {
+	if err := kube.DeployPod(s.kubeClient, pod); err != nil {
 		return "", "", errors.WithContext("deploy", err)
 	}
 
@@ -712,7 +709,7 @@ func (s *server) createSyncthing(namespace string, syncedFolders map[string]stri
 		},
 	}
 
-	if err := s.deployPod(pod); err != nil {
+	if err := kube.DeployPod(s.kubeClient, pod); err != nil {
 		return errors.WithContext("deploy pod", err)
 	}
 	return nil
@@ -755,14 +752,14 @@ func (s *server) createCLICreds(namespace string) (cluster.KubeCredentials, erro
 		},
 	}
 
-	if err := s.createServiceAccount(serviceAccount, role); err != nil {
+	if err := kube.DeployServiceAccount(s.kubeClient, serviceAccount, role); err != nil {
 		return cluster.KubeCredentials{}, errors.WithContext("create service account", err)
 	}
 
 	// Wait until the ServiceAccount's secret is populated.
 	var secretName string
-	err := waitForObject(
-		serviceAccountGetter(s.kubeClient, namespace, serviceAccount.Name),
+	err := kube.WaitForObject(
+		kube.ServiceAccountGetter(s.kubeClient, namespace, serviceAccount.Name),
 		s.kubeClient.CoreV1().ServiceAccounts(namespace).Watch,
 		func(saIntf interface{}) bool {
 			sa := saIntf.(*corev1.ServiceAccount)
@@ -817,22 +814,6 @@ func toDockerAuthConfig(creds map[string]*cluster.RegistryCredential) (string, e
 	return string(dockerConfig), err
 }
 
-func (s *server) updateConfigMap(configMap corev1.ConfigMap) error {
-	configMapClient := s.kubeClient.CoreV1().ConfigMaps(configMap.Namespace)
-	currConfigMap, err := configMapClient.Get(configMap.Name, metav1.GetOptions{})
-	if err == nil {
-		configMap.ResourceVersion = currConfigMap.ResourceVersion
-		if _, err := configMapClient.Update(&configMap); err != nil {
-			return errors.WithContext("update configMap", err)
-		}
-	} else {
-		if _, err := configMapClient.Create(&configMap); err != nil {
-			return errors.WithContext("create configMap", err)
-		}
-	}
-	return nil
-}
-
 func (s *server) createPodRunnerServiceAccount(namespace string, registryCredentials map[string]*cluster.RegistryCredential) error {
 	dockerAuthConfig, err := toDockerAuthConfig(registryCredentials)
 	if err != nil {
@@ -874,78 +855,7 @@ func (s *server) createPodRunnerServiceAccount(namespace string, registryCredent
 		}
 	}
 
-	return s.createServiceAccount(serviceAccount)
-}
-
-func (s *server) createServiceAccount(serviceAccount corev1.ServiceAccount, roles ...rbacv1.Role) error {
-	saClient := s.kubeClient.CoreV1().ServiceAccounts(serviceAccount.Namespace)
-
-	// Create the service account.
-	currServiceAccount, err := saClient.Get(serviceAccount.Name, metav1.GetOptions{})
-	if exists := err == nil; exists {
-		serviceAccount.ResourceVersion = currServiceAccount.ResourceVersion
-		// Copy over secrets, otherwise Kubernetes will create a duplicate token.
-		serviceAccount.Secrets = currServiceAccount.Secrets
-		_, err = saClient.Update(&serviceAccount)
-	} else {
-		_, err = saClient.Create(&serviceAccount)
-	}
-	if err != nil {
-		return errors.WithContext("service account", err)
-	}
-
-	for _, role := range roles {
-		if err := s.createRole(role); err != nil {
-			return errors.WithContext("create role", err)
-		}
-
-		binding := rbacv1.RoleBinding{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("%s-%s", serviceAccount.Name, role.Name),
-				Namespace: serviceAccount.Namespace,
-			},
-			Subjects: []rbacv1.Subject{
-				{
-					Kind:      "ServiceAccount",
-					Name:      serviceAccount.Name,
-					Namespace: serviceAccount.Namespace,
-				},
-			},
-			RoleRef: rbacv1.RoleRef{
-				APIGroup: "rbac.authorization.k8s.io",
-				Kind:     "Role",
-				Name:     role.Name,
-			},
-		}
-		if err := s.createRoleBinding(binding); err != nil {
-			return errors.WithContext("create role", err)
-		}
-	}
-	return nil
-}
-
-func (s *server) createRole(role rbacv1.Role) error {
-	c := s.kubeClient.RbacV1().Roles(role.Namespace)
-	currRole, err := c.Get(role.Name, metav1.GetOptions{})
-	if exists := err == nil; exists {
-		role.ResourceVersion = currRole.ResourceVersion
-		_, err = c.Update(&role)
-	} else {
-		_, err = c.Create(&role)
-	}
-	return err
-}
-
-func (s *server) createRoleBinding(binding rbacv1.RoleBinding) error {
-	c := s.kubeClient.RbacV1().RoleBindings(binding.Namespace)
-	currBinding, err := c.Get(binding.Name, metav1.GetOptions{})
-	if exists := err == nil; exists {
-		binding.ResourceVersion = currBinding.ResourceVersion
-		_, err = c.Update(&binding)
-	} else {
-		_, err = c.Create(&binding)
-	}
-	return err
+	return kube.DeployServiceAccount(s.kubeClient, serviceAccount)
 }
 
 func (s *server) deployCustomerPods(namespace string, desired []corev1.Pod) error {
@@ -959,7 +869,7 @@ func (s *server) deployCustomerPods(namespace string, desired []corev1.Pod) erro
 	// TODO: Parallelize
 	desiredNames := map[string]struct{}{}
 	for _, pod := range desired {
-		if err := s.deployPod(pod); err != nil {
+		if err := kube.DeployPod(s.kubeClient, pod); err != nil {
 			return errors.WithContext("create", err)
 		}
 		desiredNames[pod.Name] = struct{}{}
@@ -968,83 +878,9 @@ func (s *server) deployCustomerPods(namespace string, desired []corev1.Pod) erro
 	// Delete any stale pods.
 	for _, pod := range currPods.Items {
 		if _, ok := desiredNames[pod.Name]; !ok {
-			if err := s.deletePod(pod.Namespace, pod.Name); err != nil {
+			if err := kube.DeletePod(s.kubeClient, pod.Namespace, pod.Name); err != nil {
 				return errors.WithContext("delete", err)
 			}
-		}
-	}
-	return nil
-}
-
-func (s *server) deployPod(pod corev1.Pod) error {
-	// Add an annotation to track the spec that was used to deploy the pod.
-	// This way, we can avoid recreating pods when the underlying spec hasn't
-	// changed.
-	applyAnnotation, err := runtime.Encode(unstructured.UnstructuredJSONScheme, &pod)
-	if err != nil {
-		return errors.WithContext("make apply annotation", err)
-	}
-
-	if pod.Annotations == nil {
-		pod.Annotations = map[string]string{}
-	}
-	pod.Annotations["blimp.appliedObject"] = string(applyAnnotation)
-
-	// Get the current pod, if it exists.
-	podClient := s.kubeClient.CoreV1().Pods(pod.Namespace)
-	curr, err := podClient.Get(pod.Name, metav1.GetOptions{})
-	if err != nil && !kerrors.IsNotFound(err) {
-		return errors.WithContext("get pod", err)
-	}
-
-	// If the pod already exists.
-	if err == nil {
-		// If the currently deployed pod is already up to date, we don't have
-		// to do anything.
-		if curr.Annotations["blimp.appliedObject"] == pod.Annotations["blimp.appliedObject"] {
-			return nil
-		}
-
-		// Delete the existing pod before we recreate it.
-		if err := s.deletePod(pod.Namespace, pod.Name); err != nil {
-			return errors.WithContext("delete pod", err)
-		}
-	}
-
-	if _, err := podClient.Create(&pod); err != nil {
-		return errors.WithContext("create pod", err)
-	}
-	return nil
-}
-
-func (s *server) deletePod(namespace, name string) error {
-	podClient := s.kubeClient.CoreV1().Pods(namespace)
-	if err := podClient.Delete(name, metav1.NewDeleteOptions(0)); err != nil {
-		return err
-	}
-
-	podWatcher, err := podClient.Watch(metav1.ListOptions{})
-	if err != nil {
-		return errors.WithContext("watch pods", err)
-	}
-
-	defer podWatcher.Stop()
-	for range podWatcher.ResultChan() {
-		currPods, err := podClient.List(metav1.ListOptions{})
-		if err != nil {
-			return errors.WithContext("list pods", err)
-		}
-
-		foundPod := false
-		for _, pod := range currPods.Items {
-			if pod.Name == name {
-				foundPod = true
-				break
-			}
-		}
-
-		if !foundPod {
-			return nil
 		}
 	}
 	return nil
@@ -1169,56 +1005,6 @@ func sameNodeAffinity(namespace string) *corev1.Affinity {
 				},
 			},
 		},
-	}
-}
-
-func waitForObject(
-	objectGetter func() (interface{}, error),
-	watchFn func(metav1.ListOptions) (watch.Interface, error),
-	validator func(interface{}) bool) error {
-
-	// Wait until the ServiceAccount's secret is populated.
-	watcher, err := watchFn(metav1.ListOptions{})
-	if err != nil {
-		return errors.WithContext("watch", err)
-	}
-	defer watcher.Stop()
-
-	watcherChan := watcher.ResultChan()
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-	for {
-		obj, err := objectGetter()
-		if err != nil {
-			return errors.WithContext("get", err)
-		}
-
-		if validator(obj) {
-			return nil
-		}
-
-		select {
-		case <-watcherChan:
-		case <-ticker.C:
-		}
-	}
-}
-
-func podGetter(kubeClient kubernetes.Interface, namespace, name string) func() (interface{}, error) {
-	return func() (interface{}, error) {
-		return kubeClient.CoreV1().Pods(namespace).Get(name, metav1.GetOptions{})
-	}
-}
-
-func serviceAccountGetter(kubeClient kubernetes.Interface, namespace, name string) func() (interface{}, error) {
-	return func() (interface{}, error) {
-		return kubeClient.CoreV1().ServiceAccounts(namespace).Get(name, metav1.GetOptions{})
-	}
-}
-
-func serviceGetter(kubeClient kubernetes.Interface, namespace, name string) func() (interface{}, error) {
-	return func() (interface{}, error) {
-		return kubeClient.CoreV1().Services(namespace).Get(name, metav1.GetOptions{})
 	}
 }
 
