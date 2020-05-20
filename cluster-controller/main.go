@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -198,6 +200,40 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		WithField("composeHash", hash.DnsCompliant(req.GetComposeFile())).
 		Info("Parsed CreateSandbox request")
 
+	maxSandboxes := 100
+	if maxSandboxesVar, ok := os.LookupEnv("MAX_SANDBOXES"); ok {
+		parsedVar, err := strconv.Atoi(maxSandboxesVar)
+		if err != nil {
+			log.WithError(err).WithField("MAX_SANDBOXES", maxSandboxesVar).
+				Warn("Couldn't parse $MAX_SANDBOXES")
+		} else {
+			maxSandboxes = parsedVar
+		}
+	}
+	// If the user has already booted a sandbox, don't count it against the
+	// total.  This will allow you to boot if you already have a sandbox
+	// namespace, unless the number of sandboxes is OVER the maximum.
+	notThisUser, err := labels.NewRequirement("namespace", "!=", []string{user.Namespace})
+	if err != nil {
+		return &cluster.CreateSandboxResponse{}, errors.WithContext("parse selector requirement", err)
+	}
+	selector := labels.Set{"blimp.sandbox": "true"}.AsSelector().Add(*notThisUser)
+	sandboxes, err := s.statusFetcher.namespaceLister.List(selector)
+	if err != nil {
+		return &cluster.CreateSandboxResponse{}, errors.WithContext("list namespaces", err)
+	}
+	if len(sandboxes) >= maxSandboxes {
+		analytics.Log.
+			WithField("namespace", user.Namespace).
+			WithField("numSandboxes", len(sandboxes)).
+			WithField("maxSandboxes", maxSandboxes).
+			Info("Hit maxSandboxes")
+
+		return &cluster.CreateSandboxResponse{}, errors.NewFriendlyError(
+			"Sorry, the Blimp servers are overloaded right now.\n" +
+				"Please try again later.")
+	}
+
 	namespace := user.Namespace
 	if err := s.createNamespace(ctx, namespace); err != nil {
 		return &cluster.CreateSandboxResponse{}, errors.WithContext("create namespace", err)
@@ -319,7 +355,8 @@ func (s *server) createNamespace(ctx context.Context, namespace string) error {
 			Name: namespace,
 			Labels: map[string]string{
 				// Referenced by the network policy.
-				"namespace": namespace,
+				"namespace":     namespace,
+				"blimp.sandbox": "true",
 			},
 		},
 	}
