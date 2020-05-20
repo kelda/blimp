@@ -14,6 +14,9 @@ import (
 	"github.com/kelda-inc/blimp/pkg/version"
 )
 
+// Can be overriden by `make`.
+var DefaultManagerHost = "blimp-manager.kelda.io:443"
+
 var C Client
 
 var Host = getHost()
@@ -33,7 +36,7 @@ func getHost() string {
 	if envVal != "" {
 		return envVal
 	}
-	return "blimp-manager.kelda.io:443"
+	return DefaultManagerHost
 }
 
 func dial() (Client, error) {

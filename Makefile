@@ -1,6 +1,10 @@
 DOCKER_REPO = ${BLIMP_DOCKER_REPO}
 REGISTRY_HOSTNAME ?= blimp-registry.kelda.io
 LOGIN_PROXY_HOSTNAME ?= blimp-login.kelda.io
+# Only needs to be set during local development if the manager is being
+# deployed to a remote cluster.
+CLUSTER_MANAGER_IP ?= 8.8.8.8
+CLUSTER_MANAGER_HOST ?= blimp-manager.kelda.io:443
 REGISTRY_IP ?= 8.8.8.8
 REGISTRY_STORAGE ?= "5Gi"
 #VERSION?=$(shell ./scripts/dev_version.sh)
@@ -14,6 +18,7 @@ LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
 	   -X github.com/kelda-inc/blimp/pkg/version.SyncthingImage=${SYNCTHING_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/auth.ClusterManagerCertBase64=$(shell base64 ${MANAGER_CERT_PATH} | tr -d "\n") \
 	   -X github.com/kelda-inc/blimp/pkg/auth.LoginProxyHost=${LOGIN_PROXY_HOSTNAME} \
+	   -X github.com/kelda-inc/blimp/cli/manager.DefaultManagerHost=${CLUSTER_MANAGER_HOST} \
 	   -X main.RegistryHostname=${REGISTRY_HOSTNAME}"
 
 # Include override variables. The production Makefile takes precendence if it exists.
@@ -50,7 +55,7 @@ generate:
 	protoc _proto/blimp/errors/v0/errors.proto --go_out=plugins=grpc:$$GOPATH/src
 
 certs:
-	./scripts/make-manager-cert.sh ${MANAGER_CERT_PATH} ${MANAGER_KEY_PATH}
+	./scripts/make-manager-cert.sh ${MANAGER_CERT_PATH} ${MANAGER_KEY_PATH} ${CLUSTER_MANAGER_IP}
 
 build-cli-linux: syncthing-linux certs
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LD_FLAGS) -o blimp-linux ./cli
@@ -110,6 +115,7 @@ deploy-registry:
 
 deploy-manager:
 	sed -i.bak 's|<CLUSTER_MANAGER_IMAGE>|${CLUSTER_CONTROLLER_IMAGE}|' ./cluster-controller/kube/manager-deployment.yaml
+	sed -i.bak 's|<CLUSTER_MANAGER_IP>|${CLUSTER_MANAGER_IP}|' ./cluster-controller/kube/manager-service.yaml
 	kubectl apply -f ./cluster-controller/kube
 
 deploy-login-proxy:
