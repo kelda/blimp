@@ -99,7 +99,7 @@ func (s *server) CheckReady(req *node.CheckReadyRequest, srv node.BootWaiter_Che
 		return &node.CheckReadyResponse{Ready: true}
 	}
 
-	pollInterval := 1 * time.Second
+	pollInterval := 500 * time.Second
 	for {
 		update := checkOnce()
 		if err := srv.Send(update); err != nil {
@@ -110,8 +110,8 @@ func (s *server) CheckReady(req *node.CheckReadyRequest, srv node.BootWaiter_Che
 		}
 
 		pollInterval *= 2
-		if pollInterval > 30*time.Second {
-			pollInterval = 30 * time.Second
+		if pollInterval > 5*time.Second {
+			pollInterval = 5 * time.Second
 		}
 		time.Sleep(pollInterval)
 	}
