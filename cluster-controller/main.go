@@ -199,7 +199,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		Info("Parsed CreateSandbox request")
 
 	namespace := user.Namespace
-	if err := s.createNamespace(namespace); err != nil {
+	if err := s.createNamespace(ctx, namespace); err != nil {
 		return &cluster.CreateSandboxResponse{}, errors.WithContext("create namespace", err)
 	}
 
@@ -313,7 +313,7 @@ func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest
 	return &cluster.DeployResponse{}, nil
 }
 
-func (s *server) createNamespace(namespace string) error {
+func (s *server) createNamespace(ctx context.Context, namespace string) error {
 	ns := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: namespace,
@@ -389,6 +389,19 @@ func (s *server) createNamespace(namespace string) error {
 
 	if _, err := networkingClient.Create(policy); err != nil {
 		return errors.WithContext("create network policy", err)
+	}
+
+	// Wait for the default service account to exist before returning.
+	// Pods will fail to deploy to the namespace until the account exists.
+	ctx, _ = context.WithTimeout(ctx, 3*time.Minute)
+	err := kube.WaitForObject(ctx,
+		kube.ServiceAccountGetter(s.kubeClient, namespace, "default"),
+		s.kubeClient.CoreV1().ServiceAccounts(namespace).Watch,
+		func(saIntf interface{}) bool {
+			return true
+		})
+	if err != nil {
+		return errors.WithContext("wait for default service account", err)
 	}
 	return nil
 }

@@ -18,7 +18,6 @@ func WaitForObject(
 	watchFn func(metav1.ListOptions) (watch.Interface, error),
 	validator func(interface{}) bool) error {
 
-	// Wait until the ServiceAccount's secret is populated.
 	watcher, err := watchFn(metav1.ListOptions{})
 	if err != nil {
 		return errors.WithContext("watch", err)
