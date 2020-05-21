@@ -854,6 +854,12 @@ func getKubeClient() (kubernetes.Interface, *rest.Config, error) {
 		return nil, nil, errors.WithContext("get rest config", err)
 	}
 
+	// Increase the default throttling configuration from 5 queries per second
+	// to 100 queries per second. This speeds up concurrent boots, since we
+	// make so many requests to check and deploy objects.
+	restConfig.QPS = 100
+	restConfig.Burst = 100
+
 	kubeClient, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		return nil, nil, errors.WithContext("new kube client", err)
