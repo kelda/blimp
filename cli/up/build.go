@@ -101,7 +101,10 @@ func (cmd *up) buildImage(spec composeTypes.BuildConfig, svc string) (string, er
 	isTerminal := terminal.IsTerminal(int(os.Stderr.Fd()))
 	err = jsonmessage.DisplayJSONMessagesStream(buildResp.Body, os.Stderr, os.Stderr.Fd(), isTerminal, callback)
 	if err != nil {
-		return "", errors.WithContext("build image", err)
+		return "", errors.NewFriendlyError(
+			"Image build for %q failed. This is likely an error with the Dockerfile, rather than Blimp.\n"+
+				"Make sure that the successfully image builds with `docker build`.\n\n"+
+				"The full error was:\n%s", svc, err)
 	}
 
 	return imageID, nil
