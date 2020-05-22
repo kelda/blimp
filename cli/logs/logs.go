@@ -151,22 +151,22 @@ func (cmd LogsCommand) Run() error {
 // forwardLogs forwards each log line from `logsReq` to the `combinedLogs`
 // channel.
 func forwardLogs(combinedLogs chan<- rawLogLine, container string, logsStream io.ReadCloser) {
-	scanner := bufio.NewScanner(logsStream)
+	reader := bufio.NewReader(logsStream)
 	for {
-		scanned := scanner.Scan()
-		if !scanned {
-			// The error will be `nil` if we didn't scan because the stream has
-			// ended.
-			if err := scanner.Err(); err != nil {
-				combinedLogs <- rawLogLine{fromContainer: container, readError: err}
-			}
-			return
-		}
-
+		message, err := reader.ReadString('\n')
 		combinedLogs <- rawLogLine{
 			fromContainer: container,
-			message:       scanner.Text(),
+			message:       strings.TrimSuffix(message, "\n"),
 			receivedAt:    time.Now(),
+			readError:     err,
+		}
+		if err == io.EOF {
+			// Signal to the parent that there will be no more logs for this
+			// container, so that the parent can shut down cleanly once all the
+			// log streams have ended.
+			// We let the consumer of `combinedLogs` decide how to handle all
+			// other errors.
+			return
 		}
 	}
 }
@@ -187,7 +187,7 @@ func printLogs(ctx context.Context, rawLogs <-chan rawLogLine, noColor bool) err
 		// Parse the logs in the windows to extract their timestamps.
 		var parsedLogs []parsedLogLine
 		for _, rawLog := range window {
-			message, timestamp, err := parseLogLine(rawLog.message)
+			message, timestamp, err := parseLogLine(rawLogs.Message)
 
 			// If we fail to parse the log's timestamp, revert to sorting based
 			// on its receival time.
@@ -236,7 +236,10 @@ func printLogs(ctx context.Context, rawLogs <-chan rawLogLine, noColor bool) err
 				return nil
 			}
 
-			if logLine.readError != nil {
+			// If it's an EOF error, still print the final contents of the buffer.
+			// We don't need any special handling for ending the stream because
+			// the log reader goroutine will just stop sending us messages.
+			if logLine.readError != nil && logLine.readError != io.EOF {
 				return errors.WithContext(fmt.Sprintf("read logs for %s", logLine.fromContainer), logLine.readError)
 			}
 
