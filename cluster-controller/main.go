@@ -791,13 +791,18 @@ func toPods(
 	aliasToService := make(map[string]string)
 	for _, svc := range cfg.Services {
 		for _, link := range svc.Links {
-			linkParts := strings.Split(link, ":")
-			if len(linkParts) != 2 && len(linkParts) != 1 {
-				log.Warn("Link is not in a right format")
+			var svcToBeAliased, alias string
+			switch linkParts := strings.Split(link, ":"); len(linkParts) {
+			// A link without an alias. Nothing for us to do.
+			case 1:
+				continue
+			case 2:
+				svcToBeAliased = linkParts[0]
+				alias = linkParts[1]
+			default:
+				log.WithField("link", link).Warn("Link in unexpected format. Skipping.")
 				continue
 			}
-			svcToBeAliased := linkParts[0]
-			alias := linkParts[1]
 
 			// Error if two services are using the same alias for different services.
 			if svcPresent, added := aliasToService[alias]; added && svcPresent != svcToBeAliased {
