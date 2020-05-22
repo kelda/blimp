@@ -116,50 +116,6 @@ type up struct {
 	nodeCert       string
 }
 
-func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) error {
-	pp := util.NewProgressPrinter(os.Stdout, "Booting cloud sandbox")
-	go pp.Run()
-	defer pp.Stop()
-
-	resp, err := manager.C.CreateSandbox(context.TODO(),
-		&cluster.CreateSandboxRequest{
-			Token:               cmd.auth.AuthToken,
-			ComposeFile:         string(composeCfg),
-			RegistryCredentials: registryCredentialsToProtobuf(cmd.regCreds),
-			SyncedFolders:       idPathMap,
-		})
-	if err != nil {
-		return err
-	}
-
-	if resp.Message != "" {
-		fmt.Printf("\n" + resp.Message)
-	}
-
-	switch resp.Action {
-	case cluster.CLIAction_OK:
-	case cluster.CLIAction_EXIT:
-		os.Exit(1)
-	default:
-		os.Exit(1)
-	}
-
-	cmd.imageNamespace = resp.ImageNamespace
-	cmd.nodeAddr = resp.NodeAddress
-	cmd.nodeCert = resp.NodeCert
-
-	// Save the Kubernetes API credentials for use by other Blimp commands.
-	kubeCreds := resp.GetKubeCredentials()
-	cmd.auth.KubeToken = kubeCreds.Token
-	cmd.auth.KubeHost = kubeCreds.Host
-	cmd.auth.KubeCACrt = kubeCreds.CaCrt
-	cmd.auth.KubeNamespace = kubeCreds.Namespace
-	if err := cmd.auth.Save(); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (cmd *up) run() error {
 	parsedCompose, err := dockercompose.Load(cmd.composePath, cmd.overridePaths)
 	if err != nil {
@@ -275,6 +231,50 @@ func (cmd *up) run() error {
 			<-syncthingError
 		}
 		return nil
+	}
+	return nil
+}
+
+func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) error {
+	pp := util.NewProgressPrinter(os.Stdout, "Booting cloud sandbox")
+	go pp.Run()
+	defer pp.Stop()
+
+	resp, err := manager.C.CreateSandbox(context.TODO(),
+		&cluster.CreateSandboxRequest{
+			Token:               cmd.auth.AuthToken,
+			ComposeFile:         string(composeCfg),
+			RegistryCredentials: registryCredentialsToProtobuf(cmd.regCreds),
+			SyncedFolders:       idPathMap,
+		})
+	if err != nil {
+		return err
+	}
+
+	if resp.Message != "" {
+		fmt.Printf("\n" + resp.Message)
+	}
+
+	switch resp.Action {
+	case cluster.CLIAction_OK:
+	case cluster.CLIAction_EXIT:
+		os.Exit(1)
+	default:
+		os.Exit(1)
+	}
+
+	cmd.imageNamespace = resp.ImageNamespace
+	cmd.nodeAddr = resp.NodeAddress
+	cmd.nodeCert = resp.NodeCert
+
+	// Save the Kubernetes API credentials for use by other Blimp commands.
+	kubeCreds := resp.GetKubeCredentials()
+	cmd.auth.KubeToken = kubeCreds.Token
+	cmd.auth.KubeHost = kubeCreds.Host
+	cmd.auth.KubeCACrt = kubeCreds.CaCrt
+	cmd.auth.KubeNamespace = kubeCreds.Namespace
+	if err := cmd.auth.Save(); err != nil {
+		return err
 	}
 	return nil
 }
