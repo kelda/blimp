@@ -51,7 +51,10 @@ func Load(composePath string, overridePaths []string) (types.Config, error) {
 	if _, err := os.Stat(dotenvPath); err == nil {
 		dotenv, err := parseEnvFile(dotenvPath)
 		if err != nil {
-			return types.Config{}, errors.WithContext("parse .env file", err)
+			return types.Config{}, errors.NewFriendlyError(
+				"Failed to parse .env file at %s.\n\n"+
+					"The full error was:\n%s",
+				dotenvPath, err)
 		}
 
 		env = dotenv
@@ -78,7 +81,7 @@ func Load(composePath string, overridePaths []string) (types.Config, error) {
 		withSkipValidation,
 	}
 
-	cfgPtr, err := loader.Load(types.ConfigDetails{
+	cfgPtr, err := load(types.ConfigDetails{
 		WorkingDir:  filepath.Dir(composePath),
 		ConfigFiles: configFiles,
 		Environment: env,
@@ -93,7 +96,15 @@ func Load(composePath string, overridePaths []string) (types.Config, error) {
 				"Please upgrade to Compose Spec version 3 (http://link.kelda.io/upgrade-compose).\n\n%s",
 				strings.Join(tips, "\n"))
 		}
-		return types.Config{}, errors.WithContext("load", err)
+
+		debugCmd := []string{"docker-compose"}
+		for _, path := range append([]string{composePath}, overridePaths...) {
+			debugCmd = append(debugCmd, "-f", path)
+		}
+		debugCmd = append(debugCmd, "config")
+		return types.Config{}, errors.NewFriendlyError("Malformed Docker Compose file. "+
+			"To get a more informative error message, run `%s`.\n\n"+
+			"The full error was:\n%s", strings.Join(debugCmd, " "), err)
 	}
 
 	for svcIdx, svc := range cfgPtr.Services {
@@ -174,7 +185,7 @@ func Unmarshal(b []byte) (parsed types.Config, err error) {
 		return types.Config{}, errors.WithContext("parse", err)
 	}
 
-	cfgPtr, err := loader.Load(types.ConfigDetails{
+	cfgPtr, err := load(types.ConfigDetails{
 		ConfigFiles: []types.ConfigFile{
 			{
 				Config: configIntf,
@@ -239,4 +250,23 @@ func getErrorContext(file []byte, errMsg string) (string, bool) {
 		printLines = append(printLines, line)
 	}
 	return strings.Join(printLines, "\n"), true
+}
+
+// The compose-go library panics when the provided YAML file contains
+// unexpected types. For example, the following Compose file causes a panic:
+// ```
+// version: '3'
+// services:
+//   bad: parsing
+// ```
+// load wraps the call to loader.Load and catches any panics.
+func load(det types.ConfigDetails, opts ...func(opts *loader.Options)) (cfg *types.Config, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New("%s", r)
+		}
+	}()
+
+	cfg, err = loader.Load(det, opts...)
+	return
 }
