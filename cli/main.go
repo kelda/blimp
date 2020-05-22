@@ -35,15 +35,15 @@ import (
 const verboseLogKey = "BLIMP_LOG_VERBOSE"
 
 func main() {
+	if err := cfgdir.Create(); err != nil {
+		log.WithError(err).Fatal("failed to create config directory")
+	}
+
 	configureLogrus()
 
 	// By default, the random number generator is seeded to 1, so the resulting
 	// numbers aren't actually different unless we explicitly seed it.
 	rand.Seed(time.Now().UnixNano())
-
-	if err := cfgdir.Create(); err != nil {
-		log.WithError(err).Fatal("failed to create config directory")
-	}
 
 	rootCmd := &cobra.Command{
 		Use: "blimp",
