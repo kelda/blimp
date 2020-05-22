@@ -261,7 +261,11 @@ func (cmd *up) run() error {
 	case err := <-syncthingError:
 		return errors.WithContext("syncthing error", err)
 	case err := <-guiError:
-		return errors.WithContext("run gui error", err)
+		if err != nil {
+			return errors.WithContext("run gui error", err)
+		}
+		log.Info("All containers have completed. Exiting.")
+		return nil
 	case <-exit:
 		fmt.Println("Cleaning up local processes. The remote containers will continue running.")
 
