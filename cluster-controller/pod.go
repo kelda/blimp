@@ -226,7 +226,7 @@ func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig, svcAlia
 				// If Requests are not set, they will default to the
 				// same as the Limits, which are too high.
 				Requests: corev1.ResourceList{
-					"cpu":    resource.MustParse("100m"),
+					"cpu":    resource.MustParse("50m"),
 					"memory": resource.MustParse("100Mi"),
 				},
 			},
