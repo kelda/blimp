@@ -123,7 +123,7 @@ func HandleFatalError(err error) {
 	body := GetPrintableMessage(err)
 	analytics.Log.WithField("msg", body).Error("Fatal error")
 	fmt.Fprintln(os.Stderr,
-		goterm.Color("FATAL ERROR: Get help at https://kelda.io/blimp/docs/help/", goterm.RED))
+		goterm.Color("[Error] Get help at https://kelda.io/blimp/docs/help/", goterm.RED))
 	fmt.Fprintln(os.Stderr, body)
 	os.Exit(1)
 }

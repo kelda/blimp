@@ -185,7 +185,7 @@ func (f formatter) Format(e *log.Entry) ([]byte, error) {
 	analytics.Log.WithField("msg", body).Error("Fatal error")
 
 	fmt.Fprintf(os.Stderr,
-		goterm.Color("FATAL ERROR: Get help at https://kelda.io/blimp/docs/help/", goterm.RED)+"\n"+
+		goterm.Color("[Error] Get help at https://kelda.io/blimp/docs/help/", goterm.RED)+"\n"+
 			body)
 	os.Exit(1)
 	return nil, errors.New("unreached")
