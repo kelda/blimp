@@ -112,8 +112,9 @@ func closeManager(_ *cobra.Command, _ []string) {
 }
 
 func configureLogrus() {
+	printLevel := log.InfoLevel
 	if os.Getenv(verboseLogKey) == "true" {
-		log.SetLevel(log.DebugLevel)
+		printLevel = log.DebugLevel
 	}
 
 	mirrorFile, err := os.OpenFile(cfgdir.CLILogFile(), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
@@ -122,6 +123,10 @@ func configureLogrus() {
 		mirrorFile = nil
 	}
 
+	// Send all logs to our custom formatter. Our formatter will inspect the
+	// level, and if it's below `printLevel`, it'll only log it to disk, and
+	// not print it to the user's terminal.
+	log.SetLevel(log.TraceLevel)
 	log.SetFormatter(formatter{
 		delegated: &log.TextFormatter{
 			// Print out timestamps rather than how long it's been since the
@@ -130,12 +135,14 @@ func configureLogrus() {
 			FullTimestamp: true,
 		},
 		mirrorFile: mirrorFile,
+		printLevel: printLevel,
 	})
 }
 
 type formatter struct {
 	delegated  log.Formatter
 	mirrorFile *os.File
+	printLevel log.Level
 }
 
 func (f formatter) Format(e *log.Entry) ([]byte, error) {
@@ -149,6 +156,11 @@ func (f formatter) Format(e *log.Entry) ([]byte, error) {
 			f.mirrorFile.Write(l)
 		}
 		e.Buffer = eBuffer
+	}
+
+	if e.Level > f.printLevel {
+		// Don't actually print the log.
+		return nil, nil
 	}
 
 	if e.Level != log.FatalLevel {

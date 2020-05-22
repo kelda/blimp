@@ -176,7 +176,7 @@ func (cmd *up) run() error {
 
 	regCreds, err := getLocalRegistryCredentials(cmd.dockerConfig)
 	if err != nil {
-		log.WithError(err).Warn("Failed to get local registry credentials. Private images will fail to pull.")
+		log.WithError(err).Debug("Failed to get local registry credentials. Private images will fail to pull.")
 		regCreds = map[string]types.AuthConfig{}
 	}
 	cmd.regCreds = regCreds
