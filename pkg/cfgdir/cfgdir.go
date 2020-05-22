@@ -18,7 +18,7 @@ func init() {
 }
 
 func Create() error {
-	err := os.Mkdir(ConfigDir, 0777)
+	err := os.Mkdir(ConfigDir, 0755)
 	if os.IsExist(err) {
 		return nil
 	}
