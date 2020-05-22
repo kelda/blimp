@@ -10,16 +10,21 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const Marker = ".blimp_syncthing"
+const (
+	Marker = ".blimp_syncthing"
+	apiKey = "blimp-syncthing"
 
-// I don't wnat to use the standard syncthing port, in case one of our users
-// wants to run syncthing in docker compose.  It doesn't look like anything
-// actually uses this port so we should be good w.r.t. conflicts.  The "right"
-// thing to do, would be to use a unix socket in the CLI, and then conflicts
-// aren't possible.
-const Port = 22022
+	// I don't wnat to use the standard syncthing port, in case one of our users
+	// wants to run syncthing in docker compose.  It doesn't look like anything
+	// actually uses this port so we should be good w.r.t. conflicts.  The "right"
+	// thing to do, would be to use a unix socket in the CLI, and then conflicts
+	// aren't possible.
+	Port    = 22022
+	APIPort = 8384
 
-const APIPort = 8384
+	CLIDeviceID    = "ROHA7NN-4KWKQ3Q-CHJMZBK-6UD7Z6D-ZTWQR5C-TYLN6WG-Q2EQJAI-JU73EQN"
+	RemoteDeviceID = "K6QHA3P-VGHXBZE-2NILDY3-Y4E2EUU-7DCSOVF-DFVCQRM-P5BVGMB-LDLP6QA"
+)
 
 // XXX:  It's really not good to be hardcoding these certs.  Ideally we would
 // use openssl to generate them, but then we would need to send the device id
@@ -44,9 +49,6 @@ Lao59xVD8GOgBwYFK4EEACKhZANiAAQG0VbGQGvTj1Qihd6JnRlRe/ERDSaog5yn
 rGQDF3ZOuIeJi9F0RrGggLGHORlhAV3yZf97FaAmOKK4+l+co/E7IoZaUftsg6qr
 8MZvkAZ/5Xhhb4W1Ls3rhN5a4Ef4CZE=
 -----END EC PRIVATE KEY-----`
-
-const CLIDeviceID = "ROHA7NN-4KWKQ3Q-CHJMZBK-6UD7Z6D-ZTWQR5C-TYLN6WG-Q2EQJAI-JU73EQN"
-const RemoteDeviceID = "K6QHA3P-VGHXBZE-2NILDY3-Y4E2EUU-7DCSOVF-DFVCQRM-P5BVGMB-LDLP6QA"
 
 func MapToArgs(m map[string]string) []string {
 	var args []string
@@ -85,15 +87,15 @@ func MakeMarkers(folders map[string]string) error {
 }
 
 func MakeServer(folders map[string]string) string {
-	return makeConfig(true, folders)
+	return makeConfig(true, folders, "sendreceive")
 }
 
-func makeConfig(server bool, folders map[string]string) string {
+func makeConfig(server bool, folders map[string]string, folderType string) string {
 	// A folder is a map from folder ID to a path.
 
 	var folderStrs []string
 	for id, path := range folders {
-		folderStrs = append(folderStrs, makeFolder(id, path))
+		folderStrs = append(folderStrs, makeFolder(id, path, folderType))
 	}
 
 	var listenAddress, address string
@@ -103,15 +105,16 @@ func makeConfig(server bool, folders map[string]string) string {
 		address = fmt.Sprintf("tcp://127.0.0.1:%d", Port)
 	}
 
-	gui := `<gui enabled="false"></gui>`
-	if !server {
-		gui = fmt.Sprintf(`<gui enabled="true">
-			<address>localhost:%d</address>
-		</gui>`, APIPort)
+	guiAddress := fmt.Sprintf("localhost:%d", APIPort)
+	if server {
+		guiAddress = fmt.Sprintf(":%d", APIPort)
 	}
 
 	return fmt.Sprintf(`<configuration version="30">%s
-    %s
+    <gui enabled="true">
+        <address>%s</address>
+        <apikey>%s</apikey>
+    </gui>
     <device id="%s" compression="always">
         <address>%s</address>
     </device>
@@ -137,12 +140,12 @@ func makeConfig(server bool, folders map[string]string) string {
         <!-- Don't keep temporary files from failed transfers. They pollute the filesystem, and the transfer will complete when the devices reconnect. -->
         <keepTemporariesH>0</keepTemporariesH>
     </options>
-</configuration>`, strings.Join(folderStrs, ""), gui, RemoteDeviceID, address, CLIDeviceID, listenAddress)
+</configuration>`, strings.Join(folderStrs, ""), guiAddress, apiKey, RemoteDeviceID, address, CLIDeviceID, listenAddress)
 }
 
-func makeFolder(id, path string) string {
+func makeFolder(id, path, folderType string) string {
 	return fmt.Sprintf(`
-    <folder id="%s" path="%s" type="sendreceive"
+    <folder id="%s" path="%s" type="%s"
         rescanIntervalS="30" fsWatcherEnabled="true" fsWatcherDelayS="1"
         autoNormalize="true">
         <device id="%s"/>
@@ -153,7 +156,7 @@ func makeFolder(id, path string) string {
 
         <!-- Don't create conflict files. We just let Syncthing resolve the conflict based on modtime, which is basically always good enough.-->
         <maxConflicts>0</maxConflicts>
-    </folder>`, id, path, RemoteDeviceID, CLIDeviceID, Marker)
+    </folder>`, id, path, folderType, RemoteDeviceID, CLIDeviceID, Marker)
 }
 
 func ensureDirExists(path string) {

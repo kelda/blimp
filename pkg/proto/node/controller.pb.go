@@ -224,99 +224,123 @@ func (*TunnelMsg) XXX_OneofWrappers() []interface{} {
 	}
 }
 
-type UpdateVolumeHashesRequest struct {
-	Token                string            `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
-	Hashes               map[string]string `protobuf:"bytes,2,rep,name=hashes,proto3" json:"hashes,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
-	XXX_unrecognized     []byte            `json:"-"`
-	XXX_sizecache        int32             `json:"-"`
+type SyncStatusResponse struct {
+	// Types that are valid to be assigned to Msg:
+	//	*SyncStatusResponse_Token
+	//	*SyncStatusResponse_Synced
+	Msg                  isSyncStatusResponse_Msg `protobuf_oneof:"msg"`
+	XXX_NoUnkeyedLiteral struct{}                 `json:"-"`
+	XXX_unrecognized     []byte                   `json:"-"`
+	XXX_sizecache        int32                    `json:"-"`
 }
 
-func (m *UpdateVolumeHashesRequest) Reset()         { *m = UpdateVolumeHashesRequest{} }
-func (m *UpdateVolumeHashesRequest) String() string { return proto.CompactTextString(m) }
-func (*UpdateVolumeHashesRequest) ProtoMessage()    {}
-func (*UpdateVolumeHashesRequest) Descriptor() ([]byte, []int) {
+func (m *SyncStatusResponse) Reset()         { *m = SyncStatusResponse{} }
+func (m *SyncStatusResponse) String() string { return proto.CompactTextString(m) }
+func (*SyncStatusResponse) ProtoMessage()    {}
+func (*SyncStatusResponse) Descriptor() ([]byte, []int) {
 	return fileDescriptor_ffe3c8ce6343e9a1, []int{3}
 }
 
-func (m *UpdateVolumeHashesRequest) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_UpdateVolumeHashesRequest.Unmarshal(m, b)
+func (m *SyncStatusResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_SyncStatusResponse.Unmarshal(m, b)
 }
-func (m *UpdateVolumeHashesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_UpdateVolumeHashesRequest.Marshal(b, m, deterministic)
+func (m *SyncStatusResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_SyncStatusResponse.Marshal(b, m, deterministic)
 }
-func (m *UpdateVolumeHashesRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_UpdateVolumeHashesRequest.Merge(m, src)
+func (m *SyncStatusResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SyncStatusResponse.Merge(m, src)
 }
-func (m *UpdateVolumeHashesRequest) XXX_Size() int {
-	return xxx_messageInfo_UpdateVolumeHashesRequest.Size(m)
+func (m *SyncStatusResponse) XXX_Size() int {
+	return xxx_messageInfo_SyncStatusResponse.Size(m)
 }
-func (m *UpdateVolumeHashesRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_UpdateVolumeHashesRequest.DiscardUnknown(m)
+func (m *SyncStatusResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_SyncStatusResponse.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_UpdateVolumeHashesRequest proto.InternalMessageInfo
+var xxx_messageInfo_SyncStatusResponse proto.InternalMessageInfo
 
-func (m *UpdateVolumeHashesRequest) GetToken() string {
+type isSyncStatusResponse_Msg interface {
+	isSyncStatusResponse_Msg()
+}
+
+type SyncStatusResponse_Token struct {
+	Token string `protobuf:"bytes,1,opt,name=token,proto3,oneof"`
+}
+
+type SyncStatusResponse_Synced struct {
+	Synced bool `protobuf:"varint,2,opt,name=synced,proto3,oneof"`
+}
+
+func (*SyncStatusResponse_Token) isSyncStatusResponse_Msg() {}
+
+func (*SyncStatusResponse_Synced) isSyncStatusResponse_Msg() {}
+
+func (m *SyncStatusResponse) GetMsg() isSyncStatusResponse_Msg {
 	if m != nil {
-		return m.Token
+		return m.Msg
+	}
+	return nil
+}
+
+func (m *SyncStatusResponse) GetToken() string {
+	if x, ok := m.GetMsg().(*SyncStatusResponse_Token); ok {
+		return x.Token
 	}
 	return ""
 }
 
-func (m *UpdateVolumeHashesRequest) GetHashes() map[string]string {
-	if m != nil {
-		return m.Hashes
+func (m *SyncStatusResponse) GetSynced() bool {
+	if x, ok := m.GetMsg().(*SyncStatusResponse_Synced); ok {
+		return x.Synced
 	}
-	return nil
+	return false
 }
 
-type UpdateVolumeHashesResponse struct {
-	Error                *errors.Error `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}      `json:"-"`
-	XXX_unrecognized     []byte        `json:"-"`
-	XXX_sizecache        int32         `json:"-"`
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*SyncStatusResponse) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*SyncStatusResponse_Token)(nil),
+		(*SyncStatusResponse_Synced)(nil),
+	}
 }
 
-func (m *UpdateVolumeHashesResponse) Reset()         { *m = UpdateVolumeHashesResponse{} }
-func (m *UpdateVolumeHashesResponse) String() string { return proto.CompactTextString(m) }
-func (*UpdateVolumeHashesResponse) ProtoMessage()    {}
-func (*UpdateVolumeHashesResponse) Descriptor() ([]byte, []int) {
+type GetSyncStatusRequest struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetSyncStatusRequest) Reset()         { *m = GetSyncStatusRequest{} }
+func (m *GetSyncStatusRequest) String() string { return proto.CompactTextString(m) }
+func (*GetSyncStatusRequest) ProtoMessage()    {}
+func (*GetSyncStatusRequest) Descriptor() ([]byte, []int) {
 	return fileDescriptor_ffe3c8ce6343e9a1, []int{4}
 }
 
-func (m *UpdateVolumeHashesResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_UpdateVolumeHashesResponse.Unmarshal(m, b)
+func (m *GetSyncStatusRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_GetSyncStatusRequest.Unmarshal(m, b)
 }
-func (m *UpdateVolumeHashesResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_UpdateVolumeHashesResponse.Marshal(b, m, deterministic)
+func (m *GetSyncStatusRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_GetSyncStatusRequest.Marshal(b, m, deterministic)
 }
-func (m *UpdateVolumeHashesResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_UpdateVolumeHashesResponse.Merge(m, src)
+func (m *GetSyncStatusRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetSyncStatusRequest.Merge(m, src)
 }
-func (m *UpdateVolumeHashesResponse) XXX_Size() int {
-	return xxx_messageInfo_UpdateVolumeHashesResponse.Size(m)
+func (m *GetSyncStatusRequest) XXX_Size() int {
+	return xxx_messageInfo_GetSyncStatusRequest.Size(m)
 }
-func (m *UpdateVolumeHashesResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_UpdateVolumeHashesResponse.DiscardUnknown(m)
+func (m *GetSyncStatusRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetSyncStatusRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_UpdateVolumeHashesResponse proto.InternalMessageInfo
-
-func (m *UpdateVolumeHashesResponse) GetError() *errors.Error {
-	if m != nil {
-		return m.Error
-	}
-	return nil
-}
+var xxx_messageInfo_GetSyncStatusRequest proto.InternalMessageInfo
 
 func init() {
 	proto.RegisterType((*TunnelHeader)(nil), "blimp.node.v0.TunnelHeader")
 	proto.RegisterType((*EOF)(nil), "blimp.node.v0.EOF")
 	proto.RegisterType((*TunnelMsg)(nil), "blimp.node.v0.TunnelMsg")
-	proto.RegisterType((*UpdateVolumeHashesRequest)(nil), "blimp.node.v0.UpdateVolumeHashesRequest")
-	proto.RegisterMapType((map[string]string)(nil), "blimp.node.v0.UpdateVolumeHashesRequest.HashesEntry")
-	proto.RegisterType((*UpdateVolumeHashesResponse)(nil), "blimp.node.v0.UpdateVolumeHashesResponse")
+	proto.RegisterType((*SyncStatusResponse)(nil), "blimp.node.v0.SyncStatusResponse")
+	proto.RegisterType((*GetSyncStatusRequest)(nil), "blimp.node.v0.GetSyncStatusRequest")
 }
 
 func init() {
@@ -324,35 +348,32 @@ func init() {
 }
 
 var fileDescriptor_ffe3c8ce6343e9a1 = []byte{
-	// 442 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x53, 0x51, 0x8b, 0xd3, 0x40,
-	0x10, 0xce, 0x36, 0xd7, 0x42, 0xa7, 0x77, 0x20, 0x83, 0x48, 0x8c, 0x22, 0x25, 0x0f, 0x92, 0x43,
-	0xdd, 0x94, 0xaa, 0xa0, 0x3e, 0x56, 0x7a, 0x04, 0xb9, 0xe3, 0x20, 0xa8, 0x0f, 0xbe, 0xa5, 0xed,
-	0x34, 0x2d, 0x49, 0x76, 0xe3, 0x6e, 0x52, 0xb8, 0x1f, 0xe6, 0x8b, 0xe0, 0x7f, 0x93, 0xec, 0x46,
-	0x89, 0xe7, 0xdd, 0x71, 0x6f, 0xdf, 0xec, 0x7c, 0xfb, 0xcd, 0x37, 0x33, 0xbb, 0xf0, 0x6c, 0x55,
-	0xec, 0xcb, 0x2a, 0x12, 0x72, 0x43, 0xd1, 0x61, 0x16, 0xad, 0xa5, 0xa8, 0x95, 0x2c, 0x0a, 0x52,
-	0xbc, 0x52, 0xb2, 0x96, 0x78, 0x62, 0xf2, 0xbc, 0xcd, 0xf3, 0xc3, 0xcc, 0x7f, 0x6a, 0xe9, 0xa4,
-	0x94, 0x54, 0xba, 0xbd, 0x60, 0x91, 0x25, 0x07, 0xe7, 0x70, 0xfc, 0xb9, 0x11, 0x82, 0x8a, 0x98,
-	0xd2, 0x0d, 0x29, 0x44, 0x38, 0x12, 0x69, 0x49, 0x1e, 0x9b, 0xb2, 0x70, 0x9c, 0x18, 0xdc, 0x9e,
-	0x55, 0x52, 0xd5, 0xde, 0x60, 0xca, 0xc2, 0x93, 0xc4, 0x60, 0x7c, 0x08, 0xc3, 0x5a, 0xe6, 0x24,
-	0x3c, 0xd7, 0x10, 0x6d, 0x10, 0x0c, 0xc1, 0x5d, 0x5e, 0x9e, 0x05, 0x3f, 0x18, 0x8c, 0xad, 0xea,
-	0x85, 0xce, 0x90, 0xc3, 0xd0, 0x94, 0x34, 0x9a, 0x93, 0xf9, 0x23, 0x6e, 0xfd, 0x75, 0x36, 0x0e,
-	0x33, 0xbe, 0x6c, 0x51, 0xec, 0x24, 0x96, 0x86, 0x6f, 0x61, 0xb4, 0x33, 0x66, 0x4c, 0xc1, 0xc9,
-	0xfc, 0x09, 0xff, 0xa7, 0x21, 0xde, 0xf7, 0x1b, 0x3b, 0x49, 0x47, 0x46, 0x04, 0x77, 0xd5, 0x6c,
-	0x8d, 0x9f, 0xe3, 0xd8, 0x49, 0xda, 0x00, 0x9f, 0x83, 0x4b, 0x72, 0xeb, 0x1d, 0x19, 0x1d, 0xbc,
-	0xa6, 0xb3, 0xbc, 0x3c, 0x6b, 0x79, 0x24, 0xb7, 0x8b, 0x21, 0xb8, 0xa5, 0xce, 0x82, 0x9f, 0x0c,
-	0x1e, 0x7f, 0xa9, 0x36, 0x69, 0x4d, 0x5f, 0x65, 0xd1, 0x94, 0x14, 0xa7, 0x7a, 0x47, 0x3a, 0xa1,
-	0xef, 0x0d, 0xe9, 0x5e, 0xcb, 0xac, 0xd7, 0x32, 0x9e, 0xc3, 0x68, 0x67, 0x68, 0xde, 0x60, 0xea,
-	0x86, 0x93, 0xf9, 0x9b, 0x6b, 0x55, 0x6e, 0xd5, 0xe3, 0x36, 0x5a, 0x8a, 0x5a, 0x5d, 0x25, 0x9d,
-	0x86, 0xff, 0x1e, 0x26, 0xbd, 0x63, 0x7c, 0x00, 0x6e, 0x4e, 0x57, 0x5d, 0xc1, 0x16, 0xb6, 0x26,
-	0x0e, 0x69, 0xd1, 0x90, 0x99, 0xcd, 0x38, 0xb1, 0xc1, 0x87, 0xc1, 0x3b, 0x16, 0x7c, 0x02, 0xff,
-	0xa6, 0x5a, 0xba, 0x92, 0x42, 0x13, 0xbe, 0xfc, 0xb3, 0x84, 0xc1, 0x5d, 0x4b, 0xe8, 0x56, 0x30,
-	0xff, 0xc5, 0x00, 0x3e, 0xfe, 0x7d, 0x57, 0xb8, 0x80, 0x91, 0x1d, 0x3a, 0x7a, 0x37, 0xee, 0xe2,
-	0x42, 0x67, 0xfe, 0xad, 0x99, 0xc0, 0x09, 0xd9, 0x8c, 0x61, 0x0e, 0xf8, 0xbf, 0x3d, 0x0c, 0xef,
-	0x3b, 0x2d, 0xff, 0xf4, 0x1e, 0x4c, 0xdb, 0x6b, 0xe0, 0x2c, 0x5e, 0x7c, 0x3b, 0xcd, 0xf6, 0xf5,
-	0xae, 0x59, 0xf1, 0xb5, 0x2c, 0xa3, 0x9c, 0x8a, 0x4d, 0xfa, 0x6a, 0x2f, 0xd6, 0x91, 0xfd, 0x0a,
-	0x55, 0x9e, 0x45, 0xe6, 0xf5, 0x9b, 0x3f, 0xb4, 0x1a, 0x19, 0xfc, 0xfa, 0x77, 0x00, 0x00, 0x00,
-	0xff, 0xff, 0xd5, 0x07, 0x59, 0xd3, 0x58, 0x03, 0x00, 0x00,
+	// 399 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0x52, 0x4d, 0x6f, 0xd3, 0x40,
+	0x10, 0x8d, 0x71, 0x13, 0xd1, 0x69, 0x7b, 0x60, 0x54, 0x45, 0x56, 0x40, 0xa8, 0x18, 0x09, 0x05,
+	0x21, 0xd6, 0x51, 0x10, 0x7f, 0x20, 0x28, 0x25, 0x07, 0x42, 0x25, 0x97, 0x13, 0x37, 0x7f, 0x8c,
+	0x5d, 0x2b, 0xf6, 0xae, 0xd9, 0x5d, 0x47, 0xea, 0xef, 0x42, 0xfc, 0x3f, 0xb4, 0xb3, 0x2d, 0x2a,
+	0xa1, 0xdc, 0xde, 0x78, 0xde, 0xbc, 0x79, 0xcf, 0x3b, 0xf0, 0x32, 0x6f, 0x9b, 0xae, 0x4f, 0xa4,
+	0x2a, 0x29, 0xd9, 0x2f, 0x92, 0x42, 0x49, 0xab, 0x55, 0xdb, 0x92, 0x16, 0xbd, 0x56, 0x56, 0xe1,
+	0x19, 0xf7, 0x85, 0xeb, 0x8b, 0xfd, 0x62, 0xf6, 0xc2, 0xd3, 0x49, 0x6b, 0xa5, 0x8d, 0x1b, 0xf0,
+	0xc8, 0x93, 0xe3, 0x2f, 0x70, 0xfa, 0x6d, 0x90, 0x92, 0xda, 0x0d, 0x65, 0x25, 0x69, 0x44, 0x38,
+	0x92, 0x59, 0x47, 0x51, 0x70, 0x11, 0xcc, 0x8f, 0x53, 0xc6, 0xee, 0x5b, 0xaf, 0xb4, 0x8d, 0x9e,
+	0x5c, 0x04, 0xf3, 0xb3, 0x94, 0x31, 0x9e, 0xc3, 0xd8, 0xaa, 0x1d, 0xc9, 0x28, 0x64, 0xa2, 0x2f,
+	0xe2, 0x31, 0x84, 0xeb, 0xab, 0xcb, 0xf8, 0x57, 0x00, 0xc7, 0x5e, 0x75, 0x6b, 0x6a, 0x14, 0x30,
+	0xe6, 0x95, 0xac, 0x79, 0xb2, 0x9c, 0x0a, 0xef, 0xef, 0xce, 0xc6, 0x7e, 0x21, 0xd6, 0x0e, 0x6d,
+	0x46, 0xa9, 0xa7, 0xe1, 0x47, 0x98, 0xdc, 0xb0, 0x19, 0x5e, 0x78, 0xb2, 0x7c, 0x2e, 0xfe, 0x0a,
+	0x24, 0x1e, 0xfa, 0xdd, 0x8c, 0xd2, 0x3b, 0x32, 0x22, 0x84, 0xf9, 0x50, 0xb1, 0x9f, 0xd3, 0xcd,
+	0x28, 0x75, 0x05, 0xbe, 0x81, 0x90, 0x54, 0x15, 0x1d, 0xb1, 0x0e, 0x1e, 0xe8, 0xac, 0xaf, 0x2e,
+	0x1d, 0x8f, 0x54, 0xb5, 0x1a, 0x43, 0xd8, 0x99, 0x3a, 0xde, 0x02, 0x5e, 0xdf, 0xca, 0xe2, 0xda,
+	0x66, 0x76, 0x30, 0x29, 0x99, 0x5e, 0x49, 0x43, 0x38, 0xbd, 0x8f, 0xca, 0xff, 0xc4, 0xf9, 0xe4,
+	0x12, 0x23, 0x98, 0x98, 0x5b, 0x59, 0x50, 0xc9, 0x3e, 0x9f, 0x3a, 0x2b, 0xbe, 0xbe, 0x97, 0x9b,
+	0xc2, 0xf9, 0x67, 0xb2, 0x0f, 0x15, 0x7f, 0x0c, 0x64, 0xec, 0xf2, 0x67, 0x00, 0xf0, 0xe9, 0xcf,
+	0xab, 0xe1, 0x0a, 0x26, 0x3e, 0x12, 0x46, 0x8f, 0x26, 0xdd, 0x9a, 0x7a, 0xf6, 0xdf, 0x4e, 0x3c,
+	0x9a, 0x07, 0x8b, 0x00, 0x33, 0x78, 0xe6, 0xf6, 0x7c, 0x55, 0xb6, 0xa9, 0x9a, 0x22, 0xb3, 0x8d,
+	0x92, 0x06, 0x5f, 0x1d, 0x0c, 0xfd, 0x9b, 0x6d, 0xf6, 0xfa, 0x80, 0xf2, 0x98, 0x5f, 0xbf, 0x62,
+	0xf5, 0xee, 0xfb, 0xdb, 0xba, 0xb1, 0x37, 0x43, 0x2e, 0x0a, 0xd5, 0x25, 0x3b, 0x6a, 0xcb, 0xec,
+	0x7d, 0x23, 0x8b, 0xc4, 0x9f, 0x57, 0xbf, 0xab, 0x13, 0xbe, 0x28, 0xbe, 0xcb, 0x7c, 0xc2, 0xf8,
+	0xc3, 0xef, 0x00, 0x00, 0x00, 0xff, 0xff, 0xbc, 0xde, 0x23, 0x02, 0xac, 0x02, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -368,7 +389,10 @@ const _ = grpc.SupportPackageIsVersion6
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type ControllerClient interface {
 	Tunnel(ctx context.Context, opts ...grpc.CallOption) (Controller_TunnelClient, error)
-	UpdateVolumeHashes(ctx context.Context, in *UpdateVolumeHashesRequest, opts ...grpc.CallOption) (*UpdateVolumeHashesResponse, error)
+	// The request and responses are flipped because the node controller is
+	// querying the CLI for status updates, but the CLI is initiating the
+	// connection.
+	SyncNotifications(ctx context.Context, opts ...grpc.CallOption) (Controller_SyncNotificationsClient, error)
 }
 
 type controllerClient struct {
@@ -410,19 +434,44 @@ func (x *controllerTunnelClient) Recv() (*TunnelMsg, error) {
 	return m, nil
 }
 
-func (c *controllerClient) UpdateVolumeHashes(ctx context.Context, in *UpdateVolumeHashesRequest, opts ...grpc.CallOption) (*UpdateVolumeHashesResponse, error) {
-	out := new(UpdateVolumeHashesResponse)
-	err := c.cc.Invoke(ctx, "/blimp.node.v0.Controller/UpdateVolumeHashes", in, out, opts...)
+func (c *controllerClient) SyncNotifications(ctx context.Context, opts ...grpc.CallOption) (Controller_SyncNotificationsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_Controller_serviceDesc.Streams[1], "/blimp.node.v0.Controller/SyncNotifications", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &controllerSyncNotificationsClient{stream}
+	return x, nil
+}
+
+type Controller_SyncNotificationsClient interface {
+	Send(*SyncStatusResponse) error
+	Recv() (*GetSyncStatusRequest, error)
+	grpc.ClientStream
+}
+
+type controllerSyncNotificationsClient struct {
+	grpc.ClientStream
+}
+
+func (x *controllerSyncNotificationsClient) Send(m *SyncStatusResponse) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *controllerSyncNotificationsClient) Recv() (*GetSyncStatusRequest, error) {
+	m := new(GetSyncStatusRequest)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // ControllerServer is the server API for Controller service.
 type ControllerServer interface {
 	Tunnel(Controller_TunnelServer) error
-	UpdateVolumeHashes(context.Context, *UpdateVolumeHashesRequest) (*UpdateVolumeHashesResponse, error)
+	// The request and responses are flipped because the node controller is
+	// querying the CLI for status updates, but the CLI is initiating the
+	// connection.
+	SyncNotifications(Controller_SyncNotificationsServer) error
 }
 
 // UnimplementedControllerServer can be embedded to have forward compatible implementations.
@@ -432,8 +481,8 @@ type UnimplementedControllerServer struct {
 func (*UnimplementedControllerServer) Tunnel(srv Controller_TunnelServer) error {
 	return status.Errorf(codes.Unimplemented, "method Tunnel not implemented")
 }
-func (*UnimplementedControllerServer) UpdateVolumeHashes(ctx context.Context, req *UpdateVolumeHashesRequest) (*UpdateVolumeHashesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateVolumeHashes not implemented")
+func (*UnimplementedControllerServer) SyncNotifications(srv Controller_SyncNotificationsServer) error {
+	return status.Errorf(codes.Unimplemented, "method SyncNotifications not implemented")
 }
 
 func RegisterControllerServer(s *grpc.Server, srv ControllerServer) {
@@ -466,37 +515,46 @@ func (x *controllerTunnelServer) Recv() (*TunnelMsg, error) {
 	return m, nil
 }
 
-func _Controller_UpdateVolumeHashes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateVolumeHashesRequest)
-	if err := dec(in); err != nil {
+func _Controller_SyncNotifications_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ControllerServer).SyncNotifications(&controllerSyncNotificationsServer{stream})
+}
+
+type Controller_SyncNotificationsServer interface {
+	Send(*GetSyncStatusRequest) error
+	Recv() (*SyncStatusResponse, error)
+	grpc.ServerStream
+}
+
+type controllerSyncNotificationsServer struct {
+	grpc.ServerStream
+}
+
+func (x *controllerSyncNotificationsServer) Send(m *GetSyncStatusRequest) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *controllerSyncNotificationsServer) Recv() (*SyncStatusResponse, error) {
+	m := new(SyncStatusResponse)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
-		return srv.(ControllerServer).UpdateVolumeHashes(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/blimp.node.v0.Controller/UpdateVolumeHashes",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ControllerServer).UpdateVolumeHashes(ctx, req.(*UpdateVolumeHashesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return m, nil
 }
 
 var _Controller_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "blimp.node.v0.Controller",
 	HandlerType: (*ControllerServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "UpdateVolumeHashes",
-			Handler:    _Controller_UpdateVolumeHashes_Handler,
-		},
-	},
+	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "Tunnel",
 			Handler:       _Controller_Tunnel_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "SyncNotifications",
+			Handler:       _Controller_SyncNotifications_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

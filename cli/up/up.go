@@ -204,16 +204,20 @@ func (cmd *up) run(services []string) error {
 		}
 	}
 
-	stopHashSync := make(chan struct{})
 	syncthingError := make(chan error, 1)
 	syncthingCtx, cancelSyncthing := context.WithCancel(context.Background())
+	defer cancelSyncthing()
 	if len(idPathMap) != 0 {
+		tunneledRemoteAPIPort := uint32(8385)
 		go startTunnel(nodeController, cmd.auth.AuthToken, "syncthing",
 			"127.0.0.1", syncthing.Port, syncthing.Port)
+		go startTunnel(nodeController, cmd.auth.AuthToken, "syncthing",
+			"127.0.0.1", tunneledRemoteAPIPort, syncthing.APIPort)
 		go func() {
 			defer close(syncthingError)
 
-			output, err := stClient.Run(syncthingCtx, nodeController, cmd.auth.AuthToken, stopHashSync)
+			output, err := stClient.Run(syncthingCtx, nodeController,
+				fmt.Sprintf("127.0.0.1:%d", tunneledRemoteAPIPort), cmd.auth.AuthToken)
 			select {
 			// We intentionally killed the Syncthing process, so exiting was expected.
 			case <-syncthingCtx.Done():
@@ -232,7 +236,7 @@ func (cmd *up) run(services []string) error {
 
 	guiError := make(chan error, 1)
 	go func() {
-		guiError <- cmd.runGUI(parsedCompose, stopHashSync)
+		guiError <- cmd.runGUI(parsedCompose)
 	}()
 
 	exit := make(chan os.Signal, 1)
@@ -328,15 +332,11 @@ func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) err
 	return nil
 }
 
-func (cmd *up) runGUI(parsedCompose composeTypes.Config, stopHashSync chan struct{}) error {
+func (cmd *up) runGUI(parsedCompose composeTypes.Config) error {
 	services := parsedCompose.ServiceNames()
 	statusPrinter := newStatusPrinter(services)
 	statusPrinter.Run(manager.C, cmd.auth.AuthToken)
 	analytics.Log.Info("Containers booted")
-
-	// Now that the containers have finished booting, we know the initial
-	// filesync is complete, and can stop updating the file hashes.
-	close(stopHashSync)
 
 	return logs.LogsCommand{
 		Containers: services,

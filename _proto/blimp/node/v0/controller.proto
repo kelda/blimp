@@ -8,7 +8,11 @@ option go_package = "github.com/kelda-inc/blimp/pkg/proto/node";
 
 service Controller {
   rpc Tunnel(stream TunnelMsg) returns (stream TunnelMsg) {}
-  rpc UpdateVolumeHashes(UpdateVolumeHashesRequest) returns (UpdateVolumeHashesResponse) {}
+
+  // The request and responses are flipped because the node controller is
+  // querying the CLI for status updates, but the CLI is initiating the
+  // connection.
+  rpc SyncNotifications(stream SyncStatusResponse) returns (stream GetSyncStatusRequest) {}
 }
 
 message TunnelHeader{
@@ -31,11 +35,12 @@ message TunnelMsg {
   }
 }
 
-message UpdateVolumeHashesRequest {
-  string token = 1;
-  map<string, string> hashes = 2;
+message SyncStatusResponse {
+  oneof msg {
+    // Only used in handshake.
+    string token = 1;
+    bool synced = 2;
+  }
 }
 
-message UpdateVolumeHashesResponse {
-  blimp.errors.v0.Error error = 2;
-}
+message GetSyncStatusRequest {}

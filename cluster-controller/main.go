@@ -153,7 +153,7 @@ func (s *server) CheckVersion(ctx context.Context, req *cluster.CheckVersionRequ
 		}, nil
 	}
 
-	c, err := semver.NewConstraint(">= 0.12.0")
+	c, err := semver.NewConstraint(">= 0.13.0")
 	if err != nil {
 		log.WithError(err).Warn("Failed to create version constraint")
 		return &cluster.CheckVersionResponse{

@@ -51,6 +51,8 @@ func main() {
 }
 
 func runOnce(nodeControllerHost, namespace string, waitSpec node.WaitSpec) error {
+	log.Info("Initiating CheckReady request")
+
 	// Connect to the node controller.
 	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", nodeControllerHost, wait.Port),
 		grpc.WithInsecure(),

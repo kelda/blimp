@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 	"time"
 
 	composeTypes "github.com/kelda/compose-go/types"
@@ -17,22 +16,19 @@ import (
 	listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/kelda-inc/blimp/node/wait/tracker"
 	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/proto/node"
-	"github.com/kelda-inc/blimp/pkg/syncthing"
-	"github.com/kelda-inc/blimp/pkg/volume"
 
 	// Install the gzip compressor.
 	_ "google.golang.org/grpc/encoding/gzip"
 )
 
 type server struct {
-	podInformer   cache.SharedIndexInformer
-	podLister     listers.PodLister
-	podWatcher    *kube.Watcher
-	volumeTracker *tracker.VolumeTracker
+	podInformer cache.SharedIndexInformer
+	podLister   listers.PodLister
+	podWatcher  *kube.Watcher
+	syncTracker *SyncTracker
 }
 
 // Implementations of waiters should block until they have finished waiting.
@@ -51,23 +47,16 @@ type podWaiter struct {
 	lister          listers.PodLister
 }
 
-// syncWaiter blocks until the volume in the given namespace matches the hash
-// reported by `volumeTracker`.
-type syncWaiter struct {
-	namespace, volume string
-	volumeTracker     *tracker.VolumeTracker
-}
-
 const Port = 9002
 
-func Run(kubeClient kubernetes.Interface, volumeTracker *tracker.VolumeTracker) {
+func Run(kubeClient kubernetes.Interface, syncTracker *SyncTracker) {
 	podInformer := informers.NewSharedInformerFactory(kubeClient, 30*time.Second).
 		Core().V1().Pods()
 	s := &server{
-		podInformer:   podInformer.Informer(),
-		podLister:     podInformer.Lister(),
-		podWatcher:    kube.NewWatcher(podInformer.Informer()),
-		volumeTracker: volumeTracker,
+		podInformer: podInformer.Informer(),
+		podLister:   podInformer.Lister(),
+		podWatcher:  kube.NewWatcher(podInformer.Informer()),
+		syncTracker: syncTracker,
 	}
 
 	go s.podInformer.Run(nil)
@@ -95,6 +84,8 @@ func (s *server) listenAndServe(address string) error {
 // CheckReady returns whether the boot requirements specified in the request
 // are satisfied.
 func (s *server) CheckReady(req *node.CheckReadyRequest, srv node.BootWaiter_CheckReadyServer) error {
+	log.WithField("req", req).Info("Received CheckReady request")
+
 	// Transform the boot requirements into a set of waiters.
 	var waiters []waiter
 	for name, condition := range req.GetWaitSpec().GetDependsOn() {
@@ -128,12 +119,10 @@ func (s *server) CheckReady(req *node.CheckReadyRequest, srv node.BootWaiter_Che
 		}.wait)
 	}
 
-	for _, volume := range req.GetWaitSpec().GetBindVolumes() {
-		waiters = append(waiters, syncWaiter{
-			namespace:     req.GetNamespace(),
-			volume:        volume,
-			volumeTracker: s.volumeTracker,
-		}.wait)
+	// We block boot until all the files are synced, even if the sync is
+	// waiting on files in another volume.
+	if len(req.GetWaitSpec().GetBindVolumes()) != 0 {
+		waiters = append(waiters, s.syncTracker.WaitFor(req.GetNamespace()))
 	}
 
 	return s.waitForAll(srv, waiters)
@@ -143,7 +132,7 @@ func (s *server) waitForAll(srv node.BootWaiter_CheckReadyServer, waiters []wait
 	waitCtx, cancelWaiters := context.WithCancel(context.Background())
 	defer cancelWaiters()
 
-	results := make(chan error)
+	results := make(chan error, len(waiters))
 	updates := make(chan string, 16)
 	for _, waiter := range waiters {
 		waiter := waiter
@@ -154,6 +143,8 @@ func (s *server) waitForAll(srv node.BootWaiter_CheckReadyServer, waiters []wait
 
 	// Wait for all the waiters to successfully complete, or for one of them to
 	// fail.
+	// If any fail, we return immediately, which cancels the wait context for
+	// all other waiters.
 	numReady := 0
 	for {
 		if numReady == len(waiters) {
@@ -167,6 +158,7 @@ func (s *server) waitForAll(srv node.BootWaiter_CheckReadyServer, waiters []wait
 			}
 		case result := <-results:
 			if result != nil {
+				log.WithError(result).Info("Aborting waitForAll due to failed wait")
 				return errors.WithContext("wait failed", result)
 			}
 			numReady++
@@ -247,54 +239,4 @@ func conditionFinishedVolumeInit(pod corev1.Pod) (string, bool) {
 	// The pod doesn't have an init container for initializing volumes, so
 	// ignore it.
 	return "skipped. doesn't initialize volumes", true
-}
-
-func (w syncWaiter) wait(ctx context.Context, updates chan<- string) error {
-	checkOnce := func() (msg string, done bool) {
-		isSynced, err := w.isSynced()
-		if err != nil {
-			return fmt.Sprintf("failed to get sync status: %s", err), false
-		}
-
-		if !isSynced {
-			return fmt.Sprintf("volume %s is not synced", w.volume), false
-		}
-		return fmt.Sprintf("volume %s is synced", w.volume), true
-	}
-
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-	for {
-		status, done := checkOnce()
-		select {
-		case updates <- status:
-		default:
-			log.WithField("status", status).Info("Updates channel is full, dropping.")
-		}
-
-		if done {
-			return nil
-		}
-
-		select {
-		case <-ticker.C:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-}
-
-func (w syncWaiter) isSynced() (bool, error) {
-	folderPath := filepath.Join(volume.BindVolumeRoot(w.namespace).VolumeSource.HostPath.Path, w.volume)
-	expHash, ok := w.volumeTracker.Get(w.namespace, w.volume)
-	if !ok {
-		return false, errors.New("unknown volume")
-	}
-
-	actualHash, err := syncthing.HashVolume(folderPath, nil)
-	if err != nil {
-		return false, errors.WithContext("calculate actual hash", err)
-	}
-
-	return string(expHash) == actualHash, nil
 }

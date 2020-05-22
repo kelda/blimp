@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"os"
@@ -20,7 +19,6 @@ import (
 
 	"github.com/kelda-inc/blimp/node/finalizer"
 	"github.com/kelda-inc/blimp/node/wait"
-	"github.com/kelda-inc/blimp/node/wait/tracker"
 	"github.com/kelda-inc/blimp/pkg/analytics"
 	"github.com/kelda-inc/blimp/pkg/auth"
 	"github.com/kelda-inc/blimp/pkg/errors"
@@ -62,8 +60,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	volumeTracker := tracker.NewVolumeTracker()
-	go wait.Run(kubeClient, volumeTracker)
+	syncTracker := wait.NewSyncTracker()
+	go wait.Run(kubeClient, syncTracker)
 	finalizer.Start(kubeClient, myNodeName)
 
 	podInformer := informers.NewSharedInformerFactoryWithOptions(
@@ -73,8 +71,8 @@ func main() {
 	cache.WaitForCacheSync(nil, podInformer.Informer().HasSynced)
 
 	s := &server{
-		volumeTracker: volumeTracker,
-		podLister:     podInformer.Lister(),
+		syncTracker: syncTracker,
+		podLister:   podInformer.Lister(),
 	}
 	addr := fmt.Sprintf("0.0.0.0:%d", ports.NodeControllerInternalPort)
 	if err := s.listenAndServe(addr); err != nil {
@@ -84,8 +82,8 @@ func main() {
 }
 
 type server struct {
-	volumeTracker *tracker.VolumeTracker
-	podLister     listers.PodLister
+	syncTracker *wait.SyncTracker
+	podLister   listers.PodLister
 }
 
 func (s *server) listenAndServe(address string) error {
@@ -137,14 +135,16 @@ func (s *server) Tunnel(nsrv node.Controller_TunnelServer) error {
 	return nil
 }
 
-func (s *server) UpdateVolumeHashes(_ context.Context, req *node.UpdateVolumeHashesRequest) (
-	*node.UpdateVolumeHashesResponse, error) {
-
-	user, err := auth.ParseIDToken(req.GetToken())
+func (s *server) SyncNotifications(srv node.Controller_SyncNotificationsServer) error {
+	handshake, err := srv.Recv()
 	if err != nil {
-		return &node.UpdateVolumeHashesResponse{}, errors.WithContext("validate token", err)
+		return err
 	}
 
-	s.volumeTracker.Set(user.Namespace, req.Hashes)
-	return &node.UpdateVolumeHashesResponse{}, nil
+	user, err := auth.ParseIDToken(handshake.GetToken())
+	if err != nil {
+		return errors.WithContext("validate token", err)
+	}
+
+	return s.syncTracker.RunServer(user.Namespace, srv)
 }
