@@ -26,6 +26,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/kelda-inc/blimp/cli/authstore"
+	"github.com/kelda-inc/blimp/cli/down"
 	"github.com/kelda-inc/blimp/cli/logs"
 	"github.com/kelda-inc/blimp/cli/manager"
 	"github.com/kelda-inc/blimp/cli/util"
@@ -41,6 +42,7 @@ import (
 func New() *cobra.Command {
 	var composePaths []string
 	var alwaysBuild bool
+	var detach bool
 	cobraCmd := &cobra.Command{
 		Use:   "up",
 		Short: "Create and start containers",
@@ -60,6 +62,7 @@ func New() *cobra.Command {
 			cmd := up{
 				auth:        auth,
 				alwaysBuild: alwaysBuild,
+				detach:      detach,
 			}
 
 			dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
@@ -100,6 +103,8 @@ func New() *cobra.Command {
 		"Specify an alternate compose file\nDefaults to docker-compose.yml and docker-compose.yaml")
 	cobraCmd.Flags().BoolVarP(&alwaysBuild, "build", "", false,
 		"Build images before starting containers")
+	cobraCmd.Flags().BoolVarP(&detach, "detach", "d", false,
+		"Leave containers running after blimp up exits")
 	return cobraCmd
 }
 
@@ -108,6 +113,7 @@ type up struct {
 	composePath    string
 	overridePaths  []string
 	alwaysBuild    bool
+	detach         bool
 	dockerClient   *client.Client
 	dockerConfig   *configfile.ConfigFile
 	regCreds       map[string]types.AuthConfig
@@ -223,12 +229,21 @@ func (cmd *up) run() error {
 		log.Info("All containers have completed. Exiting.")
 		return nil
 	case <-exit:
-		fmt.Println("Cleaning up local processes. The remote containers will continue running.")
+		if cmd.detach {
+			fmt.Println("Cleaning up local processes. The remote containers will continue running.")
+			fmt.Println("Use `blimp down` to clean up your remote sandbox.")
+		}
 
 		// If we spawned a child process for Syncthing, terminate it gracefully.
 		if len(idPathMap) != 0 {
 			cancelSyncthing()
 			<-syncthingError
+		}
+
+		if !cmd.detach {
+			fmt.Println("Cleaning up your containers and volumes.")
+			fmt.Println("To keep your sandbox running, use `blimp up -d` instead.\n")
+			down.Run(cmd.auth.AuthToken)
 		}
 		return nil
 	}

@@ -34,14 +34,14 @@ All containers and volumes are removed.`,
 				os.Exit(1)
 			}
 
-			if err := run(auth.AuthToken); err != nil {
+			if err := Run(auth.AuthToken); err != nil {
 				errors.HandleFatalError(err)
 			}
 		},
 	}
 }
 
-func run(authToken string) error {
+func Run(authToken string) error {
 	_, err := manager.C.DeleteSandbox(context.Background(), &cluster.DeleteSandboxRequest{
 		Token: authToken,
 	})
