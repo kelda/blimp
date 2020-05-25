@@ -37,11 +37,17 @@ func RunTests(t *testing.T, composePaths []string, tests []Test) {
 	upCtx, cancelUp := context.WithCancel(testCtx)
 	waitErr, err := util.Up(upCtx, upArgs...)
 	require.NoError(t, err, "start blimp up")
+	exited := make(chan bool)
 	go func() {
 		assert.NoError(t, <-waitErr, "run blimp up")
 		cancelTest()
+		exited <- true
 	}()
-	defer cancelUp()
+	defer func() {
+		cancelUp()
+		// Wait for the process to exit before moving to the next test.
+		<-exited
+	}()
 
 	// Wait for the service to start listening (it takes some time for the
 	// service to actually initialize and bind to the port within the container).
