@@ -72,27 +72,30 @@ func run(svc, cmd string, cmdArguments []string) error {
 	}
 
 	// Put the terminal into raw mode to prevent it echoing characters twice.
-	oldState, err := terminal.MakeRaw(0)
-	if err != nil {
-		return errors.WithContext("set terminal mode", err)
-	}
+	tty := terminal.IsTerminal(0)
+	if tty {
+		oldState, err := terminal.MakeRaw(0)
+		if err != nil {
+			return errors.WithContext("set terminal mode", err)
+		}
 
-	defer func() {
-		_ = terminal.Restore(0, oldState)
-	}()
+		defer func() {
+			_ = terminal.Restore(0, oldState)
+		}()
+	}
 
 	execOpts := core.PodExecOptions{
 		Command: append([]string{cmd}, cmdArguments...),
 		Stdin:   true,
 		Stdout:  true,
 		Stderr:  true,
-		TTY:     true,
+		TTY:     tty,
 	}
 	streamOpts := remotecommand.StreamOptions{
 		Stdin:  os.Stdin,
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
-		Tty:    true,
+		Tty:    tty,
 	}
 
 	req := kubeClient.CoreV1().RESTClient().Post().
