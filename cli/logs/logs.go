@@ -187,7 +187,7 @@ func printLogs(ctx context.Context, rawLogs <-chan rawLogLine, noColor bool) err
 		// Parse the logs in the windows to extract their timestamps.
 		var parsedLogs []parsedLogLine
 		for _, rawLog := range window {
-			message, timestamp, err := parseLogLine(rawLogs.Message)
+			message, timestamp, err := parseLogLine(rawLog.message)
 
 			// If we fail to parse the log's timestamp, revert to sorting based
 			// on its receival time.
