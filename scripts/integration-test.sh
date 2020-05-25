@@ -18,6 +18,11 @@ sudo mv ./blimp /usr/local/bin
 # check that blimp is installed
 which blimp
 
+# do some cleanup
+# blimp down might fail, but that's ok
+blimp down || true
+rm -rf ~/.blimp
+
 # log in
 blimp loginpw $(cat ~/blimp-creds)
 
