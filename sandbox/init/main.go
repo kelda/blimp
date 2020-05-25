@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"time"
 
 	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
@@ -40,7 +41,8 @@ func main() {
 	log.WithField("waitSpec", waitSpec).Info("Started")
 	for {
 		if err := runOnce(nodeControllerHost, namespace, waitSpec); err != nil {
-			log.WithError(err).Error("Failed to run")
+			log.WithError(err).Error("Failed to run. Retrying in 10 seconds.")
+			time.Sleep(10 * time.Second)
 		} else {
 			log.Info("Ready to boot")
 			os.Exit(0)
@@ -52,11 +54,13 @@ func runOnce(nodeControllerHost, namespace string, waitSpec node.WaitSpec) error
 	// Connect to the node controller.
 	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", nodeControllerHost, wait.Port),
 		grpc.WithInsecure(),
+		grpc.WithBlock(),
 		grpc.WithUnaryInterceptor(errors.UnaryClientInterceptor),
 		grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
 	if err != nil {
 		return err
 	}
+	defer conn.Close()
 	client := node.NewBootWaiterClient(conn)
 
 	isReadyStream, err := client.CheckReady(context.TODO(), &node.CheckReadyRequest{
