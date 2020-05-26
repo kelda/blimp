@@ -17,6 +17,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/informers"
@@ -212,6 +213,16 @@ func (booter *booter) deployNodeController(node string) error {
 						{
 							Name:  "NODE_NAME",
 							Value: node,
+						},
+					},
+					Resources: corev1.ResourceRequirements{
+						Requests: corev1.ResourceList{
+							"cpu":    resource.MustParse("250m"),
+							"memory": resource.MustParse("1Gi"),
+						},
+						Limits: corev1.ResourceList{
+							"cpu":    resource.MustParse("2"),
+							"memory": resource.MustParse("4Gi"),
 						},
 					},
 				},

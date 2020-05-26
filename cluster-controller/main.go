@@ -40,6 +40,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/syncthing"
 	"github.com/kelda-inc/blimp/pkg/version"
 	"github.com/kelda-inc/blimp/pkg/volume"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	// Install the gzip compressor.
 	_ "google.golang.org/grpc/encoding/gzip"
@@ -510,6 +511,16 @@ func (s *server) createSyncthing(namespace string, syncedFolders map[string]stri
 				ImagePullPolicy: "Always",
 				Args:            syncthing.MapToArgs(idPathMap),
 				VolumeMounts:    []corev1.VolumeMount{mount},
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu":    resource.MustParse("1"),
+						"memory": resource.MustParse("1Gi"),
+					},
+					Requests: corev1.ResourceList{
+						"cpu":    resource.MustParse("100m"),
+						"memory": resource.MustParse("100Mi"),
+					},
+				},
 			}},
 			Volumes:  []corev1.Volume{volume},
 			Affinity: sameNodeAffinity(namespace),
@@ -572,6 +583,16 @@ func (s *server) deployDNS(namespace string) error {
 				},
 				Image:           version.DNSImage,
 				ImagePullPolicy: "Always",
+				Resources: corev1.ResourceRequirements{
+					Limits: corev1.ResourceList{
+						"cpu":    resource.MustParse("1"),
+						"memory": resource.MustParse("1Gi"),
+					},
+					Requests: corev1.ResourceList{
+						"cpu":    resource.MustParse("100m"),
+						"memory": resource.MustParse("100Mi"),
+					},
+				},
 			}},
 			Affinity:           sameNodeAffinity(namespace),
 			ServiceAccountName: serviceAccount.Name,
