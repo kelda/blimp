@@ -22,6 +22,9 @@ spec:
         - /etc/blimp/cert.pem
         - -tls-key
         - /etc/blimp/key.pem
+        env:
+        - name: MAX_SANDBOXES
+          value: "500"
         volumeMounts:
         - name: kubeconfig
           mountPath: "/root/.kube"
