@@ -63,10 +63,10 @@ func Client(scc node.ControllerClient, ln net.Listener, token,
 			return err
 		}
 
-		log.WithFields(fields).Debug("new connection")
+		log.WithFields(fields).Trace("new connection")
 		go func() {
 			connect(scc, stream, token, name, port)
-			log.WithFields(fields).Debug("finish connection")
+			log.WithFields(fields).Trace("finish connection")
 		}()
 	}
 

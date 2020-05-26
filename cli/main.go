@@ -30,8 +30,8 @@ import (
 )
 
 // verboseLogKey is the environment variable used to enable verbose logging.
-// When it's set to `true`, Debug events are logged, rather than just Info and
-// above.
+// When it's set to `true`, TRACE logs are written to disk, and DEBUG logs are
+// printed to the user's console.
 const verboseLogKey = "BLIMP_LOG_VERBOSE"
 
 func main() {
@@ -112,9 +112,15 @@ func closeManager(_ *cobra.Command, _ []string) {
 }
 
 func configureLogrus() {
+	// By default, print INFO logs to the console, and persist DEBUG logs to
+	// disk.
+	// When running in verbose mode, print DEBUG logs to the console, and TRACE
+	// logs to disk.
 	printLevel := log.InfoLevel
+	mirrorLevel := log.DebugLevel
 	if os.Getenv(verboseLogKey) == "true" {
 		printLevel = log.DebugLevel
+		mirrorLevel = log.TraceLevel
 	}
 
 	mirrorFile, err := os.OpenFile(cfgdir.CLILogFile(), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
@@ -134,20 +140,22 @@ func configureLogrus() {
 			// This is more useful for correlating logs.
 			FullTimestamp: true,
 		},
-		mirrorFile: mirrorFile,
-		printLevel: printLevel,
+		mirrorFile:  mirrorFile,
+		printLevel:  printLevel,
+		mirrorLevel: mirrorLevel,
 	})
 }
 
 type formatter struct {
-	delegated  log.Formatter
-	mirrorFile *os.File
-	printLevel log.Level
+	delegated   log.Formatter
+	mirrorFile  *os.File
+	printLevel  log.Level
+	mirrorLevel log.Level
 }
 
 func (f formatter) Format(e *log.Entry) ([]byte, error) {
 	// Try to write the log entry to disk as well.
-	if f.mirrorFile != nil {
+	if f.mirrorFile != nil && e.Level <= f.mirrorLevel {
 		// Disable the entry's buffer so that we don't double print to the
 		// user's terminal.
 		eBuffer := e.Buffer
