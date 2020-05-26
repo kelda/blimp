@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -32,6 +33,18 @@ All containers and volumes are removed.`,
 			if auth.AuthToken == "" {
 				fmt.Fprintln(os.Stderr, "Not logged in. Please run `blimp login`.")
 				os.Exit(1)
+			}
+
+			if util.UpRunning() {
+				fmt.Printf("It looks like `blimp up` is still running. You should stop it before running `blimp down`.\n" +
+					"Are you sure you want to continue, even though things might break? (y/N) ")
+				var response string
+				num, err := fmt.Scanln(&response)
+				if err != nil || num != 1 ||
+					(strings.ToLower(response) != "y" && strings.ToLower(response) != "yes") {
+					fmt.Printf("Aborting.\n")
+					os.Exit(1)
+				}
 			}
 
 			if err := Run(auth.AuthToken); err != nil {
