@@ -239,12 +239,14 @@ func (cmd *up) run() error {
 	select {
 	case err := <-syncthingError:
 		return errors.WithContext("syncthing error", err)
+
 	case err := <-guiError:
 		if err != nil {
 			return errors.WithContext("run gui error", err)
 		}
 		log.Info("All containers have completed. Exiting.")
 		return nil
+
 	case <-exit:
 		if cmd.detach {
 			fmt.Println("Cleaning up local processes. The remote containers will continue running.")
@@ -260,7 +262,20 @@ func (cmd *up) run() error {
 		if !cmd.detach {
 			fmt.Println("Cleaning up your containers and volumes.")
 			fmt.Println("To keep your sandbox running, use `blimp up -d` instead.\n")
-			down.Run(cmd.auth.AuthToken)
+
+			downFinished := make(chan error)
+			go func() {
+				downFinished <- down.Run(cmd.auth.AuthToken)
+			}()
+
+			select {
+			case err := <-downFinished:
+				return err
+			case <-exit:
+				// This is the second signal, so we exit immediately without
+				// waiting for `blimp down` to finish. We exit naturally without
+				// `os.Exit` so that the lock is released.
+			}
 		}
 		return nil
 	}
