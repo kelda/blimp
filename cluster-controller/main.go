@@ -54,6 +54,7 @@ type server struct {
 	restConfig        *rest.Config
 	statusFetcher     *statusFetcher
 	certPath, keyPath string
+	maxSandboxes      int
 }
 
 // Set by make.
@@ -90,12 +91,25 @@ func main() {
 		log.Fatal("The TLS cert and key are required")
 	}
 
+	maxSandboxes := 100
+	if maxSandboxesVar, ok := os.LookupEnv("MAX_SANDBOXES"); ok {
+		parsedVar, err := strconv.Atoi(maxSandboxesVar)
+		if err != nil {
+			log.WithError(err).WithField("MAX_SANDBOXES", maxSandboxesVar).
+				Warn("Couldn't parse $MAX_SANDBOXES")
+		} else {
+			maxSandboxes = parsedVar
+		}
+	}
+	log.Infof("Capping maximum concurrent sandboxes to %d", maxSandboxes)
+
 	s := &server{
 		statusFetcher: newStatusFetcher(kubeClient),
 		kubeClient:    kubeClient,
 		restConfig:    restConfig,
 		certPath:      *certPath,
 		keyPath:       *keyPath,
+		maxSandboxes:  maxSandboxes,
 	}
 	s.statusFetcher.Start()
 
@@ -201,16 +215,6 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		WithField("composeHash", hash.DnsCompliant(req.GetComposeFile())).
 		Info("Parsed CreateSandbox request")
 
-	maxSandboxes := 100
-	if maxSandboxesVar, ok := os.LookupEnv("MAX_SANDBOXES"); ok {
-		parsedVar, err := strconv.Atoi(maxSandboxesVar)
-		if err != nil {
-			log.WithError(err).WithField("MAX_SANDBOXES", maxSandboxesVar).
-				Warn("Couldn't parse $MAX_SANDBOXES")
-		} else {
-			maxSandboxes = parsedVar
-		}
-	}
 	// If the user has already booted a sandbox, don't count it against the
 	// total.  This will allow you to boot if you already have a sandbox
 	// namespace, unless the number of sandboxes is OVER the maximum.
@@ -223,11 +227,11 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 	if err != nil {
 		return &cluster.CreateSandboxResponse{}, errors.WithContext("list namespaces", err)
 	}
-	if len(sandboxes) >= maxSandboxes {
+	if len(sandboxes) >= s.maxSandboxes {
 		analytics.Log.
 			WithField("namespace", user.Namespace).
 			WithField("numSandboxes", len(sandboxes)).
-			WithField("maxSandboxes", maxSandboxes).
+			WithField("maxSandboxes", s.maxSandboxes).
 			Info("Hit maxSandboxes")
 
 		return &cluster.CreateSandboxResponse{}, errors.NewFriendlyError(
