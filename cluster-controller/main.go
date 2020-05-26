@@ -762,6 +762,26 @@ func (s *server) DeleteSandbox(ctx context.Context, req *cluster.DeleteSandboxRe
 		return &cluster.DeleteSandboxResponse{}, err
 	}
 
+	// Terminate the pods in the sandbox immediately so that `blimp down` feels
+	// fast. This doesn't give the container a chance to gracefully shutdown,
+	// but it probably doesn't matter since these are development containers,
+	// and all the sandbox's state is going to be purged anyways.
+	pods, err := s.kubeClient.CoreV1().Pods(user.Namespace).List(metav1.ListOptions{})
+	if err == nil {
+		for _, pod := range pods.Items {
+			zero := int64(0)
+			err = s.kubeClient.CoreV1().Pods(user.Namespace).Delete(pod.Name, &metav1.DeleteOptions{
+				GracePeriodSeconds: &zero,
+			})
+			if err != nil {
+				log.WithField("namespace", user.Namespace).
+					WithField("pod", pod.Name).
+					WithError(err).
+					Warn("Failed to delete pod during sandbox teardown")
+			}
+		}
+	}
+
 	if err := s.kubeClient.CoreV1().Namespaces().Delete(user.Namespace, nil); err != nil {
 		return &cluster.DeleteSandboxResponse{}, err
 	}
