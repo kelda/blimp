@@ -59,21 +59,6 @@ func New() *cobra.Command {
 				os.Exit(1)
 			}
 
-			// TODO: Make locking atomic. Currently there could be TOCTTOU problems.
-			if util.UpRunning() {
-				fmt.Printf("It looks like `blimp up` is already running.\n" +
-					"Are you sure you want to continue, even though things might break? (y/N) ")
-				var response string
-				num, err := fmt.Scanln(&response)
-				if err != nil || num != 1 ||
-					(strings.ToLower(response) != "y" && strings.ToLower(response) != "yes") {
-					fmt.Printf("Aborting.\n")
-					os.Exit(1)
-				}
-			}
-			util.TakeUpLock()
-			defer util.ReleaseUpLock()
-
 			cmd := up{
 				auth:        auth,
 				alwaysBuild: alwaysBuild,
@@ -140,6 +125,21 @@ type up struct {
 }
 
 func (cmd *up) run() error {
+	// TODO: Make locking atomic. Currently there could be TOCTTOU problems.
+	if util.UpRunning() {
+		fmt.Printf("It looks like `blimp up` is already running.\n" +
+			"Are you sure you want to continue, even though things might break? (y/N) ")
+		var response string
+		num, err := fmt.Scanln(&response)
+		if err != nil || num != 1 ||
+			(strings.ToLower(response) != "y" && strings.ToLower(response) != "yes") {
+			fmt.Printf("Aborting.\n")
+			os.Exit(1)
+		}
+	}
+	util.TakeUpLock()
+	defer util.ReleaseUpLock()
+
 	parsedCompose, err := dockercompose.Load(cmd.composePath, cmd.overridePaths)
 	if err != nil {
 		return errors.WithContext("load compose file", err)
