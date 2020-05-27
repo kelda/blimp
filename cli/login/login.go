@@ -71,7 +71,10 @@ func getAuthToken() (string, error) {
 		return "", errors.WithContext("read instructions", err)
 	}
 
-	fmt.Printf("Your browser has been opened to visit:\n\n%s\n\n", loginURL)
+	fmt.Printf("Your browser has been opened to log in.\n"+
+		"Please leave this command running while you finish logging in.\n"+
+		"If your browser doesn't open, you can also visit this link directly:\n\n%s\n\n",
+		loginURL)
 	if err := openBrowser(loginURL); err != nil {
 		log.WithError(err).Warn("Failed to open browser. Please open the link manually.")
 	}
