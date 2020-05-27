@@ -19,7 +19,8 @@ LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
 	   -X github.com/kelda-inc/blimp/pkg/auth.ClusterManagerCertBase64=$(shell base64 ${MANAGER_CERT_PATH} | tr -d "\n") \
 	   -X github.com/kelda-inc/blimp/pkg/auth.LoginProxyHost=${LOGIN_PROXY_HOSTNAME} \
 	   -X github.com/kelda-inc/blimp/cli/manager.DefaultManagerHost=${CLUSTER_MANAGER_HOST} \
-	   -X main.RegistryHostname=${REGISTRY_HOSTNAME}"
+	   -X main.RegistryHostname=${REGISTRY_HOSTNAME} \
+	   -s -w"
 
 # Include override variables. The production Makefile takes precendence if it exists.
 -include local.mk
