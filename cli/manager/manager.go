@@ -71,3 +71,29 @@ func dial() (Client, error) {
 
 	return client, nil
 }
+
+func CheckServiceRunning(svc string, authToken string) error {
+	statusResp, err := C.GetStatus(context.Background(), &cluster.GetStatusRequest{
+		Token: authToken,
+	})
+	if err != nil {
+		return err
+	}
+
+	status := statusResp.GetStatus()
+	if status.GetPhase() != cluster.SandboxStatus_RUNNING {
+		return errors.NewFriendlyError(
+			"Your sandbox is not booted. Please run `blimp up` first.")
+	}
+
+	for svcName, svcStatus := range status.GetServices() {
+		if svcName == svc && svcStatus.GetPhase() == cluster.ServicePhase_RUNNING {
+			// We are booted!
+			return nil
+		}
+	}
+
+	// Either the service hasn't been created, or it isn't in the RUNNING phase.
+	return errors.NewFriendlyError(
+		"This service isn't ready. You can check its status with `blimp ps`.")
+}

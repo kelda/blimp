@@ -11,6 +11,7 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 
 	"github.com/kelda-inc/blimp/cli/authstore"
+	"github.com/kelda-inc/blimp/cli/manager"
 	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/kube"
 )
@@ -41,6 +42,12 @@ func run(svc string) error {
 	if auth.AuthToken == "" {
 		fmt.Fprintln(os.Stderr, "Not logged in. Please run `blimp login`.")
 		return nil
+	}
+
+	// Make sure the pod is actually booted.
+	err = manager.CheckServiceRunning(svc, auth.AuthToken)
+	if err != nil {
+		return err
 	}
 
 	kubeClient, restConfig, err := auth.KubeClient()
