@@ -21,8 +21,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/kelda-inc/blimp/cli/authstore"
+	"github.com/kelda-inc/blimp/cli/manager"
 	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/kube"
+	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 )
 
 type LogsCommand struct {
@@ -102,6 +104,18 @@ func (cmd LogsCommand) Run() error {
 	kubeClient, _, err := cmd.Auth.KubeClient()
 	if err != nil {
 		return errors.WithContext("connect to cluster", err)
+	}
+
+	for _, container := range cmd.Containers {
+		// For logs to work, the container needs to have started, but it doesn't
+		// necessarily need to be running.
+		err = manager.CheckServiceStatus(container, cmd.Auth.AuthToken,
+			func(svcStatus *cluster.ServiceStatus) bool {
+				return svcStatus.GetHasStarted()
+			})
+		if err != nil {
+			return err
+		}
 	}
 
 	// Exit gracefully when the user Ctrl-C's.

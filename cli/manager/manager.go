@@ -72,7 +72,8 @@ func dial() (Client, error) {
 	return client, nil
 }
 
-func CheckServiceRunning(svc string, authToken string) error {
+func CheckServiceStatus(svc string, authToken string,
+	predicate func(*cluster.ServiceStatus) bool) error {
 	statusResp, err := C.GetStatus(context.Background(), &cluster.GetStatusRequest{
 		Token: authToken,
 	})
@@ -87,7 +88,7 @@ func CheckServiceRunning(svc string, authToken string) error {
 	}
 
 	for svcName, svcStatus := range status.GetServices() {
-		if svcName == svc && svcStatus.GetPhase() == cluster.ServicePhase_RUNNING {
+		if svcName == svc && predicate(svcStatus) {
 			// We are booted!
 			return nil
 		}
@@ -95,5 +96,14 @@ func CheckServiceRunning(svc string, authToken string) error {
 
 	// Either the service hasn't been created, or it isn't in the RUNNING phase.
 	return errors.NewFriendlyError(
-		"This service isn't ready. You can check its status with `blimp ps`.")
+		"This service isn't booted. You can check its status with `blimp ps`.")
+}
+
+func CheckServiceRunning(svc string, authToken string) error {
+	return CheckServiceStatus(svc, authToken, func(svcStatus *cluster.ServiceStatus) bool {
+		// If a service is unhealthy, we probably still want to be able to
+		// interact with it, to figure out why it's unhealthy.
+		return svcStatus.GetPhase() == cluster.ServicePhase_RUNNING ||
+			svcStatus.GetPhase() == cluster.ServicePhase_UNHEALTHY
+	})
 }
