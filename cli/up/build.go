@@ -103,7 +103,7 @@ func (cmd *up) buildImage(spec composeTypes.BuildConfig, svc string) (string, er
 	if err != nil {
 		return "", errors.NewFriendlyError(
 			"Image build for %q failed. This is likely an error with the Dockerfile, rather than Blimp.\n"+
-				"Make sure that the successfully image builds with `docker build`.\n\n"+
+				"Make sure that the image successfully builds with `docker build`.\n\n"+
 				"The full error was:\n%s", svc, err)
 	}
 
