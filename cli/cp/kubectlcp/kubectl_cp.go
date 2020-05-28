@@ -29,7 +29,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/lithammer/dedent"
 	"github.com/spf13/cobra"
 
@@ -111,7 +110,7 @@ func NewCmdCp(f cmdutil.Factory, ioStreams genericclioptions.IOStreams) *cobra.C
 	return cmd
 }
 
-type fileSpec struct {
+type FileSpec struct {
 	PodNamespace string
 	PodName      string
 	File         string
@@ -122,29 +121,29 @@ var (
 	errFileCannotBeEmpty         = errors.New("filepath can not be empty")
 )
 
-func extractFileSpec(arg string) (fileSpec, error) {
+func ExtractFileSpec(arg string) (FileSpec, error) {
 	if i := strings.Index(arg, ":"); i == -1 {
-		return fileSpec{File: arg}, nil
+		return FileSpec{File: arg}, nil
 	} else if i > 0 {
 		file := arg[i+1:]
 		pod := arg[:i]
 		pieces := strings.Split(pod, "/")
 		if len(pieces) == 1 {
-			return fileSpec{
-				PodName: kube.PodName(pieces[0]),
+			return FileSpec{
+				PodName: pieces[0],
 				File:    file,
 			}, nil
 		}
 		if len(pieces) == 2 {
-			return fileSpec{
+			return FileSpec{
 				PodNamespace: pieces[0],
-				PodName:      kube.PodName(pieces[1]),
+				PodName:      pieces[1],
 				File:         file,
 			}, nil
 		}
 	}
 
-	return fileSpec{}, errFileSpecDoesntMatchFormat
+	return FileSpec{}, errFileSpecDoesntMatchFormat
 }
 
 // Complete completes all the required options
@@ -184,27 +183,27 @@ func (o *CopyOptions) Run(args []string) error {
 	if len(args) < 2 {
 		return fmt.Errorf("source and destination are required")
 	}
-	srcSpec, err := extractFileSpec(args[0])
+	srcSpec, err := ExtractFileSpec(args[0])
 	if err != nil {
 		return err
 	}
-	destSpec, err := extractFileSpec(args[1])
+	destSpec, err := ExtractFileSpec(args[1])
 	if err != nil {
 		return err
 	}
 
 	if len(srcSpec.PodName) != 0 && len(destSpec.PodName) != 0 {
 		if _, err := os.Stat(args[0]); err == nil {
-			return o.copyToPod(fileSpec{File: args[0]}, destSpec, &exec.ExecOptions{})
+			return o.CopyToPod(FileSpec{File: args[0]}, destSpec, &exec.ExecOptions{})
 		}
 		return fmt.Errorf("src doesn't exist in local filesystem")
 	}
 
 	if len(srcSpec.PodName) != 0 {
-		return o.copyFromPod(srcSpec, destSpec)
+		return o.CopyFromPod(srcSpec, destSpec)
 	}
 	if len(destSpec.PodName) != 0 {
-		return o.copyToPod(srcSpec, destSpec, &exec.ExecOptions{})
+		return o.CopyToPod(srcSpec, destSpec, &exec.ExecOptions{})
 	}
 	return fmt.Errorf("one of src or dest must be a remote file specification")
 }
@@ -213,7 +212,7 @@ func (o *CopyOptions) Run(args []string) error {
 // determines if the provided destination path exists on the
 // pod. If the destination path does not exist or is _not_ a
 // directory, an error is returned with the exit code received.
-func (o *CopyOptions) checkDestinationIsDir(dest fileSpec) error {
+func (o *CopyOptions) checkDestinationIsDir(dest FileSpec) error {
 	options := &exec.ExecOptions{
 		StreamOptions: exec.StreamOptions{
 			IOStreams: genericclioptions.IOStreams{
@@ -232,7 +231,7 @@ func (o *CopyOptions) checkDestinationIsDir(dest fileSpec) error {
 	return o.execute(options)
 }
 
-func (o *CopyOptions) copyToPod(src, dest fileSpec, options *exec.ExecOptions) error {
+func (o *CopyOptions) CopyToPod(src, dest FileSpec, options *exec.ExecOptions) error {
 	if len(src.File) == 0 || len(dest.File) == 0 {
 		return errFileCannotBeEmpty
 	}
@@ -284,7 +283,7 @@ func (o *CopyOptions) copyToPod(src, dest fileSpec, options *exec.ExecOptions) e
 	return o.execute(options)
 }
 
-func (o *CopyOptions) copyFromPod(src, dest fileSpec) error {
+func (o *CopyOptions) CopyFromPod(src, dest FileSpec) error {
 	if len(src.File) == 0 || len(dest.File) == 0 {
 		return errFileCannotBeEmpty
 	}
@@ -422,7 +421,7 @@ func recursiveTar(srcBase, srcFile, destBase, destFile string, tw *tar.Writer) e
 	return nil
 }
 
-func (o *CopyOptions) untarAll(src fileSpec, reader io.Reader, destDir, prefix string) error {
+func (o *CopyOptions) untarAll(src FileSpec, reader io.Reader, destDir, prefix string) error {
 	symlinkWarningPrinted := false
 	// TODO: use compression here?
 	tarReader := tar.NewReader(reader)

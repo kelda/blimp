@@ -7,11 +7,14 @@ import (
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/kubectl/pkg/cmd/exec"
 	"k8s.io/kubectl/pkg/scheme"
 
 	"github.com/kelda-inc/blimp/cli/authstore"
 	"github.com/kelda-inc/blimp/cli/cp/kubectlcp"
+	"github.com/kelda-inc/blimp/cli/manager"
 	"github.com/kelda-inc/blimp/pkg/errors"
+	"github.com/kelda-inc/blimp/pkg/kube"
 )
 
 func New() *cobra.Command {
@@ -47,6 +50,24 @@ func run(src, dst string) error {
 		return nil
 	}
 
+	srcSpec, err := kubectlcp.ExtractFileSpec(src)
+	if err != nil {
+		return errors.WithContext("parse src", err)
+	}
+	destSpec, err := kubectlcp.ExtractFileSpec(dst)
+	if err != nil {
+		return errors.WithContext("parse dest", err)
+	}
+
+	if len(srcSpec.PodName) != 0 && len(destSpec.PodName) != 0 {
+		// If both args look like remote paths, we assume src is local and dest
+		// is remote. This matches what kubectl cp does.
+		if _, err := os.Stat(src); err != nil {
+			return errors.New("src doesn't exist in local filesystem")
+		}
+		srcSpec = kubectlcp.FileSpec{File: src}
+	}
+
 	kubeClient, restConfig, err := auth.KubeClient()
 	if err != nil {
 		return errors.WithContext("get kube client", err)
@@ -67,5 +88,38 @@ func run(src, dst string) error {
 		Clientset:    kubeClient,
 		ClientConfig: restConfig,
 	}
-	return o.Run([]string{src, dst})
+
+	if len(srcSpec.PodName) != 0 {
+		translatedSrcSpec, err := translateSpec(srcSpec, auth.AuthToken)
+		if err != nil {
+			return err
+		}
+		return o.CopyFromPod(translatedSrcSpec, destSpec)
+	}
+	if len(destSpec.PodName) != 0 {
+		translatedDestSpec, err := translateSpec(destSpec, auth.AuthToken)
+		if err != nil {
+			return err
+		}
+		return o.CopyToPod(srcSpec, translatedDestSpec, &exec.ExecOptions{})
+	}
+	return errors.NewFriendlyError(
+		"One of src or dest must be a remote file specification.")
+}
+
+func translateSpec(fileSpec kubectlcp.FileSpec, authToken string) (kubectlcp.FileSpec, error) {
+	if len(fileSpec.PodNamespace) != 0 {
+		return kubectlcp.FileSpec{}, errors.NewFriendlyError(
+			"Specifying the remote namespace is not allowed.")
+	}
+
+	err := manager.CheckServiceRunning(fileSpec.PodName, authToken)
+	if err != nil {
+		return kubectlcp.FileSpec{}, err
+	}
+
+	return kubectlcp.FileSpec{
+		PodName: kube.PodName(fileSpec.PodName),
+		File:    fileSpec.File,
+	}, nil
 }
