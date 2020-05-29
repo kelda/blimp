@@ -22,7 +22,9 @@ import (
 
 var fs = afero.NewOsFs()
 
-func Load(composePath string, overridePaths []string) (types.Config, error) {
+// Load loads and merges the given compose files. If `services` is non-empty,
+// the return config only includes the services specified in `services`.
+func Load(composePath string, overridePaths, services []string) (types.Config, error) {
 	var configFiles []types.ConfigFile
 	for _, path := range append([]string{composePath}, overridePaths...) {
 		b, err := afero.ReadFile(fs, path)
@@ -157,6 +159,22 @@ func Load(composePath string, overridePaths []string) (types.Config, error) {
 
 			}
 		}
+	}
+
+	// If the user specified specific services to boot, modify the config file
+	// to only contain those services, and their dependencies.
+	if len(services) != 0 {
+		// cfg.WithServices also walks all dependencies of the services.
+		var filtered []types.ServiceConfig
+		err := cfgPtr.WithServices(services, func(service types.ServiceConfig) error {
+			filtered = append(filtered, service)
+			return nil
+		})
+		if err != nil {
+			return types.Config{}, errors.WithContext("lookup services", err)
+		}
+
+		cfgPtr.Services = filtered
 	}
 
 	return *cfgPtr, nil

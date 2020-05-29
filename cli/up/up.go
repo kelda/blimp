@@ -44,10 +44,12 @@ func New() *cobra.Command {
 	var alwaysBuild bool
 	var detach bool
 	cobraCmd := &cobra.Command{
-		Use:   "up",
+		Use:   "up [options] [SERVICE...]",
 		Short: "Create and start containers",
-		Long:  "Create and start containers\n\nDeploys the docker-compose.yml in the current directory.",
-		Run: func(_ *cobra.Command, _ []string) {
+		Long: "Create and start containers\n\n" +
+			"Up boots the docker-compose.yml in the current directory. " +
+			"If service are specified, `up` boots the services, as well as their dependencies.",
+		Run: func(_ *cobra.Command, services []string) {
 			auth, err := authstore.New()
 			if err != nil {
 				log.WithError(err).Fatal("Failed to parse local authentication store")
@@ -96,7 +98,7 @@ func New() *cobra.Command {
 			}
 
 			cmd.dockerConfig = cfg
-			if err := cmd.run(); err != nil {
+			if err := cmd.run(services); err != nil {
 				errors.HandleFatalError(err)
 			}
 		},
@@ -124,7 +126,7 @@ type up struct {
 	nodeCert       string
 }
 
-func (cmd *up) run() error {
+func (cmd *up) run(services []string) error {
 	// TODO: Make locking atomic. Currently there could be TOCTTOU problems.
 	if util.UpRunning() {
 		fmt.Printf("It looks like `blimp up` is already running.\n" +
@@ -140,7 +142,7 @@ func (cmd *up) run() error {
 	util.TakeUpLock()
 	defer util.ReleaseUpLock()
 
-	parsedCompose, err := dockercompose.Load(cmd.composePath, cmd.overridePaths)
+	parsedCompose, err := dockercompose.Load(cmd.composePath, cmd.overridePaths, services)
 	if err != nil {
 		return errors.WithContext("load compose file", err)
 	}
