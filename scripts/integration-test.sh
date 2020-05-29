@@ -9,7 +9,7 @@ cd $(dirname "${BASH_SOURCE[0]}")/..
 # we can't use kelda.io/get-blimp.sh (install.sh) because
 # it is interactive
 # assume the latest tag is also the latest release
-RELEASE=$(git describe --tags $(git rev-list --tags --max-count=1))
+RELEASE=$(git describe --tags $(git rev-list --tags='*.*.*' --max-count=1))
 ENDPOINT="https://blimp-releases.s3-us-west-1.amazonaws.com/blimp-linux-${RELEASE}"
 curl -fsSLo blimp "$ENDPOINT"
 chmod +x ./blimp
