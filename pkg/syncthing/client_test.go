@@ -147,6 +147,53 @@ func TestCalculateMounts(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Multiple mounts",
+			volumes: []string{
+				"/Users/kevin/dir-1/file",
+				"/Users/kevin/dir-2/file",
+			},
+			dirs: []string{
+				"/Users/kevin/kelda.io",
+				"/Users/kevin/dir-1",
+				"/Users/kevin/dir-2",
+			},
+			exp: []Mount{
+				{
+					Path: "/Users/kevin/dir-1",
+					Include: []string{
+						"file",
+					},
+				},
+				{
+					Path: "/Users/kevin/dir-2",
+					Include: []string{
+						"file",
+					},
+				},
+			},
+		},
+		{
+			name: "Syncing entire directory and nested directory, as well as a sibling file",
+			volumes: []string{
+				"/Users/kevin/kelda.io/dir",
+				"/Users/kevin/kelda.io",
+				"/Users/kevin/sibling",
+			},
+			dirs: []string{
+				"/Users/kevin/kelda.io",
+				"/Users/kevin/kelda.io/dir",
+			},
+			exp: []Mount{
+				{
+					Path: "/Users/kevin",
+					Include: []string{
+						"sibling",
+						"kelda.io",
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {

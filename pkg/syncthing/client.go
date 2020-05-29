@@ -118,6 +118,21 @@ func (m Mount) ID() string {
 	return hash.DnsCompliant(m.Path)
 }
 
+// Syncs returns whether the mount already syncs the given child.
+func (m Mount) Syncs(child string) bool {
+	if m.SyncAll {
+		return true
+	}
+
+	for _, include := range m.Include {
+		_, ok := getSubpath(include, child)
+		if ok {
+			return true
+		}
+	}
+	return false
+}
+
 func NewClient(volumes []string) Client {
 	var allMounts []Mount
 	// Collect all the mounts, regardless of whether they're nested.
@@ -171,9 +186,9 @@ func NewClient(volumes []string) Client {
 			}
 
 			switch {
-			// If we're syncing over the entire directory, then any includes for
+			// If the parent already syncs this mount, then any includes for
 			// files don't matter since they'll be automatically picked up.
-			case parent.SyncAll:
+			case parent.Syncs(relPath):
 				// Don't need to do anything.
 
 			// If we're syncing an entire subdirectory, add the relative
