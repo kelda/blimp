@@ -22,8 +22,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
-	listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 
 	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/kube"
@@ -32,11 +32,21 @@ import (
 	"github.com/kelda-inc/blimp/pkg/volume"
 )
 
-const NodeControllerNamespace = "blimp-system"
+const (
+	NodeControllerNamespace = "blimp-system"
+
+	// maxRetries is the maximum number of times to retry deploying a node
+	// controller before giving up.
+	maxRetries = 4
+
+	// numWorkers is the max number of node controllers to deploy in parallel.
+	numWorkers = 4
+)
 
 type booter struct {
-	lister     listers.NodeLister
-	kubeClient kubernetes.Interface
+	nodeInformer cache.SharedIndexInformer
+	kubeClient   kubernetes.Interface
+	workqueue    workqueue.RateLimitingInterface
 }
 
 // StartControllerBooter starts a watcher that watches for new Kubernetes
@@ -63,57 +73,86 @@ func StartControllerBooter(kubeClient kubernetes.Interface) {
 		time.Sleep(15 * time.Second)
 	}
 
-	factory := informers.NewSharedInformerFactory(kubeClient, 30*time.Second).Core().V1().Nodes()
-	informer := factory.Informer()
+	informer := informers.NewSharedInformerFactory(kubeClient, 30*time.Second).
+		Core().V1().Nodes().Informer()
 
 	b := booter{
-		kubeClient: kubeClient,
-		lister:     factory.Lister(),
+		kubeClient:   kubeClient,
+		nodeInformer: informer,
+		workqueue:    workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 	}
 
-	sync := func(obj interface{}) {
-		node, ok := obj.(*corev1.Node)
-		if !ok {
-			log.WithField("obj", obj).
-				Warn("Unexpected non-Node object")
-			return
-		}
-
-		if err := b.ensureDeployed(node.Name); err != nil {
-			log.WithField("node", node).WithError(err).Error("Failed to deploy node controller")
-		}
-	}
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    sync,
-		DeleteFunc: sync,
-		UpdateFunc: func(_, intf interface{}) {
-			sync(intf)
+		AddFunc: func(obj interface{}) {
+			key, err := cache.MetaNamespaceKeyFunc(obj)
+			if err == nil {
+				b.workqueue.Add(key)
+			}
 		},
 	})
 
 	go informer.Run(nil)
 	cache.WaitForCacheSync(nil, informer.HasSynced)
+
+	for i := 0; i < numWorkers; i++ {
+		go func() {
+			for b.runWorker() {
+			}
+		}()
+	}
 }
 
-func (booter *booter) ensureDeployed(node string) error {
-	pods, err := booter.kubeClient.CoreV1().Pods(NodeControllerNamespace).
-		List(metav1.ListOptions{
-			LabelSelector: fmt.Sprintf("service=node-controller,node=%s", node),
-		})
+func (booter *booter) runWorker() (shutdown bool) {
+	key, shutdown := booter.workqueue.Get()
+	if shutdown {
+		return true
+	}
+	defer booter.workqueue.Done(key)
+
+	obj, found, err := booter.nodeInformer.GetIndexer().GetByKey(key.(string))
 	if err != nil {
-		return errors.WithContext("get current pods", err)
+		log.WithError(err).WithField("key", key).Error("Failed to get node")
+		booter.requeue(key)
+		return false
 	}
 
-	// If the node already has a controller, there's nothing else for us to do.
-	if len(pods.Items) != 0 {
-		return nil
+	// The node was deleted, so there's nothing to do.
+	if !found {
+		booter.workqueue.Forget(key)
+		return false
 	}
 
-	log.WithField("node", node).Info("Deploying node controller")
-	if err := booter.deployNodeController(node); err != nil {
-		return errors.WithContext("deploy node controller", err)
+	node, ok := obj.(*corev1.Node)
+	if !ok {
+		log.WithField("obj", obj).
+			Warn("Unexpected non-Node object")
+		return false
 	}
-	return nil
+
+	log.WithField("node", node.Name).Info("Deploying node controller")
+	err = booter.deployNodeController(node.Name)
+	if err == nil {
+		log.WithField("node", node.Name).Info("Successfully deployed node controller")
+		return false
+	}
+
+	log.WithField("node", node.Name).
+		WithError(err).
+		Error("Failed to deploy node controller")
+
+	// Try deploying again later.
+	booter.requeue(key)
+	return false
+}
+
+func (booter *booter) requeue(key interface{}) {
+	if booter.workqueue.NumRequeues(key) < maxRetries {
+		booter.workqueue.AddRateLimited(key)
+	} else {
+		log.WithField("key", key).Warn(
+			"Too many node controller deployment failures. Not requeueing.")
+		booter.workqueue.Forget(key)
+	}
 }
 
 func (booter *booter) deployNodeController(node string) error {
