@@ -30,6 +30,7 @@ subjectAltName = @alt_names
 [alt_names]
 IP.1 = ${manager_ip}
 DNS.1 = localhost
+DNS.2 = host.docker.internal
 EOF
 
 	openssl req \
