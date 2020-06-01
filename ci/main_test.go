@@ -14,6 +14,7 @@ import (
 	blimpAssert "github.com/kelda-inc/blimp/ci/assert"
 	"github.com/kelda-inc/blimp/ci/examples"
 	"github.com/kelda-inc/blimp/ci/file"
+	"github.com/kelda-inc/blimp/ci/tests/volume"
 )
 
 func TestBlimp(t *testing.T) {
@@ -63,6 +64,8 @@ func TestBlimp(t *testing.T) {
 				},
 			},
 		},
+
+		volume.Test{},
 	}
 
 	for _, test := range tests {

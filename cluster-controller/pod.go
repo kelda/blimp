@@ -112,32 +112,46 @@ func (b *podBuilder) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig)
 		},
 	)
 
+	// Mount all the volumes for the namespace so that vcp can copy into them.
+	hostPathType := corev1.HostPathDirectoryOrCreate
+	namespaceVolume := corev1.Volume{
+		Name: "vcp-blimp-volumes",
+		VolumeSource: corev1.VolumeSource{
+			HostPath: &corev1.HostPathVolumeSource{
+				Path: volume.NamespaceRoot(b.namespace),
+				Type: &hostPathType,
+			},
+		},
+	}
+	b.addVolume(namespaceVolume)
+
 	// Configure the container that executes the copy from the image filesystem
 	// into the volume.
-	var vcpMounts []corev1.VolumeMount
 	var vcpArgs []string
 	for _, v := range volumes {
-		kubeVol := volume.GetVolume(b.namespace, v.Source)
-		b.addVolume(kubeVol)
-
-		// vcpTarget needs to account for the volume's source and target to avoid
-		// conflicts if the container mounts the same volume to two different
-		// paths.
-		vcpTarget := "/vcp-mount" + hash.DnsCompliant(v.Source+v.Target)
-		vcpMounts = append(vcpMounts, corev1.VolumeMount{
-			Name:      kubeVol.Name,
-			MountPath: vcpTarget,
-		})
-		vcpArgs = append(vcpArgs, fmt.Sprintf("%s/.:%s", v.Target, vcpTarget))
+		vcpTarget := volume.GetVolume(b.namespace, v.Source)
+		vcpArgs = append(vcpArgs, fmt.Sprintf("%s:%s", v.Target, vcpTarget.VolumeSource.HostPath.Path))
 	}
 
+	// In GKE, host path volumes are created as root.
+	hostPathOwner := int64(0)
 	b.addInitContainers(
 		corev1.Container{
 			Name:            ContainerNameInitializeVolumeFromImage,
 			Image:           b.image,
 			ImagePullPolicy: "Always",
 			Command:         append([]string{"/vcpbin/blimp-cp", "/vcpbin/cp"}, vcpArgs...),
-			VolumeMounts:    append(vcpBinMount, vcpMounts...),
+			SecurityContext: &corev1.SecurityContext{
+				// Run the container as the directory's owner so that vcp can
+				// write to it. Note that this UID doesn't need to exist within
+				// the container -- it just needs to match up with the UID in
+				// the host's filesystem.
+				RunAsUser: &hostPathOwner,
+			},
+			VolumeMounts: append(vcpBinMount, corev1.VolumeMount{
+				Name:      namespaceVolume.Name,
+				MountPath: namespaceVolume.VolumeSource.HostPath.Path,
+			}),
 		},
 	)
 }
