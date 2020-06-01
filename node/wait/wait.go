@@ -96,6 +96,23 @@ func (s *server) CheckReady(req *node.CheckReadyRequest, srv node.BootWaiter_Che
 			}
 		}
 
+		for _, service := range req.GetWaitSpec().GetFinishedVolumeInit() {
+			isInit, err := s.finishedVolumeInit(namespace, service)
+			if err != nil {
+				return &node.CheckReadyResponse{
+					Ready:  false,
+					Reason: fmt.Sprintf("failed to get volume initialization status: %s", err),
+				}
+			}
+
+			if !isInit {
+				return &node.CheckReadyResponse{
+					Ready:  false,
+					Reason: fmt.Sprintf("service %s has not finished volume initialization", service),
+				}
+			}
+		}
+
 		return &node.CheckReadyResponse{Ready: true}
 	}
 
@@ -157,4 +174,23 @@ func (s *server) isSynced(namespace, volumePath string) (bool, error) {
 	}
 
 	return string(expHash) == actualHash, nil
+}
+
+func (s *server) finishedVolumeInit(namespace, service string) (bool, error) {
+	pod, err := s.kubeClient.CoreV1().Pods(namespace).Get(kube.PodName(service), metav1.GetOptions{})
+	if err != nil {
+		if kerrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	for _, c := range pod.Status.InitContainerStatuses {
+		if c.Name == kube.ContainerNameInitializeVolumeFromImage {
+			return c.State.Terminated != nil && c.State.Terminated.Reason == "Completed", nil
+		}
+	}
+
+	// The specified service doesn't initialize volumes.
+	return true, nil
 }

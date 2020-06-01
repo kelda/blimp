@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/kelda-inc/blimp/pkg/errors"
+	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/proto/cluster"
 )
 
@@ -267,11 +268,11 @@ func (sf *statusFetcher) getServiceStatus(pod *corev1.Pod) cluster.ServiceStatus
 	for _, c := range pod.Status.InitContainerStatuses {
 		var phase cluster.ServicePhase
 		switch c.Name {
-		case ContainerNameCopyBusybox, ContainerNameCopyVCP, ContainerNameInitializeVolumeFromImage:
+		case kube.ContainerNameCopyBusybox, kube.ContainerNameCopyVCP, kube.ContainerNameInitializeVolumeFromImage, kube.ContainerNameWaitInitializedVolumes:
 			phase = cluster.ServicePhase_INITIALIZING_VOLUMES
-		case ContainerNameWaitDependsOn:
+		case kube.ContainerNameWaitDependsOn:
 			phase = cluster.ServicePhase_WAIT_DEPENDS_ON
-		case ContainerNameWaitInitialSync:
+		case kube.ContainerNameWaitInitialSync:
 			phase = cluster.ServicePhase_WAIT_SYNC_BIND
 		}
 
@@ -289,7 +290,7 @@ func (sf *statusFetcher) getServiceStatus(pod *corev1.Pod) cluster.ServiceStatus
 
 		// Because the volume initialization container uses the user's image,
 		// we need to explicitly tell users about those errors.
-		if c.Name == ContainerNameInitializeVolumeFromImage {
+		if c.Name == kube.ContainerNameInitializeVolumeFromImage {
 			if isImagePullFailure(c) {
 				return cluster.ServiceStatus{
 					Phase: cluster.ServicePhase_PENDING,
@@ -298,7 +299,7 @@ func (sf *statusFetcher) getServiceStatus(pod *corev1.Pod) cluster.ServiceStatus
 			}
 
 			isPulling := sf.isPulling(pod.Namespace, pod.Name,
-				fmt.Sprintf("spec.initContainers{%s}", ContainerNameInitializeVolumeFromImage))
+				fmt.Sprintf("spec.initContainers{%s}", kube.ContainerNameInitializeVolumeFromImage))
 			if isPulling {
 				return cluster.ServiceStatus{
 					Phase: cluster.ServicePhase_PENDING,

@@ -19,6 +19,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/metadata"
 	"github.com/kelda-inc/blimp/pkg/proto/node"
+	"github.com/kelda-inc/blimp/pkg/strs"
 	"github.com/kelda-inc/blimp/pkg/version"
 	"github.com/kelda-inc/blimp/pkg/volume"
 )
@@ -29,6 +30,7 @@ type podBuilder struct {
 	nodeControllerIP  string
 	builtImages       map[string]string
 	svcAliasesMapping map[string][]string
+	volumeToServices  map[string][]string
 }
 
 type podSpec struct {
@@ -70,12 +72,23 @@ func newPodBuilder(namespace, dnsIP, nodeControllerIP string, builtImages map[st
 		}
 	}
 
+	volumeToServices := map[string][]string{}
+	for _, svc := range services {
+		for _, v := range svc.Volumes {
+			if v.Type != composeTypes.VolumeTypeVolume {
+				continue
+			}
+			volumeToServices[v.Source] = append(volumeToServices[v.Source], svc.Name)
+		}
+	}
+
 	return podBuilder{
 		namespace:         namespace,
 		dnsIP:             dnsIP,
 		nodeControllerIP:  nodeControllerIP,
 		builtImages:       builtImages,
 		svcAliasesMapping: serviceToAliases,
+		volumeToServices:  volumeToServices,
 	}, nil
 }
 
@@ -100,15 +113,22 @@ func (b podBuilder) ToPod(svc composeTypes.ServiceConfig) (corev1.Pod, []corev1.
 
 	if len(nativeVolumes) != 0 {
 		spec.addVolumeSeeder(nativeVolumes)
+
+		var servicesSharingVolumes []string
+		for _, volume := range nativeVolumes {
+			servicesSharingVolumes = append(servicesSharingVolumes, b.volumeToServices[volume.Source]...)
+		}
+		spec.addWaiter(b.nodeControllerIP, svc.Name, kube.ContainerNameWaitInitializedVolumes,
+			node.WaitSpec{FinishedVolumeInit: strs.Unique(servicesSharingVolumes)})
 	}
 
 	if len(svc.DependsOn) != 0 {
-		spec.addWaiter(b.nodeControllerIP, svc.Name, ContainerNameWaitDependsOn,
+		spec.addWaiter(b.nodeControllerIP, svc.Name, kube.ContainerNameWaitDependsOn,
 			node.WaitSpec{DependsOn: marshalDependencies(svc.DependsOn, svc.Links)})
 	}
 
 	if len(bindVolumes) != 0 {
-		spec.addWaiter(b.nodeControllerIP, svc.Name, ContainerNameWaitInitialSync,
+		spec.addWaiter(b.nodeControllerIP, svc.Name, kube.ContainerNameWaitInitialSync,
 			node.WaitSpec{BindVolumes: bindVolumes})
 	}
 
@@ -136,14 +156,14 @@ func (p *podSpec) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig) {
 
 	p.addInitContainers(
 		corev1.Container{
-			Name:            ContainerNameCopyBusybox,
+			Name:            kube.ContainerNameCopyBusybox,
 			Image:           version.InitImage,
 			ImagePullPolicy: "Always",
 			Command:         []string{"/bin/cp", "/bin/busybox.static", "/vcpbin/cp"},
 			VolumeMounts:    vcpBinMount,
 		},
 		corev1.Container{
-			Name:            ContainerNameCopyVCP,
+			Name:            kube.ContainerNameCopyVCP,
 			Image:           version.InitImage,
 			ImagePullPolicy: "Always",
 			Command:         []string{"/bin/cp", "/bin/blimp-vcp", "/vcpbin/blimp-cp"},
@@ -176,7 +196,7 @@ func (p *podSpec) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig) {
 	hostPathOwner := int64(0)
 	p.addInitContainers(
 		corev1.Container{
-			Name:            ContainerNameInitializeVolumeFromImage,
+			Name:            kube.ContainerNameInitializeVolumeFromImage,
 			Image:           p.image,
 			ImagePullPolicy: "Always",
 			Command:         append([]string{"/vcpbin/blimp-cp", "/vcpbin/cp"}, vcpArgs...),

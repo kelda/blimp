@@ -59,14 +59,6 @@ type server struct {
 // Set by make.
 var RegistryHostname string
 
-const (
-	ContainerNameCopyBusybox               = "copy-busybox"
-	ContainerNameCopyVCP                   = "copy-vcp"
-	ContainerNameInitializeVolumeFromImage = "vcp"
-	ContainerNameWaitDependsOn             = "wait-depends-on"
-	ContainerNameWaitInitialSync           = "wait-sync"
-)
-
 // MaxServices is the maximum number of service pods allowed in a single
 // sandbox.
 const MaxServices = 150
