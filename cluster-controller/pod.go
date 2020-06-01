@@ -24,29 +24,66 @@ import (
 )
 
 type podBuilder struct {
-	namespace        string
-	dnsIP            string
-	nodeControllerIP string
-	builtImages      map[string]string
+	namespace         string
+	dnsIP             string
+	nodeControllerIP  string
+	builtImages       map[string]string
+	svcAliasesMapping map[string][]string
+}
 
+type podSpec struct {
+	namespace  string
 	image      string
 	pod        corev1.Pod
 	configMaps []corev1.ConfigMap
 }
 
-func newPodBuilder(namespace, dnsIP, nodeControllerIP string, builtImages map[string]string) *podBuilder {
-	return &podBuilder{
-		namespace:        namespace,
-		dnsIP:            dnsIP,
-		nodeControllerIP: nodeControllerIP,
-		builtImages:      builtImages,
+func newPodBuilder(namespace, dnsIP, nodeControllerIP string, builtImages map[string]string,
+	services []composeTypes.ServiceConfig) (podBuilder, error) {
+
+	serviceToAliases := make(map[string][]string)
+	aliasToService := make(map[string]string)
+	for _, svc := range services {
+		for _, link := range svc.Links {
+			var svcToBeAliased, alias string
+			switch linkParts := strings.Split(link, ":"); len(linkParts) {
+			// A link without an alias. Nothing for us to do.
+			case 1:
+				continue
+			case 2:
+				svcToBeAliased = linkParts[0]
+				alias = linkParts[1]
+			default:
+				log.WithField("link", link).Warn("Link in unexpected format. Skipping.")
+				continue
+			}
+
+			// Error if two services are using the same alias for different services.
+			if svcPresent, added := aliasToService[alias]; added && svcPresent != svcToBeAliased {
+				return podBuilder{}, errors.NewFriendlyError(
+					"links error: service %s and %s are using %s to refer to different services",
+					svcPresent, svcToBeAliased, alias)
+			}
+
+			aliasToService[alias] = svcToBeAliased
+			serviceToAliases[svcToBeAliased] = append(serviceToAliases[svcToBeAliased], alias)
+		}
 	}
+
+	return podBuilder{
+		namespace:         namespace,
+		dnsIP:             dnsIP,
+		nodeControllerIP:  nodeControllerIP,
+		builtImages:       builtImages,
+		svcAliasesMapping: serviceToAliases,
+	}, nil
 }
 
-func (b *podBuilder) ToPod(svc composeTypes.ServiceConfig, svcAliasesMapping map[string][]string) (corev1.Pod, []corev1.ConfigMap, error) {
-	b.image = svc.Image
+func (b podBuilder) ToPod(svc composeTypes.ServiceConfig) (corev1.Pod, []corev1.ConfigMap, error) {
+	spec := podSpec{namespace: b.namespace}
+	spec.image = svc.Image
 	if svc.Build != nil {
-		b.image = b.builtImages[svc.Name]
+		spec.image = b.builtImages[svc.Name]
 		// TODO: Error if image DNE.
 	}
 
@@ -62,28 +99,30 @@ func (b *podBuilder) ToPod(svc composeTypes.ServiceConfig, svcAliasesMapping map
 	}
 
 	if len(nativeVolumes) != 0 {
-		b.addVolumeSeeder(nativeVolumes)
+		spec.addVolumeSeeder(nativeVolumes)
 	}
 
 	if len(svc.DependsOn) != 0 {
-		b.addWaiter(svc.Name, ContainerNameWaitDependsOn, node.WaitSpec{DependsOn: marshalDependencies(svc.DependsOn, svc.Links)})
+		spec.addWaiter(b.nodeControllerIP, svc.Name, ContainerNameWaitDependsOn,
+			node.WaitSpec{DependsOn: marshalDependencies(svc.DependsOn, svc.Links)})
 	}
 
 	if len(bindVolumes) != 0 {
-		b.addWaiter(svc.Name, ContainerNameWaitInitialSync, node.WaitSpec{BindVolumes: bindVolumes})
+		spec.addWaiter(b.nodeControllerIP, svc.Name, ContainerNameWaitInitialSync,
+			node.WaitSpec{BindVolumes: bindVolumes})
 	}
 
-	if err := b.addRuntimeContainer(svc, svcAliasesMapping); err != nil {
+	if err := spec.addRuntimeContainer(svc, b.dnsIP, b.svcAliasesMapping); err != nil {
 		return corev1.Pod{}, nil, err
 	}
-	b.sanitize()
-	return b.pod, b.configMaps, nil
+	spec.sanitize()
+	return spec.pod, spec.configMaps, nil
 }
 
-func (b *podBuilder) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig) {
+func (p *podSpec) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig) {
 	// Write blimp-cp and cp to a volume so that we can access them from the
 	// user's image.
-	b.addVolume(corev1.Volume{
+	p.addVolume(corev1.Volume{
 		Name: "vcpbin",
 		VolumeSource: corev1.VolumeSource{
 			EmptyDir: &corev1.EmptyDirVolumeSource{},
@@ -95,7 +134,7 @@ func (b *podBuilder) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig)
 		MountPath: "/vcpbin",
 	}}
 
-	b.addInitContainers(
+	p.addInitContainers(
 		corev1.Container{
 			Name:            ContainerNameCopyBusybox,
 			Image:           version.InitImage,
@@ -118,27 +157,27 @@ func (b *podBuilder) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig)
 		Name: "vcp-blimp-volumes",
 		VolumeSource: corev1.VolumeSource{
 			HostPath: &corev1.HostPathVolumeSource{
-				Path: volume.NamespaceRoot(b.namespace),
+				Path: volume.NamespaceRoot(p.namespace),
 				Type: &hostPathType,
 			},
 		},
 	}
-	b.addVolume(namespaceVolume)
+	p.addVolume(namespaceVolume)
 
 	// Configure the container that executes the copy from the image filesystem
 	// into the volume.
 	var vcpArgs []string
 	for _, v := range volumes {
-		vcpTarget := volume.GetVolume(b.namespace, v.Source)
+		vcpTarget := volume.GetVolume(p.namespace, v.Source)
 		vcpArgs = append(vcpArgs, fmt.Sprintf("%s:%s", v.Target, vcpTarget.VolumeSource.HostPath.Path))
 	}
 
 	// In GKE, host path volumes are created as root.
 	hostPathOwner := int64(0)
-	b.addInitContainers(
+	p.addInitContainers(
 		corev1.Container{
 			Name:            ContainerNameInitializeVolumeFromImage,
-			Image:           b.image,
+			Image:           p.image,
 			ImagePullPolicy: "Always",
 			Command:         append([]string{"/vcpbin/blimp-cp", "/vcpbin/cp"}, vcpArgs...),
 			SecurityContext: &corev1.SecurityContext{
@@ -166,24 +205,26 @@ func (b *podBuilder) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig)
 	)
 }
 
-func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig, svcAliasesMapping map[string][]string) error {
-	b.pod.Namespace = b.namespace
-	b.pod.Name = kube.PodName(svc.Name)
-	b.pod.Labels = map[string]string{
+func (p *podSpec) addRuntimeContainer(svc composeTypes.ServiceConfig, dnsIP string,
+	svcAliasesMapping map[string][]string) error {
+
+	p.pod.Namespace = p.namespace
+	p.pod.Name = kube.PodName(svc.Name)
+	p.pod.Labels = map[string]string{
 		"blimp.service":     svc.Name,
 		"blimp.customerPod": "true",
-		"blimp.customer":    b.namespace,
+		"blimp.customer":    p.namespace,
 	}
 
-	bindVolumeRoot := volume.BindVolumeRoot(b.namespace)
-	b.addVolume(bindVolumeRoot)
+	bindVolumeRoot := volume.BindVolumeRoot(p.namespace)
+	p.addVolume(bindVolumeRoot)
 
 	var volumeMounts []corev1.VolumeMount
 	for _, v := range svc.Volumes {
 		switch v.Type {
 		case composeTypes.VolumeTypeVolume:
-			kubeVol := volume.GetVolume(b.namespace, v.Source)
-			b.addVolume(kubeVol)
+			kubeVol := volume.GetVolume(p.namespace, v.Source)
+			p.addVolume(kubeVol)
 			volumeMounts = append(volumeMounts, corev1.VolumeMount{
 				Name:      kubeVol.Name,
 				MountPath: v.Target,
@@ -228,12 +269,12 @@ func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig, svcAlia
 		}
 	}
 
-	b.pod.Spec.Containers = []corev1.Container{
+	p.pod.Spec.Containers = []corev1.Container{
 		{
 			Args:            svc.Command,
 			Command:         svc.Entrypoint,
 			Env:             toEnvVars(svc.Environment),
-			Image:           b.image,
+			Image:           p.image,
 			ImagePullPolicy: "Always",
 			Name:            kube.PodName(svc.Name),
 			SecurityContext: securityContext,
@@ -272,9 +313,9 @@ func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig, svcAlia
 		aliases = append(aliases, svc.ContainerName)
 	}
 
-	b.pod.Annotations = map[string]string{}
+	p.pod.Annotations = map[string]string{}
 	if len(aliases) > 0 {
-		b.pod.Annotations[metadata.AliasesKey] = metadata.Aliases(aliases)
+		p.pod.Annotations[metadata.AliasesKey] = metadata.Aliases(aliases)
 	}
 
 	// Set the pod's hostname.
@@ -282,9 +323,9 @@ func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig, svcAlia
 	// Although this may break some applications, it's better than aborting the deployment entirely since
 	// most applications don't seem to rely on the container's hostname.
 	if svc.Hostname != "" && !strings.Contains(svc.Hostname, "_") {
-		b.pod.Spec.Hostname = svc.Hostname
+		p.pod.Spec.Hostname = svc.Hostname
 	} else if !strings.Contains(svc.Name, "_") {
-		b.pod.Spec.Hostname = svc.Name
+		p.pod.Spec.Hostname = svc.Name
 	}
 
 	// Collect a map of ips to their aliases.
@@ -311,36 +352,36 @@ func (b *podBuilder) addRuntimeContainer(svc composeTypes.ServiceConfig, svcAlia
 
 	// Sort for consistency.
 	sort.Slice(hostAliases, func(i, j int) bool { return hostAliases[i].IP < hostAliases[j].IP })
-	b.pod.Spec.HostAliases = hostAliases
+	p.pod.Spec.HostAliases = hostAliases
 
 	// Set the pod's restart policy.
-	b.pod.Spec.RestartPolicy = corev1.RestartPolicyNever
+	p.pod.Spec.RestartPolicy = corev1.RestartPolicyNever
 	switch svc.Restart {
 	case "no":
-		b.pod.Spec.RestartPolicy = corev1.RestartPolicyNever
+		p.pod.Spec.RestartPolicy = corev1.RestartPolicyNever
 	case "always", "unless-stopped":
-		b.pod.Spec.RestartPolicy = corev1.RestartPolicyAlways
+		p.pod.Spec.RestartPolicy = corev1.RestartPolicyAlways
 	case "on-failure":
-		b.pod.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
+		p.pod.Spec.RestartPolicy = corev1.RestartPolicyOnFailure
 	}
 
 	// Setup DNS.
-	b.pod.Spec.DNSPolicy = corev1.DNSNone
-	b.pod.Spec.DNSConfig = &corev1.PodDNSConfig{
-		Nameservers: []string{b.dnsIP},
+	p.pod.Spec.DNSPolicy = corev1.DNSNone
+	p.pod.Spec.DNSConfig = &corev1.PodDNSConfig{
+		Nameservers: []string{dnsIP},
 		// TODO: There's Searches and Options, look into how to replicate these.
 	}
 
 	// Setup image credentials.
-	b.pod.Spec.ImagePullSecrets = []corev1.LocalObjectReference{
+	p.pod.Spec.ImagePullSecrets = []corev1.LocalObjectReference{
 		{Name: "registry-auth"},
 	}
-	b.pod.Spec.ServiceAccountName = "pod-runner"
-	b.pod.Spec.Affinity = sameNodeAffinity(b.namespace)
+	p.pod.Spec.ServiceAccountName = "pod-runner"
+	p.pod.Spec.Affinity = sameNodeAffinity(p.namespace)
 
 	// Disable the environment variables that are automatically
 	// added by Kubernetes (e.g. SANDBOX_SERVICE_PORT).
-	b.pod.Spec.EnableServiceLinks = falsePtr()
+	p.pod.Spec.EnableServiceLinks = falsePtr()
 
 	return nil
 }
@@ -441,11 +482,11 @@ func marshalDependencies(dependsOn composeTypes.DependsOnConfig, links []string)
 	return pbDeps
 }
 
-func (b *podBuilder) sanitize() {
+func (p *podSpec) sanitize() {
 	// Retain the same order to avoid unnecessary changes to the pod spec.
 	var volumes []corev1.Volume
 	volumesSet := map[string]struct{}{}
-	for _, volume := range b.pod.Spec.Volumes {
+	for _, volume := range p.pod.Spec.Volumes {
 		if _, ok := volumesSet[volume.Name]; ok {
 			continue
 		}
@@ -454,7 +495,7 @@ func (b *podBuilder) sanitize() {
 		volumesSet[volume.Name] = struct{}{}
 	}
 
-	b.pod.Spec.Volumes = volumes
+	p.pod.Spec.Volumes = volumes
 }
 
 // Each pod has a corresponding ConfigMap containing the dependencies
@@ -462,7 +503,7 @@ func (b *podBuilder) sanitize() {
 // volume into the pod's init container. The init container passes it
 // to the node controller, which blocks boot until the requirements
 // are met.
-func (b *podBuilder) addWaiter(svcName, waitType string, spec node.WaitSpec) error {
+func (p *podSpec) addWaiter(nodeControllerIP, svcName, waitType string, spec node.WaitSpec) error {
 	waitSpecBytes, err := proto.Marshal(&spec)
 	if err != nil {
 		return errors.WithContext("marshal wait spec", err)
@@ -470,14 +511,14 @@ func (b *podBuilder) addWaiter(svcName, waitType string, spec node.WaitSpec) err
 
 	configMap := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: b.namespace,
+			Namespace: p.namespace,
 			Name:      fmt.Sprintf("wait-spec-%s-%s", waitType, kube.PodName(svcName)),
 		},
 		BinaryData: map[string][]byte{
 			"wait-spec": waitSpecBytes,
 		},
 	}
-	b.addConfigMap(configMap)
+	p.addConfigMap(configMap)
 
 	volume := corev1.Volume{
 		Name: configMap.Name,
@@ -492,7 +533,7 @@ func (b *podBuilder) addWaiter(svcName, waitType string, spec node.WaitSpec) err
 			},
 		},
 	}
-	b.addVolume(volume)
+	p.addVolume(volume)
 
 	container := corev1.Container{
 		Name:            waitType,
@@ -501,7 +542,7 @@ func (b *podBuilder) addWaiter(svcName, waitType string, spec node.WaitSpec) err
 		Env: []corev1.EnvVar{
 			{
 				Name:  "NODE_CONTROLLER_HOST",
-				Value: b.nodeControllerIP,
+				Value: nodeControllerIP,
 			},
 			{
 				Name: "NAMESPACE",
@@ -525,21 +566,21 @@ func (b *podBuilder) addWaiter(svcName, waitType string, spec node.WaitSpec) err
 			},
 		},
 	}
-	b.addInitContainers(container)
+	p.addInitContainers(container)
 
 	return nil
 }
 
-func (b *podBuilder) addVolume(v corev1.Volume) {
-	b.pod.Spec.Volumes = append(b.pod.Spec.Volumes, v)
+func (p *podSpec) addVolume(v corev1.Volume) {
+	p.pod.Spec.Volumes = append(p.pod.Spec.Volumes, v)
 }
 
-func (b *podBuilder) addInitContainers(containers ...corev1.Container) {
-	b.pod.Spec.InitContainers = append(b.pod.Spec.InitContainers, containers...)
+func (p *podSpec) addInitContainers(containers ...corev1.Container) {
+	p.pod.Spec.InitContainers = append(p.pod.Spec.InitContainers, containers...)
 }
 
-func (b *podBuilder) addConfigMap(cm corev1.ConfigMap) {
-	b.configMaps = append(b.configMaps, cm)
+func (p *podSpec) addConfigMap(cm corev1.ConfigMap) {
+	p.configMaps = append(p.configMaps, cm)
 }
 
 func falsePtr() *bool {

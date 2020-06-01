@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/Masterminds/semver"
@@ -869,38 +868,13 @@ func toPods(
 			MaxServices, len(cfg.Services))
 	}
 
-	serviceToAliases := make(map[string][]string)
-	aliasToService := make(map[string]string)
-	for _, svc := range cfg.Services {
-		for _, link := range svc.Links {
-			var svcToBeAliased, alias string
-			switch linkParts := strings.Split(link, ":"); len(linkParts) {
-			// A link without an alias. Nothing for us to do.
-			case 1:
-				continue
-			case 2:
-				svcToBeAliased = linkParts[0]
-				alias = linkParts[1]
-			default:
-				log.WithField("link", link).Warn("Link in unexpected format. Skipping.")
-				continue
-			}
-
-			// Error if two services are using the same alias for different services.
-			if svcPresent, added := aliasToService[alias]; added && svcPresent != svcToBeAliased {
-				return nil, nil, errors.NewFriendlyError(
-					"links error: service %s and %s are using %s to refer to different services",
-					svcPresent, svcToBeAliased, alias)
-			}
-
-			aliasToService[alias] = svcToBeAliased
-			serviceToAliases[svcToBeAliased] = append(serviceToAliases[svcToBeAliased], alias)
-		}
+	b, err := newPodBuilder(namespace, dnsIP, nodeControllerIP, builtImages, cfg.Services)
+	if err != nil {
+		return nil, nil, errors.WithContext("make pod builder", err)
 	}
 
 	for _, svc := range cfg.Services {
-		b := newPodBuilder(namespace, dnsIP, nodeControllerIP, builtImages)
-		p, cm, err := b.ToPod(svc, serviceToAliases)
+		p, cm, err := b.ToPod(svc)
 		if err != nil {
 			return nil, nil, err
 		}
