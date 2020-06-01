@@ -152,6 +152,16 @@ func (b *podBuilder) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig)
 				Name:      namespaceVolume.Name,
 				MountPath: namespaceVolume.VolumeSource.HostPath.Path,
 			}),
+			Env: []corev1.EnvVar{
+				{
+					Name: "NAMESPACE",
+					ValueFrom: &corev1.EnvVarSource{
+						FieldRef: &corev1.ObjectFieldSelector{
+							FieldPath: "metadata.namespace",
+						},
+					},
+				},
+			},
 		},
 	)
 }
