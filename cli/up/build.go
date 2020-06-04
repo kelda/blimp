@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/docker/docker/api/types"
@@ -72,7 +73,10 @@ func (cmd *up) buildImage(spec composeTypes.BuildConfig, svc string) (string, er
 		opts.Dockerfile = "Dockerfile"
 	}
 
-	buildContextTar, err := makeTar(spec.Context)
+	contextPath := filepath.Join(
+		filepath.Dir(cmd.composePath),
+		spec.Context)
+	buildContextTar, err := makeTar(contextPath)
 	if err != nil {
 		return "", errors.WithContext("tar context", err)
 	}
