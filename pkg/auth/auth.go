@@ -3,6 +3,8 @@ package auth
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
+	"time"
 
 	"github.com/coreos/go-oidc"
 	"golang.org/x/oauth2"
@@ -45,7 +47,13 @@ var verifier = oidc.NewVerifier(
 	"https://blimp-testing.auth0.com/",
 	// TODO: Fetching over the network.. Any issues if no network connectivity?
 	oidc.NewRemoteKeySet(context.Background(), "https://blimp-testing.auth0.com/.well-known/jwks.json"),
-	&oidc.Config{ClientID: ClientID})
+	&oidc.Config{
+		ClientID: ClientID,
+
+		// We handle the expiration check ourselves in `ParseIDToken` so that
+		// we can return a friendly error if it's expired.
+		SkipExpiryCheck: true,
+	})
 
 func GetOAuthConfig(clientSecret string) oauth2.Config {
 	return oauth2.Config{
@@ -62,6 +70,11 @@ func ParseIDToken(token string) (User, error) {
 	idToken, err := verifier.Verify(context.Background(), token)
 	if err != nil {
 		return User{}, errors.WithContext("verify", err)
+	}
+
+	if time.Now().After(idToken.Expiry) {
+		return User{}, errors.NewFriendlyError("Blimp session expired. " +
+			"Please log in again with `blimp login`.")
 	}
 
 	var user User
