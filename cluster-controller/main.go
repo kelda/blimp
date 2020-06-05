@@ -824,8 +824,9 @@ func (s *server) WatchStatus(req *cluster.GetStatusRequest, stream cluster.Manag
 		return err
 	}
 
-	trig, stop := s.statusFetcher.Watch(user.Namespace)
-	defer close(stop)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	trig := s.statusFetcher.Watch(ctx, user.Namespace)
 
 	for {
 		status, err := s.statusFetcher.Get(user.Namespace)
