@@ -25,10 +25,15 @@ import (
 )
 
 type podBuilder struct {
-	namespace         string
-	dnsIP             string
-	nodeControllerIP  string
-	builtImages       map[string]string
+	namespace        string
+	dnsIP            string
+	nodeControllerIP string
+	builtImages      map[string]string
+	// builtTags maps custom tags defined in the docker-compose.yml to the
+	// corresponding pushed images. For instance, if a service is defined with a
+	// build context and `image: myimage:v3`, then builtTags will map
+	// "myimage:v3" to the builtImage for the service.
+	builtTags         map[string]string
 	svcAliasesMapping map[string][]string
 	volumeToServices  map[string][]string
 }
@@ -72,6 +77,13 @@ func newPodBuilder(namespace, dnsIP, nodeControllerIP string, builtImages map[st
 		}
 	}
 
+	builtTags := map[string]string{}
+	for _, svc := range services {
+		if svc.Build != nil && svc.Image != "" {
+			builtTags[svc.Image] = builtImages[svc.Name]
+		}
+	}
+
 	volumeToServices := map[string][]string{}
 	for _, svc := range services {
 		for _, v := range svc.Volumes {
@@ -87,6 +99,7 @@ func newPodBuilder(namespace, dnsIP, nodeControllerIP string, builtImages map[st
 		dnsIP:             dnsIP,
 		nodeControllerIP:  nodeControllerIP,
 		builtImages:       builtImages,
+		builtTags:         builtTags,
 		svcAliasesMapping: serviceToAliases,
 		volumeToServices:  volumeToServices,
 	}, nil
@@ -94,10 +107,14 @@ func newPodBuilder(namespace, dnsIP, nodeControllerIP string, builtImages map[st
 
 func (b podBuilder) ToPod(svc composeTypes.ServiceConfig) (corev1.Pod, []corev1.ConfigMap, error) {
 	spec := podSpec{namespace: b.namespace}
-	spec.image = svc.Image
 	if svc.Build != nil {
 		spec.image = b.builtImages[svc.Name]
 		// TODO: Error if image DNE.
+	} else {
+		spec.image = svc.Image
+		if builtTag, ok := b.builtTags[spec.image]; ok {
+			spec.image = builtTag
+		}
 	}
 
 	var nativeVolumes []composeTypes.ServiceVolumeConfig
