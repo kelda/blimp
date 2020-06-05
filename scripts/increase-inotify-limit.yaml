@@ -19,7 +19,22 @@ spec:
             - -c
             - sysctl -w fs.inotify.max_user_watches=1048576 && while true; do sleep 86400; done
           image: busybox
-          name: sysctl-conf
+          name: sysctl-inotify
+          resources:
+            limits:
+              cpu: 10m
+              memory: 50Mi
+            requests:
+              cpu: 10m
+              memory: 50Mi
+          securityContext:
+            privileged: true
+        - command:
+            - sh
+            - -c
+            - sysctl -w vm.max_map_count=262144 && while true; do sleep 86400; done
+          image: busybox
+          name: sysctl-vm-max-map
           resources:
             limits:
               cpu: 10m
