@@ -35,4 +35,4 @@ git clone https://github.com/kelda/node-todo "$app_location"
 
 # run the integration test
 git checkout "${RELEASE}"
-go test -v --tags ci ./ci
+go test -v --tags ci --timeout 0 ./ci
