@@ -1,6 +1,9 @@
 package kube
 
 import (
+	"time"
+
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
@@ -17,25 +20,23 @@ func DeletePod(kubeClient kubernetes.Interface, namespace, name string) error {
 	if err != nil {
 		return errors.WithContext("watch pods", err)
 	}
-
 	defer podWatcher.Stop()
-	for range podWatcher.ResultChan() {
-		currPods, err := podClient.List(metav1.ListOptions{})
-		if err != nil {
-			return errors.WithContext("list pods", err)
-		}
+	watcherChan := podWatcher.ResultChan()
 
-		foundPod := false
-		for _, pod := range currPods.Items {
-			if pod.Name == name {
-				foundPod = true
-				break
-			}
-		}
-
-		if !foundPod {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		_, err := podClient.Get(name, metav1.GetOptions{})
+		switch {
+		case kerrors.IsNotFound(err):
 			return nil
+		case err != nil:
+			return errors.WithContext("get pod", err)
+		}
+
+		select {
+		case <-ticker.C:
+		case <-watcherChan:
 		}
 	}
-	return nil
 }
