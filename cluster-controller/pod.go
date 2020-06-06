@@ -135,8 +135,11 @@ func (b podBuilder) ToPod(svc composeTypes.ServiceConfig) (corev1.Pod, []corev1.
 		for _, volume := range nativeVolumes {
 			servicesSharingVolumes = append(servicesSharingVolumes, b.volumeToServices[volume.Source]...)
 		}
-		spec.addWaiter(b.nodeControllerIP, svc.Name, kube.ContainerNameWaitInitializedVolumes,
-			node.WaitSpec{FinishedVolumeInit: strs.Unique(servicesSharingVolumes)})
+		servicesSharingVolumes = remove(strs.Unique(servicesSharingVolumes), svc.Name)
+		if len(servicesSharingVolumes) != 0 {
+			spec.addWaiter(b.nodeControllerIP, svc.Name, kube.ContainerNameWaitInitializedVolumes,
+				node.WaitSpec{FinishedVolumeInit: servicesSharingVolumes})
+		}
 	}
 
 	if len(svc.DependsOn) != 0 {
@@ -623,4 +626,13 @@ func (p *podSpec) addConfigMap(cm corev1.ConfigMap) {
 func falsePtr() *bool {
 	f := false
 	return &f
+}
+
+func remove(strs []string, toRemove string) (removed []string) {
+	for _, str := range strs {
+		if str != toRemove {
+			removed = append(removed, str)
+		}
+	}
+	return removed
 }
