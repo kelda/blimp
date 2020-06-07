@@ -37,6 +37,15 @@ jobs:
       - checkout
       - run: golangci-lint run -v
 
+  sync-airtable:
+    executor: docker-executor
+    steps:
+      - setup_remote_docker
+      - checkout
+      - run:
+          name: Test
+          command: cd ./scripts/update-funnel-airtable && go run .
+
 workflows:
   version: 2
 
@@ -61,3 +70,14 @@ workflows:
               only: /.*/
             branches:
               ignore: /.*/
+
+  sync-airtable:
+    triggers:
+      - schedule:
+          cron: "0 * * * *"
+          filters:
+            branches:
+              only:
+                - master
+    jobs:
+      - sync-airtable
