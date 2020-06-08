@@ -552,7 +552,7 @@ func (p *podSpec) addWaiter(nodeControllerIP, svcName, waitType string, spec nod
 	configMap := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: p.namespace,
-			Name:      fmt.Sprintf("wait-spec-%s-%s", waitType, kube.PodName(svcName)),
+			Name:      kube.PodName(fmt.Sprintf("wait-spec-%s-%s", waitType, svcName)),
 		},
 		BinaryData: map[string][]byte{
 			"wait-spec": waitSpecBytes,
