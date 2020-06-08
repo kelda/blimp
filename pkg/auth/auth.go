@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"encoding/base64"
-	"fmt"
 	"time"
 
 	"github.com/coreos/go-oidc"
