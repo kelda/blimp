@@ -13,6 +13,9 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver"
+	"github.com/google/go-containerregistry/pkg/authn"
+	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 	composeTypes "github.com/kelda/compose-go/types"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -880,6 +883,133 @@ func (s *server) Restart(ctx context.Context, req *cluster.RestartRequest) (*clu
 	}
 
 	return &cluster.RestartResponse{}, nil
+}
+
+func (s *server) TagImages(req *cluster.TagImagesRequest, stream cluster.Manager_TagImagesServer) error {
+	user, err := auth.ParseIDToken(req.GetToken())
+	if err != nil {
+		return errors.WithContext("authenticate token", err)
+	}
+
+	log.WithField("namespace", user.Namespace).Info("TagImages called")
+
+	regCreds := req.GetRegistryCredentials()
+	if regCreds == nil {
+		regCreds = map[string]*cluster.RegistryCredential{}
+	}
+	regCreds[RegistryHostname] = &cluster.RegistryCredential{
+		Username: "ignored",
+		Password: req.GetToken(),
+	}
+
+	ctx, cancel := context.WithCancel(stream.Context())
+
+	responses := make(chan cluster.TagImagesResponse)
+	for _, tagRequest := range req.GetTagRequests() {
+		go func(tagRequest cluster.TagImageRequest) {
+			err := s.pushImage(tagRequest.GetImage(), tagRequest.GetTag(), req.GetToken(), regCreds)
+			if err != nil {
+				log.WithError(err).WithField("image", tagRequest.GetImage()).WithField("namespace", user.Namespace).
+					Info("image tag failed")
+
+				response := cluster.TagImagesResponse{
+					Error:   errors.Marshal(errors.WithContext("Failed to tag image", err)),
+					Service: tagRequest.GetService(),
+				}
+				select {
+				case responses <- response:
+				case <-ctx.Done():
+				}
+
+				return
+			}
+			log.WithField("image", tagRequest.GetImage()).WithField("namespace", user.Namespace).
+				Info("TagImage finished")
+			response := cluster.TagImagesResponse{
+				Service: tagRequest.GetService(),
+			}
+
+			select {
+			case responses <- response:
+			case <-ctx.Done():
+			}
+		}(*tagRequest)
+	}
+
+	for numSent := 0; numSent < len(req.GetTagRequests()); numSent++ {
+		response, more := <-responses
+		if !more {
+			// We never close the channel, so we wouldn't expect this. But just
+			// in case, we return to avoid a tight loop.
+			return errors.New("responses channel closed")
+		}
+
+		if err := stream.Send(&response); err != nil {
+			cancel()
+			log.WithError(err).Info("error on tagimages send")
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *server) pushImage(oldName, newName, token string,
+	creds map[string]*cluster.RegistryCredential) error {
+
+	ref, err := name.ParseReference(oldName)
+	if err != nil {
+		return errors.WithContext("parse image reference", err)
+	}
+
+	regCred := authn.Anonymous
+	// We have to pick the right auth to use.
+	for registry, cred := range creds {
+		if cred.GetUsername() == "" && cred.GetPassword() == "" {
+			continue
+		}
+
+		refRegistry := ref.Context().Registry
+
+		// Specially handle index.docker.io.
+		// This doesn't actually make sense, but is correct. See
+		// https://github.com/google/go-containerregistry/pull/456#issuecomment-499233027.
+		if registry == authn.DefaultAuthKey && refRegistry.Name() == name.DefaultRegistry {
+			regCred = &authn.Basic{
+				Username: cred.GetUsername(),
+				Password: cred.GetPassword(),
+			}
+			break
+		}
+
+		// Usually hostnames from auth config do not have a scheme (http/https)
+		// specified, but it seems like sometimes they do. We try both.
+		if registry == refRegistry.Name() ||
+			registry == fmt.Sprintf("%s://%s", refRegistry.Scheme(), refRegistry.Name()) {
+			regCred = &authn.Basic{
+				Username: cred.GetUsername(),
+				Password: cred.GetPassword(),
+			}
+			break
+		}
+	}
+
+	image, err := remote.Image(ref, remote.WithAuth(regCred))
+	if err != nil {
+		return errors.WithContext("creating pull image ref", err)
+	}
+
+	newRef, err := name.ParseReference(newName)
+	if err != nil {
+		return errors.WithContext("parse new image reference", err)
+	}
+
+	auth := authn.Basic{Username: "ignored", Password: token}
+	err = remote.Write(newRef, image, remote.WithAuth(&auth))
+	if err != nil {
+		return errors.WithContext("push image", err)
+	}
+
+	return nil
 }
 
 func toPods(
