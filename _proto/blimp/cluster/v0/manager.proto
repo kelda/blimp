@@ -15,6 +15,7 @@ service Manager {
   rpc WatchStatus(GetStatusRequest) returns (stream GetStatusResponse) {}
   rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}
   rpc Restart(RestartRequest) returns (RestartResponse) {}
+  rpc TagImages(TagImagesRequest) returns (stream TagImagesResponse) {}
 }
 
 message ProxyAnalyticsRequest {
@@ -135,4 +136,21 @@ message RestartRequest {
 
 message RestartResponse {
   blimp.errors.v0.Error error = 1;
+}
+
+message TagImageRequest {
+  string service = 1;
+  string image = 2;
+  string tag = 3;
+}
+
+message TagImagesRequest {
+  string token = 1;
+  repeated TagImageRequest tagRequests = 2;
+  map<string, RegistryCredential> registryCredentials = 3;
+}
+
+message TagImagesResponse {
+  string service = 1;
+  blimp.errors.v0.Error error = 2;
 }

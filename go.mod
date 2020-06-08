@@ -17,14 +17,14 @@ require (
 	github.com/containerd/continuity v0.0.0-20200413184840-d3ef23f19fbb // indirect
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/docker/cli v0.0.0-20191017083524-a8ff7f821017
-	github.com/docker/docker v1.13.1
+	github.com/docker/docker v1.14.0-0.20190319215453-e7b5f7dbe98c
 	github.com/ghodss/yaml v1.0.0
 	github.com/golang/protobuf v1.4.2
 	github.com/google/go-containerregistry v0.1.0
 	github.com/kelda/compose-go v0.0.0-20200514165240-955c80c756a9
 	github.com/lithammer/dedent v1.1.0
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/opencontainers/runc v0.1.1 // indirect
+	github.com/moby/buildkit v0.6.4
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/afero v1.2.2
 	github.com/spf13/cobra v1.0.0
