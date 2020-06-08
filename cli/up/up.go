@@ -4,8 +4,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -513,18 +511,6 @@ func makeTar(dir string) (io.Reader, error) {
 		return nil
 	})
 	return &out, err
-}
-
-func makeRegistryAuthHeader(idToken string) (string, error) {
-	authJSON, err := json.Marshal(types.AuthConfig{
-		Username: "ignored",
-		Password: idToken,
-	})
-	if err != nil {
-		return "", err
-	}
-
-	return base64.URLEncoding.EncodeToString(authJSON), nil
 }
 
 // getLocalRegistryCredentials reads the user's registry credentials from their

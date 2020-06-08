@@ -2,9 +2,12 @@ package auth
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"time"
 
 	"github.com/coreos/go-oidc"
+	dockerTypes "github.com/docker/docker/api/types"
 	"golang.org/x/oauth2"
 
 	"github.com/kelda/blimp/pkg/errors"
@@ -88,4 +91,16 @@ func PasswordLogin(username, password string) (string, error) {
 		return "", errors.New("missing id token")
 	}
 	return idToken, nil
+}
+
+func RegistryAuthHeader(token string) (string, error) {
+	authJSON, err := json.Marshal(dockerTypes.AuthConfig{
+		Username: "ignored",
+		Password: token,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return base64.URLEncoding.EncodeToString(authJSON), nil
 }
