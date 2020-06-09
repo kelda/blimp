@@ -195,7 +195,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 	log.Info("Start CreateSandbox")
 
 	// Validate that the user logged in, and get their information.
-	user, err := auth.ParseIDToken(req.GetToken())
+	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
 	if err != nil {
 		return &cluster.CreateSandboxResponse{}, err
 	}
@@ -308,7 +308,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 
 func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest) (*cluster.DeployResponse, error) {
 	// Validate that the user logged in, and get their information.
-	user, err := auth.ParseIDToken(req.GetToken())
+	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
 	if err != nil {
 		return &cluster.DeployResponse{}, err
 	}
@@ -776,7 +776,7 @@ func (s *server) deployCustomerPods(namespace string, desired []corev1.Pod) erro
 }
 
 func (s *server) DeleteSandbox(ctx context.Context, req *cluster.DeleteSandboxRequest) (*cluster.DeleteSandboxResponse, error) {
-	user, err := auth.ParseIDToken(req.GetToken())
+	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
 	if err != nil {
 		return &cluster.DeleteSandboxResponse{}, err
 	}
@@ -808,7 +808,7 @@ func (s *server) DeleteSandbox(ctx context.Context, req *cluster.DeleteSandboxRe
 }
 
 func (s *server) GetStatus(ctx context.Context, req *cluster.GetStatusRequest) (*cluster.GetStatusResponse, error) {
-	user, err := auth.ParseIDToken(req.GetToken())
+	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
 	if err != nil {
 		return &cluster.GetStatusResponse{}, err
 	}
@@ -822,7 +822,7 @@ func (s *server) GetStatus(ctx context.Context, req *cluster.GetStatusRequest) (
 }
 
 func (s *server) WatchStatus(req *cluster.GetStatusRequest, stream cluster.Manager_WatchStatusServer) error {
-	user, err := auth.ParseIDToken(req.GetToken())
+	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
 	if err != nil {
 		return err
 	}
@@ -848,7 +848,7 @@ func (s *server) WatchStatus(req *cluster.GetStatusRequest, stream cluster.Manag
 }
 
 func (s *server) Restart(ctx context.Context, req *cluster.RestartRequest) (*cluster.RestartResponse, error) {
-	user, err := auth.ParseIDToken(req.GetToken())
+	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
 	if err != nil {
 		return &cluster.RestartResponse{}, err
 	}
@@ -886,7 +886,7 @@ func (s *server) Restart(ctx context.Context, req *cluster.RestartRequest) (*clu
 }
 
 func (s *server) TagImages(req *cluster.TagImagesRequest, stream cluster.Manager_TagImagesServer) error {
-	user, err := auth.ParseIDToken(req.GetToken())
+	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
 	if err != nil {
 		return errors.WithContext("authenticate token", err)
 	}

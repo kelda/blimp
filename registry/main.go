@@ -62,7 +62,11 @@ func authenticate(input string) error {
 		return errors.New("malformed authentication input")
 	}
 
-	user, err := auth.ParseIDToken(credentials[1])
+	user, err := auth.ParseIDToken(credentials[1], auth.VerifierFromKeySet(
+		diskCachedKeySet{
+			localPath: "/blimp-jwks.json",
+			remoteURL: auth.JWKSURL,
+		}))
 	if err != nil {
 		return errors.WithContext("parse id token", err)
 	}

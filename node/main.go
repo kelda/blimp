@@ -141,7 +141,7 @@ func (s *server) SyncNotifications(srv node.Controller_SyncNotificationsServer) 
 		return err
 	}
 
-	user, err := auth.ParseIDToken(handshake.GetToken())
+	user, err := auth.ParseIDToken(handshake.GetToken(), auth.DefaultVerifier)
 	if err != nil {
 		return errors.WithContext("validate token", err)
 	}

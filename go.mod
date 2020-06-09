@@ -44,7 +44,7 @@ require (
 	golang.org/x/crypto v0.0.0-20200604202706-70a84ac30bf9
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	google.golang.org/grpc v1.29.1
-	gopkg.in/square/go-jose.v2 v2.4.1 // indirect
+	gopkg.in/square/go-jose.v2 v2.4.1
 	k8s.io/api v0.17.4
 	k8s.io/apimachinery v0.17.4
 	k8s.io/cli-runtime v0.17.3
