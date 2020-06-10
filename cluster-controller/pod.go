@@ -304,8 +304,8 @@ func (p *podSpec) addRuntimeContainer(svc composeTypes.ServiceConfig, dnsIP stri
 			securityContext.RunAsUser = &user
 			securityContext.RunAsGroup = &group
 		default:
-			return errors.NewFriendlyError("Invalid user field (%s) for service %s.\n" +
-				"Expected at most two values.")
+			return errors.NewFriendlyError("Invalid user field (%s) for service %s.\n"+
+				"Expected at most two values.", svc.User, svc.Name)
 		}
 	}
 
