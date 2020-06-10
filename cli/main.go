@@ -19,6 +19,7 @@ import (
 	"github.com/kelda/blimp/cli/logs"
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/cli/ps"
+	"github.com/kelda/blimp/cli/restart"
 	"github.com/kelda/blimp/cli/ssh"
 	"github.com/kelda/blimp/cli/up"
 	"github.com/kelda/blimp/pkg/analytics"
@@ -64,6 +65,7 @@ func main() {
 		loginpw.New(),
 		logs.New(),
 		ps.New(),
+		restart.New(),
 		ssh.New(),
 		up.New(),
 	)

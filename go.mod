@@ -14,6 +14,7 @@ replace (
 require (
 	github.com/GeertJohan/go.rice v1.0.0
 	github.com/buger/goterm v0.0.0-20200322175922-2f3e71b85129
+	github.com/containerd/continuity v0.0.0-20200413184840-d3ef23f19fbb // indirect
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/docker/cli v0.0.0-20191017083524-a8ff7f821017
 	github.com/docker/docker v1.13.1

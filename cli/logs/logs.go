@@ -24,7 +24,6 @@ import (
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/names"
-	"github.com/kelda/blimp/pkg/proto/cluster"
 )
 
 type LogsCommand struct {
@@ -109,10 +108,7 @@ func (cmd LogsCommand) Run() error {
 	for _, container := range cmd.Containers {
 		// For logs to work, the container needs to have started, but it doesn't
 		// necessarily need to be running.
-		err = manager.CheckServiceStatus(container, cmd.Auth.AuthToken,
-			func(svcStatus *cluster.ServiceStatus) bool {
-				return svcStatus.GetHasStarted()
-			})
+		err = manager.CheckServiceStarted(container, cmd.Auth.AuthToken)
 		if err != nil {
 			return err
 		}
