@@ -101,7 +101,15 @@ func (s *cliLoginServer) cliLoginCallback(w http.ResponseWriter, r *http.Request
 			err, auth.LoginProxyHost, manualLoginURL)
 		return
 	}
-	fmt.Fprintln(w, `<html><head><meta http-equiv="Refresh" content="0; url=https://kelda.io/thank-you-login/" /></head></html>`)
+
+	redirectURL := "https://kelda.io/thank-you-login/"
+	if user, err := auth.ParseIDToken(token); err == nil {
+		redirectURL += fmt.Sprintf("?s=%s", user.Namespace)
+	} else {
+		log.WithError(err).Warn("Failed to parse ID token from auth0")
+	}
+
+	http.Redirect(w, r, redirectURL, 302)
 }
 
 func (s *cliLoginServer) Login(_ *login.LoginRequest, srv login.Login_LoginServer) error {
