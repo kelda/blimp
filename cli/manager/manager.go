@@ -116,6 +116,13 @@ func CheckServiceRunning(svc string, authToken string) error {
 	})
 }
 
+// CheckServiceStarted checks that the service has started at some point. It may or may not be actively running.
+func CheckServiceStarted(svc string, authToken string) error {
+	return CheckServiceStatus(svc, authToken, func(svcStatus *cluster.ServiceStatus) bool {
+		return svcStatus.GetHasStarted()
+	})
+}
+
 func mustDecodeBase64(encoded string) string {
 	decoded, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {

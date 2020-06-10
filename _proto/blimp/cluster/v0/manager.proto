@@ -14,6 +14,7 @@ service Manager {
   rpc ProxyAnalytics(ProxyAnalyticsRequest) returns (ProxyAnalyticsResponse) {}
   rpc WatchStatus(GetStatusRequest) returns (stream GetStatusResponse) {}
   rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}
+  rpc Restart(RestartRequest) returns (RestartResponse) {}
 }
 
 message ProxyAnalyticsRequest {
@@ -125,4 +126,13 @@ message ServiceStatus {
   ServicePhase phase = 1;
   string msg = 2;
   bool has_started = 3;
+}
+
+message RestartRequest {
+  string token = 1;
+  string service = 2;
+}
+
+message RestartResponse {
+  blimp.errors.v0.Error error = 1;
 }
