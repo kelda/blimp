@@ -525,14 +525,22 @@ func getLocalRegistryCredentials(dockerConfig *configfile.ConfigFile) (map[strin
 	creds := map[string]types.AuthConfig{}
 	addCredentials := func(authConfigs map[string]clitypes.AuthConfig) {
 		for host, cred := range authConfigs {
-			creds[host] = types.AuthConfig{
-				Username:      cred.Username,
-				Password:      cred.Password,
-				Auth:          cred.Auth,
-				Email:         cred.Email,
-				ServerAddress: cred.ServerAddress,
-				IdentityToken: cred.IdentityToken,
-				RegistryToken: cred.RegistryToken,
+			// Don't add empty config sections.
+			if cred.Username != "" ||
+				cred.Password != "" ||
+				cred.Auth != "" ||
+				cred.Email != "" ||
+				cred.IdentityToken != "" ||
+				cred.RegistryToken != "" {
+				creds[host] = types.AuthConfig{
+					Username:      cred.Username,
+					Password:      cred.Password,
+					Auth:          cred.Auth,
+					Email:         cred.Email,
+					ServerAddress: cred.ServerAddress,
+					IdentityToken: cred.IdentityToken,
+					RegistryToken: cred.RegistryToken,
+				}
 			}
 		}
 	}
