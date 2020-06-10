@@ -22,38 +22,34 @@ require (
 	github.com/daaku/go.zipexe v1.0.1 // indirect
 	github.com/docker/cli v0.0.0-20200320120634-22acbbcc4b3f
 	github.com/docker/docker v1.14.0-0.20190319215453-e7b5f7dbe98c
-	github.com/docker/docker-credential-helpers v0.6.3 // indirect
 
 	// At the moment, the latest release doesn't contain the yaml.UnmarshalStrict
 	// and yaml.DisallowUnknownFields functions. This override vendors the latest
 	// commit on `master`.
 	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
-	github.com/golang/protobuf v1.4.0
+	github.com/golang/protobuf v1.4.2
+	github.com/google/go-containerregistry v0.1.0
 	github.com/googleapis/gnostic v0.4.0 // indirect
 	github.com/gorilla/mux v1.7.4 // indirect
 	github.com/kelda/compose-go v0.0.0-20200514165240-955c80c756a9
-	github.com/kr/pretty v0.2.0 // indirect
 	github.com/lithammer/dedent v1.1.0
 	github.com/miekg/dns v1.1.28
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/morikuni/aec v0.0.0-20170113033406-39771216ff4c // indirect
-	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/opencontainers/runc v0.1.1 // indirect
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/afero v1.2.2
-	github.com/spf13/cobra v0.0.6
-	github.com/stretchr/testify v1.4.0
+	github.com/spf13/cobra v1.0.0
+	github.com/stretchr/testify v1.5.1
 	github.com/syncthing/syncthing v1.4.2
-	golang.org/x/crypto v0.0.0-20200220183623-bac4c82f6975
+	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
-	google.golang.org/grpc v1.28.0
-	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
+	google.golang.org/grpc v1.29.1
 	gopkg.in/square/go-jose.v2 v2.4.1 // indirect
-	k8s.io/api v0.17.3
-	k8s.io/apimachinery v0.17.3
+	k8s.io/api v0.17.4
+	k8s.io/apimachinery v0.17.4
 	k8s.io/cli-runtime v0.17.3
-	k8s.io/client-go v0.17.3
+	k8s.io/client-go v0.17.4
 
 	k8s.io/kubectl v0.17.3
 )

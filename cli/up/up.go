@@ -124,6 +124,9 @@ type up struct {
 	imageNamespace string
 	nodeAddr       string
 	nodeCert       string
+
+	// The images in the image cache from previous Blimp runs.
+	cachedImages []types.ImageSummary
 }
 
 func (cmd *up) run(services []string) error {
@@ -166,6 +169,13 @@ func (cmd *up) run(services []string) error {
 	// start booting as soon as possible.
 	if err := cmd.createSandbox(string(parsedComposeBytes), idPathMap); err != nil {
 		log.WithError(err).Fatal("Failed to create development sandbox")
+	}
+
+	cachedImages, err := cmd.getCachedImages()
+	if err == nil {
+		cmd.cachedImages = cachedImages
+	} else {
+		log.WithError(err).Debug("Failed to get cached images")
 	}
 
 	builtImages, err := cmd.buildImages(parsedCompose)
