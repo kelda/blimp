@@ -166,15 +166,20 @@ func (table *dnsTable) genResponse(req *dns.Msg) *dns.Msg {
 
 func (table *dnsTable) lookupA(name string) []net.IP {
 	name = strings.TrimRight(strings.ToLower(name), ".")
-	isInternalHostname := strings.Count(name, ".") == 0
-	if isInternalHostname {
-		table.recordLock.Lock()
-		ip := table.records[name]
-		table.recordLock.Unlock()
-		if ip == nil {
-			return nil
-		}
+
+	// Try to see if it's an internal name first. If not, we'll fallback to
+	// external DNS.
+	table.recordLock.Lock()
+	ip := table.records[name]
+	table.recordLock.Unlock()
+	if ip != nil {
 		return []net.IP{ip}
+	}
+
+	if strings.Count(name, ".") == 0 {
+		// It's definitely an internal hostname, so don't bother looking it up
+		// externally.
+		return nil
 	}
 
 	ipStrs, err := lookupHost(name)
