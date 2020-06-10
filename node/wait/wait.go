@@ -153,7 +153,7 @@ func (s *server) waitForAll(srv node.BootWaiter_CheckReadyServer, waiters []wait
 
 		select {
 		case update := <-updates:
-			if err := srv.Send(&node.CheckReadyResponse{Ready: true, Reason: update}); err != nil {
+			if err := srv.Send(&node.CheckReadyResponse{Reason: update}); err != nil {
 				return errors.WithContext("send update", err)
 			}
 		case result := <-results:
