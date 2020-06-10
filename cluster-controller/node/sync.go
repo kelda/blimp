@@ -96,7 +96,7 @@ func StartControllerBooter(kubeClient kubernetes.Interface) {
 
 	for i := 0; i < numWorkers; i++ {
 		go func() {
-			for b.runWorker() {
+			for !b.runWorker() {
 			}
 		}()
 	}
