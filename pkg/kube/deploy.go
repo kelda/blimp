@@ -62,11 +62,11 @@ func DeployClusterRoleBinding(kubeClient kubernetes.Interface, binding rbacv1.Cl
 	return err
 }
 
-func DeployPod(kubeClient kubernetes.Interface, pod corev1.Pod) error {
+func DeployPod(kubeClient kubernetes.Interface, pod corev1.Pod, forceRestart bool) error {
 	// Add an annotation to track the spec that was used to deploy the pod.
 	// This way, we can avoid recreating pods when the underlying spec hasn't
 	// changed.
-	// We can't just use podClient.Update and let Kubernetes handle it  because
+	// We can't just use podClient.Update and let Kubernetes handle it because
 	// some of the PodSpec fields are immutable.
 	applyAnnotation, err := runtime.Encode(unstructured.UnstructuredJSONScheme, &pod)
 	if err != nil {
@@ -89,7 +89,8 @@ func DeployPod(kubeClient kubernetes.Interface, pod corev1.Pod) error {
 	if err == nil {
 		// If the currently deployed pod is already up to date, we don't have
 		// to do anything.
-		if curr.Annotations["blimp.appliedObject"] == pod.Annotations["blimp.appliedObject"] {
+		if !forceRestart && curr.Annotations["blimp.appliedObject"] ==
+			pod.Annotations["blimp.appliedObject"] {
 			return nil
 		}
 

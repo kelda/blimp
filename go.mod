@@ -17,7 +17,6 @@ require (
 	github.com/Microsoft/hcsshim v0.8.7 // indirect
 	github.com/buger/goterm v0.0.0-20200322175922-2f3e71b85129
 	github.com/cesanta/docker_auth/auth_server v0.0.0-20200309093330-99bfe0217f59
-	github.com/containerd/continuity v0.0.0-20200228182428-0f16d7a0959c // indirect
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/daaku/go.zipexe v1.0.1 // indirect
 	github.com/docker/cli v0.0.0-20200320120634-22acbbcc4b3f
@@ -50,6 +49,5 @@ require (
 	k8s.io/apimachinery v0.17.4
 	k8s.io/cli-runtime v0.17.3
 	k8s.io/client-go v0.17.4
-
 	k8s.io/kubectl v0.17.3
 )

@@ -30,6 +30,7 @@ import (
 	"github.com/kelda-inc/blimp/cluster-controller/node"
 	"github.com/kelda-inc/blimp/pkg/analytics"
 	"github.com/kelda-inc/blimp/pkg/kube"
+	"github.com/kelda-inc/blimp/pkg/metadata"
 	"github.com/kelda-inc/blimp/pkg/ports"
 	"github.com/kelda-inc/blimp/pkg/version"
 	"github.com/kelda-inc/blimp/pkg/volume"
@@ -521,7 +522,7 @@ func (s *server) createSyncthing(namespace string, syncedFolders map[string]stri
 		},
 	}
 
-	if err := kube.DeployPod(s.kubeClient, pod); err != nil {
+	if err := kube.DeployPod(s.kubeClient, pod, false); err != nil {
 		return errors.WithContext("deploy pod", err)
 	}
 	return nil
@@ -592,7 +593,7 @@ func (s *server) deployDNS(namespace string) error {
 		},
 	}
 
-	if err := kube.DeployPod(s.kubeClient, pod); err != nil {
+	if err := kube.DeployPod(s.kubeClient, pod, false); err != nil {
 		return errors.WithContext("deploy pod", err)
 	}
 	return nil
@@ -753,7 +754,7 @@ func (s *server) deployCustomerPods(namespace string, desired []corev1.Pod) erro
 	// TODO: Parallelize
 	desiredNames := map[string]struct{}{}
 	for _, pod := range desired {
-		if err := kube.DeployPod(s.kubeClient, pod); err != nil {
+		if err := kube.DeployPod(s.kubeClient, pod, false); err != nil {
 			return errors.WithContext("create", err)
 		}
 		desiredNames[pod.Name] = struct{}{}
@@ -840,6 +841,44 @@ func (s *server) WatchStatus(req *cluster.GetStatusRequest, stream cluster.Manag
 		case <-trig:
 		}
 	}
+}
+
+func (s *server) Restart(ctx context.Context, req *cluster.RestartRequest) (*cluster.RestartResponse, error) {
+	user, err := auth.ParseIDToken(req.GetToken())
+	if err != nil {
+		return &cluster.RestartResponse{}, err
+	}
+
+	podName := kube.PodName(req.GetService())
+	currPod, err := s.kubeClient.CoreV1().Pods(user.Namespace).
+		Get(podName, metav1.GetOptions{})
+	if err != nil {
+		return &cluster.RestartResponse{}, errors.WithContext("get current pod", err)
+	}
+
+	newPod := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      podName,
+			Namespace: user.Namespace,
+			Labels:    currPod.Labels,
+		},
+		Spec: currPod.Spec,
+	}
+	for k, v := range currPod.Annotations {
+		if contains(metadata.CustomPodAnnotations, k) {
+			if newPod.Annotations == nil {
+				newPod.Annotations = map[string]string{}
+			}
+			newPod.Annotations[k] = v
+		}
+	}
+
+	err = kube.DeployPod(s.kubeClient, newPod, true)
+	if err != nil {
+		return &cluster.RestartResponse{}, errors.WithContext("deploy new pod", err)
+	}
+
+	return &cluster.RestartResponse{}, nil
 }
 
 func toPods(
