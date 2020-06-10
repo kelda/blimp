@@ -88,7 +88,7 @@ func (s *server) CheckReady(req *node.CheckReadyRequest, srv node.BootWaiter_Che
 
 	// Transform the boot requirements into a set of waiters.
 	var waiters []waiter
-	for name, condition := range req.GetWaitSpec().GetDependsOn() {
+	for _, condition := range req.GetWaitSpec().GetDependsOn() {
 		var pc podCondition
 		switch condition.Condition {
 		case composeTypes.ServiceConditionHealthy:
@@ -102,7 +102,7 @@ func (s *server) CheckReady(req *node.CheckReadyRequest, srv node.BootWaiter_Che
 
 		waiters = append(waiters, podWaiter{
 			namespace: req.GetNamespace(),
-			name:      kube.PodName(name),
+			name:      kube.PodName(condition.Service),
 			condition: pc,
 			watcher:   s.podWatcher,
 			lister:    s.podLister,

@@ -497,10 +497,13 @@ func toReadinessProbe(healthCheck *composeTypes.HealthCheckConfig) *corev1.Probe
 	return probe
 }
 
-func marshalDependencies(dependsOn composeTypes.DependsOnConfig, links []string) map[string]*node.ServiceCondition {
-	pbDeps := map[string]*node.ServiceCondition{}
+func marshalDependencies(dependsOn composeTypes.DependsOnConfig, links []string) []*node.ServiceCondition {
+	pbDeps := []*node.ServiceCondition{}
 	for name, condition := range dependsOn {
-		pbDeps[name] = &node.ServiceCondition{Condition: condition.Condition}
+		pbDeps = append(pbDeps, &node.ServiceCondition{
+			Service:   name,
+			Condition: condition.Condition,
+		})
 	}
 
 	for _, link := range links {
@@ -513,11 +516,27 @@ func marshalDependencies(dependsOn composeTypes.DependsOnConfig, links []string)
 			continue
 		}
 
+		depExists := func() bool {
+			for _, dep := range pbDeps {
+				if dep.Service == service {
+					return true
+				}
+			}
+			return false
+		}
+
 		// Any dependency conditions specified in `depends_on` take precedence.
-		if _, ok := pbDeps[service]; !ok {
-			pbDeps[service] = &node.ServiceCondition{Condition: composeTypes.ServiceConditionStarted}
+		if !depExists() {
+			pbDeps = append(pbDeps, &node.ServiceCondition{
+				Service:   service,
+				Condition: composeTypes.ServiceConditionStarted,
+			})
 		}
 	}
+
+	sort.Slice(pbDeps, func(i, j int) bool {
+		return strings.Compare(pbDeps[i].Service, pbDeps[j].Service) > 0
+	})
 
 	return pbDeps
 }

@@ -18,7 +18,7 @@ message CheckReadyRequest {
 message WaitSpec {
     // depends_on is a list of services that must be running or healthy
     // before the service can start.
-    map<string, ServiceCondition> depends_on = 1;
+    repeated ServiceCondition depends_on = 1;
 
     // bind_volumes is a list of paths that must be fully synced before the
     // service can start.
@@ -30,7 +30,8 @@ message WaitSpec {
 }
 
 message ServiceCondition {
-    string Condition = 1;
+    string service = 1;
+    string condition = 2;
 }
 
 message CheckReadyResponse {
