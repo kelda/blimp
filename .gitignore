@@ -1,0 +1,4 @@
+local.mk
+syncthing-linux
+syncthing-macos
+certs/

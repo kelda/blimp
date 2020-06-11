@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package blimp.login.v0;
+
+import "blimp/errors/v0/errors.proto";
+
+option go_package = "github.com/kelda/blimp/pkg/proto/login";
+
+service Login {
+    rpc Login(LoginRequest) returns (stream LoginResponse) {}
+}
+
+message LoginRequest {
+}
+
+message LoginResponse {
+    blimp.errors.v0.Error error = 1;
+
+    oneof msg {
+        LoginInstructions instructions = 2;
+        LoginResult result = 3;
+    }
+}
+
+message LoginInstructions {
+    string URL = 1;
+}
+
+message LoginResult {
+    string token = 1;
+    string error = 2;
+}

@@ -1,0 +1,61 @@
+version: 2.1
+
+executors:
+  docker-executor:
+    docker:
+      - image: keldaio/circleci-blimp
+    working_directory: /go/src/github.com/kelda/blimp
+
+jobs:
+  build:
+
+    executor: docker-executor
+
+    steps:
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - checkout
+      - run:
+          name: Build
+          command: make
+
+  upload-release:
+    executor: docker-executor
+    steps:
+      - checkout
+      - run:
+          name: Upload Release
+          command: ./scripts/upload_release.sh
+
+workflows:
+  version: 2
+
+  pr:
+    jobs:
+      - build
+
+  build-push-tag:
+    jobs:
+      - build:
+          filters: # Required since `push-docker-tag` depends on `build`.
+            tags:
+              only: /.*/
+            branches:
+              ignore: /.*/
+      - push-docker-tagged:
+          requires:
+            - build
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              ignore: /.*/
+      - upload-release:
+          requires:
+            - build
+            - push-docker-tagged
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              ignore: /.*/
