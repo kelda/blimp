@@ -349,9 +349,9 @@ func (cmd *up) runGUI(parsedCompose composeTypes.Config) error {
 	analytics.Log.Info("Containers booted")
 
 	return logs.LogsCommand{
-		Containers: services,
-		Opts:       corev1.PodLogOptions{Follow: true},
-		Auth:       cmd.auth,
+		Services: services,
+		Opts:     corev1.PodLogOptions{Follow: true},
+		Auth:     cmd.auth,
 	}.Run()
 }
 
