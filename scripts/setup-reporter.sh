@@ -17,4 +17,4 @@ ssh-keyscan github.com >> ~/.ssh/known_hosts
 git clone git@github.com:kelda-inc/blimp
 cd blimp
 
-echo -e "PATH=/usr/bin:/bin:/usr/local/bin\n*/5 * * * * (git -C ${PWD} fetch --force --all --tags && ${PWD}/scripts/integration-report.sh) >> ${HOME}/cron-log 2>&1" | crontab
+echo -e "PATH=/usr/bin:/bin:/usr/local/bin\n*/15 * * * * (git -C ${PWD} fetch --force --all --tags && ${PWD}/scripts/integration-report.sh) >> ${HOME}/cron-log 2>&1" | crontab
