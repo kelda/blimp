@@ -37,15 +37,7 @@ workflows:
   build-push-tag:
     jobs:
       - build:
-          filters: # Required since `push-docker-tag` depends on `build`.
-            tags:
-              only: /.*/
-            branches:
-              ignore: /.*/
-      - push-docker-tagged:
-          requires:
-            - build
-          filters:
+          filters: # Required since `upload-release` depends on `build`.
             tags:
               only: /.*/
             branches:
@@ -53,7 +45,6 @@ workflows:
       - upload-release:
           requires:
             - build
-            - push-docker-tagged
           filters:
             tags:
               only: /.*/
