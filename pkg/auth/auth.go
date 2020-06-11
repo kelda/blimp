@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"encoding/base64"
 	"time"
 
 	"github.com/coreos/go-oidc"
@@ -23,17 +22,6 @@ const (
 	AuthURL            = AuthHost + "/authorize"
 	TokenURL           = AuthHost + "/oauth/token"
 	LoginProxyGRPCPort = 444
-)
-
-// Set by make.
-var LoginProxyHost string
-
-var (
-	// The base64 encoded certificate for the cluster manager. This is set at build time.
-	ClusterManagerCertBase64 string
-
-	// The PEM-encoded certificate for the cluster manager.
-	ClusterManagerCert = mustDecodeBase64(ClusterManagerCertBase64)
 )
 
 var Endpoint = oauth2.Endpoint{
@@ -100,12 +88,4 @@ func PasswordLogin(username, password string) (string, error) {
 		return "", errors.New("missing id token")
 	}
 	return idToken, nil
-}
-
-func mustDecodeBase64(encoded string) string {
-	decoded, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		panic(err)
-	}
-	return string(decoded)
 }

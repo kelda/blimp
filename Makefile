@@ -3,8 +3,8 @@ CLUSTER_MANAGER_HOST ?= blimp-manager.kelda.io:443
 VERSION?=latest
 MANAGER_CERT_PATH = "./certs/cluster-manager.crt.pem"
 LD_FLAGS = "-X github.com/kelda/blimp/pkg/version.Version=${VERSION} \
-	   -X github.com/kelda/blimp/pkg/auth.ClusterManagerCertBase64=$(shell base64 ${MANAGER_CERT_PATH} | tr -d "\n") \
-	   -X github.com/kelda/blimp/pkg/auth.LoginProxyHost=${LOGIN_PROXY_HOSTNAME} \
+	   -X github.com/kelda/blimp/cli/manager.ClusterManagerCertBase64=$(shell base64 ${MANAGER_CERT_PATH} | tr -d "\n") \
+	   -X github.com/kelda/blimp/cli/login.LoginProxyHost=${LOGIN_PROXY_HOSTNAME} \
 	   -X github.com/kelda/blimp/cli/manager.DefaultManagerHost=${CLUSTER_MANAGER_HOST} \
 	   -s -w"
 

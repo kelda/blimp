@@ -2,13 +2,13 @@ package manager
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"os"
 
 	"google.golang.org/grpc"
 
 	"github.com/kelda/blimp/cli/util"
-	"github.com/kelda/blimp/pkg/auth"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/proto/cluster"
 	"github.com/kelda/blimp/pkg/version"
@@ -16,6 +16,14 @@ import (
 
 // Can be overriden by `make`.
 var DefaultManagerHost = "blimp-manager.kelda.io:443"
+
+var (
+	// The base64 encoded certificate for the cluster manager. This is set at build time.
+	ClusterManagerCertBase64 string
+
+	// The PEM-encoded certificate for the cluster manager.
+	clusterManagerCert = mustDecodeBase64(ClusterManagerCertBase64)
+)
 
 var C Client
 
@@ -40,7 +48,7 @@ func getHost() string {
 }
 
 func dial() (Client, error) {
-	conn, err := util.Dial(Host, auth.ClusterManagerCert)
+	conn, err := util.Dial(Host, clusterManagerCert)
 	if err != nil {
 		return Client{}, errors.WithContext("dial", err)
 	}
@@ -106,4 +114,12 @@ func CheckServiceRunning(svc string, authToken string) error {
 		return svcStatus.GetPhase() == cluster.ServicePhase_RUNNING ||
 			svcStatus.GetPhase() == cluster.ServicePhase_UNHEALTHY
 	})
+}
+
+func mustDecodeBase64(encoded string) string {
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		panic(err)
+	}
+	return string(decoded)
 }
