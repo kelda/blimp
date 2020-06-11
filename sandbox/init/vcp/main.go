@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	analytics.Init(analytics.DirectPoster{}, analytics.StreamID{
+	analytics.Init(analytics.StreamID{
 		Source:    "vcp",
 		Namespace: os.Getenv("NAMESPACE"),
 	})

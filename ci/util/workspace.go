@@ -4,7 +4,7 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
-	"github.com/kelda-inc/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/errors"
 )
 
 func MakeTestDirectory(files map[string]string) (string, error) {

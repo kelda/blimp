@@ -8,8 +8,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/kelda-inc/blimp/pkg/errors"
-	"github.com/kelda-inc/blimp/pkg/syncthing"
+	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/syncthing"
 )
 
 func main() {

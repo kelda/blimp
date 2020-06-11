@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/kelda-inc/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/errors"
 )
 
 func WaitForObject(

@@ -25,7 +25,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	analytics.Init(analytics.DirectPoster{}, analytics.StreamID{
+	analytics.Init(analytics.StreamID{
 		Source:    "dns",
 		Namespace: namespace,
 	})

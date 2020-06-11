@@ -16,9 +16,9 @@ import (
 	listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/kube"
-	"github.com/kelda-inc/blimp/pkg/proto/node"
+	"github.com/kelda-inc/blimp/pkg/proto/wait"
+	"github.com/kelda/blimp/pkg/errors"
 
 	// Install the gzip compressor.
 	_ "google.golang.org/grpc/encoding/gzip"
@@ -77,13 +77,13 @@ func (s *server) listenAndServe(address string) error {
 
 	log.WithField("address", address).Info("Listening for connections to boot blocking manager")
 	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(errors.UnaryServerInterceptor))
-	node.RegisterBootWaiterServer(grpcServer, s)
+	wait.RegisterBootWaiterServer(grpcServer, s)
 	return grpcServer.Serve(lis)
 }
 
 // CheckReady returns whether the boot requirements specified in the request
 // are satisfied.
-func (s *server) CheckReady(req *node.CheckReadyRequest, srv node.BootWaiter_CheckReadyServer) error {
+func (s *server) CheckReady(req *wait.CheckReadyRequest, srv wait.BootWaiter_CheckReadyServer) error {
 	log.WithField("req", req).Info("Received CheckReady request")
 
 	// Transform the boot requirements into a set of waiters.
@@ -128,7 +128,7 @@ func (s *server) CheckReady(req *node.CheckReadyRequest, srv node.BootWaiter_Che
 	return s.waitForAll(srv, waiters)
 }
 
-func (s *server) waitForAll(srv node.BootWaiter_CheckReadyServer, waiters []waiter) error {
+func (s *server) waitForAll(srv wait.BootWaiter_CheckReadyServer, waiters []waiter) error {
 	waitCtx, cancelWaiters := context.WithCancel(context.Background())
 	defer cancelWaiters()
 
@@ -153,7 +153,7 @@ func (s *server) waitForAll(srv node.BootWaiter_CheckReadyServer, waiters []wait
 
 		select {
 		case update := <-updates:
-			if err := srv.Send(&node.CheckReadyResponse{Reason: update}); err != nil {
+			if err := srv.Send(&wait.CheckReadyResponse{Reason: update}); err != nil {
 				return errors.WithContext("send update", err)
 			}
 		case result := <-results:
@@ -165,7 +165,7 @@ func (s *server) waitForAll(srv node.BootWaiter_CheckReadyServer, waiters []wait
 		}
 	}
 
-	if err := srv.Send(&node.CheckReadyResponse{Ready: true}); err != nil {
+	if err := srv.Send(&wait.CheckReadyResponse{Ready: true}); err != nil {
 		return errors.WithContext("send update", err)
 	}
 	return nil

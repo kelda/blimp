@@ -8,8 +8,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/kube"
+	"github.com/kelda/blimp/pkg/errors"
 )
 
 // GetConnectionInfo returns the information the CLI needs to connect to the

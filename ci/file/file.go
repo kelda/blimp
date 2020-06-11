@@ -4,7 +4,7 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/kelda-inc/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/errors"
 )
 
 type Modifier func(string) (string, error)

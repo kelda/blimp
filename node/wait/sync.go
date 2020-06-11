@@ -9,8 +9,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/kelda-inc/blimp/pkg/errors"
-	"github.com/kelda-inc/blimp/pkg/proto/node"
+	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/proto/node"
 )
 
 // SyncTracker tracks connections to CLIs that can be queried to get the sync

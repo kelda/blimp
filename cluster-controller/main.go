@@ -29,16 +29,16 @@ import (
 
 	"github.com/kelda-inc/blimp/cluster-controller/node"
 	"github.com/kelda-inc/blimp/pkg/analytics"
-	"github.com/kelda-inc/blimp/pkg/auth"
-	"github.com/kelda-inc/blimp/pkg/dockercompose"
-	"github.com/kelda-inc/blimp/pkg/errors"
-	"github.com/kelda-inc/blimp/pkg/hash"
 	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/ports"
-	"github.com/kelda-inc/blimp/pkg/proto/cluster"
-	"github.com/kelda-inc/blimp/pkg/syncthing"
 	"github.com/kelda-inc/blimp/pkg/version"
 	"github.com/kelda-inc/blimp/pkg/volume"
+	"github.com/kelda/blimp/pkg/auth"
+	"github.com/kelda/blimp/pkg/dockercompose"
+	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/hash"
+	"github.com/kelda/blimp/pkg/proto/cluster"
+	"github.com/kelda/blimp/pkg/syncthing"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	// Install the gzip compressor.
@@ -64,7 +64,7 @@ var RegistryHostname string
 const MaxServices = 150
 
 func main() {
-	analytics.Init(analytics.DirectPoster{}, analytics.StreamID{
+	analytics.Init(analytics.StreamID{
 		Source: "manager",
 	})
 
@@ -183,7 +183,7 @@ func (s *server) CheckVersion(ctx context.Context, req *cluster.CheckVersionRequ
 
 func (s *server) ProxyAnalytics(ctx context.Context, req *cluster.ProxyAnalyticsRequest) (
 	*cluster.ProxyAnalyticsResponse, error) {
-	return &cluster.ProxyAnalyticsResponse{}, analytics.DirectPoster{}.Post(req.GetBody())
+	return &cluster.ProxyAnalyticsResponse{}, analytics.Post([]byte(req.GetBody()))
 }
 
 func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRequest) (*cluster.CreateSandboxResponse, error) {
@@ -278,7 +278,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 	}
 
 	var featuresMsg string
-	unsupportedFeatures := dockercompose.GetUnsupportedFeatures(dcCfg)
+	unsupportedFeatures := GetUnsupportedFeatures(dcCfg)
 	if len(unsupportedFeatures) > 0 {
 		featuresMsg = fmt.Sprintf("WARNING: Docker Compose file uses features unsupported by Kelda Blimp: %v\n"+
 			"Blimp will attempt to continue to boot.\n"+

@@ -6,8 +6,8 @@ import (
 	"github.com/golang/protobuf/proto"
 	composeTypes "github.com/kelda/compose-go/types"
 
-	"github.com/kelda-inc/blimp/pkg/hash"
-	"github.com/kelda-inc/blimp/pkg/proto/node"
+	"github.com/kelda/blimp/pkg/hash"
+	"github.com/kelda/blimp/pkg/proto/node"
 )
 
 func TestWaitSpecHash(t *testing.T) {

@@ -11,8 +11,8 @@ import (
 	"github.com/cesanta/docker_auth/auth_server/api"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/kelda-inc/blimp/pkg/auth"
-	"github.com/kelda-inc/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/auth"
+	"github.com/kelda/blimp/pkg/errors"
 )
 
 func init() {

@@ -1,4 +1,4 @@
-package dockercompose
+package main
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/kelda/compose-go/types"
 
-	"github.com/kelda-inc/blimp/pkg/strs"
+	"github.com/kelda/blimp/pkg/strs"
 )
 
 // GetUnsupportedFeatures checks for any references to unsupported features.

@@ -11,7 +11,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/kelda-inc/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/errors"
 )
 
 // Start starts the given Blimp command. It returns a thread-safe reader for

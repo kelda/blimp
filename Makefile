@@ -16,9 +16,7 @@ LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
 	   -X github.com/kelda-inc/blimp/pkg/version.DNSImage=${DNS_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/version.InitImage=${INIT_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/version.SyncthingImage=${SYNCTHING_IMAGE} \
-	   -X github.com/kelda-inc/blimp/pkg/auth.ClusterManagerCertBase64=$(shell base64 ${MANAGER_CERT_PATH} | tr -d "\n") \
-	   -X github.com/kelda-inc/blimp/pkg/auth.LoginProxyHost=${LOGIN_PROXY_HOSTNAME} \
-	   -X github.com/kelda-inc/blimp/cli/manager.DefaultManagerHost=${CLUSTER_MANAGER_HOST} \
+	   -X main.LoginProxyHost=${LOGIN_PROXY_HOSTNAME} \
 	   -X main.RegistryHostname=${REGISTRY_HOSTNAME} \
 	   -s -w"
 
@@ -26,10 +24,7 @@ LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
 -include local.mk
 -include prod.mk
 
-# Default target for local development.  Just builds binaries for now assumes
-# OSX
-install: certs build-cli-osx
-	mv blimp-osx $(GOPATH)/bin/cli
+install:
 	CGO_ENABLED=0 go install -ldflags $(LD_FLAGS) ./...
 
 syncthing-macos:
@@ -44,31 +39,11 @@ syncthing-linux:
 	mv syncthing-linux-amd64-v1.4.0/syncthing syncthing-linux
 	rm -rf syncthing-linux-amd64*
 
-go-get:
-	go get -u github.com/GeertJohan/go.rice
-	go get -u github.com/GeertJohan/go.rice/rice
-
 generate:
-	protoc -I _proto _proto/blimp/node/v0/controller.proto --go_out=plugins=grpc:$$GOPATH/src
-	protoc -I _proto _proto/blimp/node/v0/waiter.proto --go_out=plugins=grpc:$$GOPATH/src
-	protoc -I _proto _proto/blimp/cluster/v0/manager.proto --go_out=plugins=grpc:$$GOPATH/src
-	protoc -I _proto _proto/blimp/login/v0/login.proto --go_out=plugins=grpc:$$GOPATH/src
-	protoc _proto/blimp/errors/v0/errors.proto --go_out=plugins=grpc:$$GOPATH/src
+	protoc -I $$GOPATH/src/ github.com/kelda-inc/blimp/_proto/blimp/wait/v0/wait.proto --go_out=plugins=grpc:$$GOPATH/src
 
 certs:
 	./scripts/make-manager-cert.sh ${MANAGER_CERT_PATH} ${MANAGER_KEY_PATH} ${CLUSTER_MANAGER_IP}
-
-build-cli-linux: syncthing-linux certs
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LD_FLAGS) -o blimp-linux ./cli
-	cp syncthing-linux ./pkg/syncthing/stbin
-	rice append -i ./pkg/syncthing --exec blimp-linux
-	rm ./pkg/syncthing/stbin
-
-build-cli-osx: syncthing-macos certs
-	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LD_FLAGS) -o blimp-osx ./cli
-	cp syncthing-macos ./pkg/syncthing/stbin
-	rice append -i ./pkg/syncthing --exec blimp-osx
-	rm ./pkg/syncthing/stbin
 
 run-cluster-controller: certs
 	go run -ldflags $(LD_FLAGS) ./cluster-controller -tls-cert ${MANAGER_CERT_PATH} -tls-key ${MANAGER_KEY_PATH}

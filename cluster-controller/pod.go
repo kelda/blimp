@@ -14,14 +14,14 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/kelda-inc/blimp/pkg/errors"
-	"github.com/kelda-inc/blimp/pkg/hash"
 	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/metadata"
-	"github.com/kelda-inc/blimp/pkg/proto/node"
-	"github.com/kelda-inc/blimp/pkg/strs"
+	"github.com/kelda-inc/blimp/pkg/proto/wait"
 	"github.com/kelda-inc/blimp/pkg/version"
 	"github.com/kelda-inc/blimp/pkg/volume"
+	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/hash"
+	"github.com/kelda/blimp/pkg/strs"
 )
 
 type podBuilder struct {
@@ -138,18 +138,18 @@ func (b podBuilder) ToPod(svc composeTypes.ServiceConfig) (corev1.Pod, []corev1.
 		servicesSharingVolumes = remove(strs.Unique(servicesSharingVolumes), svc.Name)
 		if len(servicesSharingVolumes) != 0 {
 			spec.addWaiter(b.nodeControllerIP, svc.Name, kube.ContainerNameWaitInitializedVolumes,
-				node.WaitSpec{FinishedVolumeInit: servicesSharingVolumes})
+				wait.WaitSpec{FinishedVolumeInit: servicesSharingVolumes})
 		}
 	}
 
 	if len(svc.DependsOn) != 0 {
 		spec.addWaiter(b.nodeControllerIP, svc.Name, kube.ContainerNameWaitDependsOn,
-			node.WaitSpec{DependsOn: marshalDependencies(svc.DependsOn, svc.Links)})
+			wait.WaitSpec{DependsOn: marshalDependencies(svc.DependsOn, svc.Links)})
 	}
 
 	if len(bindVolumes) != 0 {
 		spec.addWaiter(b.nodeControllerIP, svc.Name, kube.ContainerNameWaitInitialSync,
-			node.WaitSpec{BindVolumes: bindVolumes})
+			wait.WaitSpec{BindVolumes: bindVolumes})
 	}
 
 	if err := spec.addRuntimeContainer(svc, b.dnsIP, b.svcAliasesMapping); err != nil {
@@ -497,10 +497,10 @@ func toReadinessProbe(healthCheck *composeTypes.HealthCheckConfig) *corev1.Probe
 	return probe
 }
 
-func marshalDependencies(dependsOn composeTypes.DependsOnConfig, links []string) []*node.ServiceCondition {
-	pbDeps := []*node.ServiceCondition{}
+func marshalDependencies(dependsOn composeTypes.DependsOnConfig, links []string) []*wait.ServiceCondition {
+	pbDeps := []*wait.ServiceCondition{}
 	for name, condition := range dependsOn {
-		pbDeps = append(pbDeps, &node.ServiceCondition{
+		pbDeps = append(pbDeps, &wait.ServiceCondition{
 			Service:   name,
 			Condition: condition.Condition,
 		})
@@ -527,7 +527,7 @@ func marshalDependencies(dependsOn composeTypes.DependsOnConfig, links []string)
 
 		// Any dependency conditions specified in `depends_on` take precedence.
 		if !depExists() {
-			pbDeps = append(pbDeps, &node.ServiceCondition{
+			pbDeps = append(pbDeps, &wait.ServiceCondition{
 				Service:   service,
 				Condition: composeTypes.ServiceConditionStarted,
 			})
@@ -562,7 +562,7 @@ func (p *podSpec) sanitize() {
 // volume into the pod's init container. The init container passes it
 // to the node controller, which blocks boot until the requirements
 // are met.
-func (p *podSpec) addWaiter(nodeControllerIP, svcName, waitType string, spec node.WaitSpec) error {
+func (p *podSpec) addWaiter(nodeControllerIP, svcName, waitType string, spec wait.WaitSpec) error {
 	waitSpecBytes, err := proto.Marshal(&spec)
 	if err != nil {
 		return errors.WithContext("marshal wait spec", err)

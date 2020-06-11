@@ -20,12 +20,12 @@ import (
 	"github.com/kelda-inc/blimp/node/finalizer"
 	"github.com/kelda-inc/blimp/node/wait"
 	"github.com/kelda-inc/blimp/pkg/analytics"
-	"github.com/kelda-inc/blimp/pkg/auth"
-	"github.com/kelda-inc/blimp/pkg/errors"
 	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/ports"
-	"github.com/kelda-inc/blimp/pkg/proto/node"
-	"github.com/kelda-inc/blimp/pkg/tunnel"
+	"github.com/kelda/blimp/pkg/auth"
+	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/proto/node"
+	"github.com/kelda/blimp/pkg/tunnel"
 
 	// Install the gzip compressor.
 	_ "google.golang.org/grpc/encoding/gzip"
@@ -38,7 +38,7 @@ const (
 
 func main() {
 	myNodeName := os.Getenv("NODE_NAME")
-	analytics.Init(analytics.DirectPoster{}, analytics.StreamID{
+	analytics.Init(analytics.StreamID{
 		Source:    "node-controller",
 		Namespace: myNodeName,
 	})

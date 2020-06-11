@@ -5,7 +5,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/kelda-inc/blimp/pkg/hash"
+	"github.com/kelda/blimp/pkg/hash"
 )
 
 const VolumeRoot = "/var/blimp/volumes"

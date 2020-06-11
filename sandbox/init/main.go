@@ -13,8 +13,8 @@ import (
 	"google.golang.org/grpc/encoding/gzip"
 
 	"github.com/kelda-inc/blimp/node/wait"
-	"github.com/kelda-inc/blimp/pkg/errors"
-	"github.com/kelda-inc/blimp/pkg/proto/node"
+	protoWait "github.com/kelda-inc/blimp/pkg/proto/wait"
+	"github.com/kelda/blimp/pkg/errors"
 )
 
 func main() {
@@ -33,7 +33,7 @@ func main() {
 		log.WithError(err).Fatal("Failed to read wait spec")
 	}
 
-	var waitSpec node.WaitSpec
+	var waitSpec protoWait.WaitSpec
 	if err := proto.Unmarshal(waitSpecRaw, &waitSpec); err != nil {
 		log.WithError(err).Fatal("Failed to unmarshal wait spec")
 	}
@@ -50,7 +50,7 @@ func main() {
 	}
 }
 
-func runOnce(nodeControllerHost, namespace string, waitSpec node.WaitSpec) error {
+func runOnce(nodeControllerHost, namespace string, waitSpec protoWait.WaitSpec) error {
 	log.Info("Initiating CheckReady request")
 
 	// Connect to the node controller.
@@ -63,9 +63,9 @@ func runOnce(nodeControllerHost, namespace string, waitSpec node.WaitSpec) error
 		return err
 	}
 	defer conn.Close()
-	client := node.NewBootWaiterClient(conn)
+	client := protoWait.NewBootWaiterClient(conn)
 
-	isReadyStream, err := client.CheckReady(context.TODO(), &node.CheckReadyRequest{
+	isReadyStream, err := client.CheckReady(context.TODO(), &protoWait.CheckReadyRequest{
 		Namespace: namespace,
 		WaitSpec:  &waitSpec,
 	})

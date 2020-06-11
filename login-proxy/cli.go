@@ -14,9 +14,9 @@ import (
 	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
 
-	"github.com/kelda-inc/blimp/pkg/auth"
-	"github.com/kelda-inc/blimp/pkg/errors"
-	"github.com/kelda-inc/blimp/pkg/proto/login"
+	"github.com/kelda/blimp/pkg/auth"
+	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/proto/login"
 )
 
 const cliOAuthCallback = "/cli/oauth/callback"
@@ -32,7 +32,7 @@ type oauthState struct {
 }
 
 func newCLILoginServer(oauthConf oauth2.Config) cliLoginServer {
-	oauthConf.RedirectURL = fmt.Sprintf("https://%s%s", auth.LoginProxyHost, cliOAuthCallback)
+	oauthConf.RedirectURL = fmt.Sprintf("https://%s%s", LoginProxyHost, cliOAuthCallback)
 	return cliLoginServer{
 		sessions:  map[string]chan login.LoginResult{},
 		oauthConf: &oauthConf,
@@ -84,7 +84,7 @@ func (s *cliLoginServer) cliLoginCallback(w http.ResponseWriter, r *http.Request
 	if !ok {
 		fmt.Fprintf(w, "Login failed. Unknown session (%s).\n"+
 			"Try logging in manually at https://%s%s",
-			sessionID, auth.LoginProxyHost, manualLoginURL)
+			sessionID, LoginProxyHost, manualLoginURL)
 		return
 	}
 
@@ -98,7 +98,7 @@ func (s *cliLoginServer) cliLoginCallback(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		fmt.Fprintf(w, "Login failed: %s\n."+
 			"Try logging in manually at https://%s%s",
-			err, auth.LoginProxyHost, manualLoginURL)
+			err, LoginProxyHost, manualLoginURL)
 		return
 	}
 

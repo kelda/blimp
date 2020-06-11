@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/kelda-inc/blimp/pkg/hash"
+	"github.com/kelda/blimp/pkg/hash"
 )
 
 const (

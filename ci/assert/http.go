@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kelda-inc/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 

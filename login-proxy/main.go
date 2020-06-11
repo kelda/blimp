@@ -9,8 +9,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 
-	"github.com/kelda-inc/blimp/pkg/auth"
-	"github.com/kelda-inc/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/auth"
+	"github.com/kelda/blimp/pkg/errors"
 )
 
 const (
@@ -19,6 +19,8 @@ const (
 	httpPort = 8000
 	grpcPort = 8001
 )
+
+var LoginProxyHost string
 
 func main() {
 	clientSecret := os.Getenv("CLIENT_SECRET")

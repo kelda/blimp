@@ -6,8 +6,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
-
-	"github.com/kelda-inc/blimp/pkg/auth"
 )
 
 const (
@@ -20,7 +18,7 @@ type manualLoginServer struct {
 }
 
 func newManualLoginServer(oauthConf oauth2.Config) manualLoginServer {
-	oauthConf.RedirectURL = fmt.Sprintf("https://%s%s", auth.LoginProxyHost, manualOAuthCallback)
+	oauthConf.RedirectURL = fmt.Sprintf("https://%s%s", LoginProxyHost, manualOAuthCallback)
 	return manualLoginServer{oauthConf: &oauthConf}
 }
 

@@ -1,4 +1,4 @@
-package dockercompose
+package main
 
 import (
 	"testing"
