@@ -19,10 +19,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/kelda/blimp/cli/authstore"
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/kubewait"
 	"github.com/kelda/blimp/pkg/names"
 )
 
@@ -35,7 +37,7 @@ type LogsCommand struct {
 type rawLogLine struct {
 	// Any error that occurred when trying to read logs.
 	// If this is non-nil, `message` and `receivedAt` aren't meaningful.
-	readError error
+	error error
 
 	// The container that generated the log.
 	fromContainer string
@@ -130,33 +132,63 @@ func (cmd LogsCommand) Run() error {
 		cancel()
 	}()
 
+	// The count on the WaitGroup should equal the number of containers we are
+	// currently tailing.
 	var wg sync.WaitGroup
 	combinedLogs := make(chan rawLogLine, len(cmd.Services)*32)
 	for _, service := range cmd.Services {
-		// Enable timestamps so that `forwardLogs` can parse the logs.
-		cmd.Opts.Timestamps = true
-		logsReq := kubeClient.CoreV1().
-			Pods(cmd.Auth.KubeNamespace).
-			GetLogs(names.PodName(service), &cmd.Opts)
-
-		logsStream, err := logsReq.Stream()
-		if err != nil {
-			return errors.WithContext("start logs stream", err)
-		}
-		defer logsStream.Close()
-
 		wg.Add(1)
 		go func(service string) {
-			forwardLogs(combinedLogs, service, logsStream)
-			wg.Done()
+			for {
+				err := cmd.forwardLogs(combinedLogs, service, kubeClient)
+				if err != nil {
+					// We send the error along the combinedLogs channel so it
+					// makes it back to the main thread. `printLogs` can decide
+					// how to handle it.
+					combinedLogs <- rawLogLine{error: err}
+					wg.Done()
+					return
+				}
+				// Indicate that we don't have more logs to send.
+				wg.Done()
+
+				// If we aren't following logs, we are done for good.
+				if !cmd.Opts.Follow {
+					return
+				}
+
+				// Wait for a short period of time to see if all the containers
+				// exit.
+				time.Sleep(500 * time.Millisecond)
+				select {
+				case <-ctx.Done():
+					return
+				default:
+					// Continue.
+				}
+
+				err = waitForRestart(ctx, service, cmd.Auth.KubeNamespace, kubeClient)
+				if err != nil {
+					// If we get cancelled, don't treat it as an actual error,
+					// just return normally.
+					if err != context.Canceled {
+						log.WithError(err).WithField("service", service).
+							Warn("Failed to wait for container to restart")
+					}
+					return
+				}
+
+				// If the container has restarted, start tailing logs again.
+				wg.Add(1)
+			}
 		}(service)
 	}
 
-	// No more log messages will be written to the channel once all the
-	// `forwardLogs` threads finish.
+	// If all the containers we were logging have exited, we are done and should
+	// exit.
 	go func() {
 		wg.Wait()
-		close(combinedLogs)
+		cancel()
 	}()
 
 	hideServiceName := len(cmd.Services) == 1
@@ -165,7 +197,18 @@ func (cmd LogsCommand) Run() error {
 
 // forwardLogs forwards each log line from `logsReq` to the `combinedLogs`
 // channel.
-func forwardLogs(combinedLogs chan<- rawLogLine, service string, logsStream io.ReadCloser) {
+func (cmd *LogsCommand) forwardLogs(combinedLogs chan<- rawLogLine, service string, kubeClient kubernetes.Interface) error {
+	// Enable timestamps so that `forwardLogs` can parse the logs.
+	cmd.Opts.Timestamps = true
+	logsReq := kubeClient.CoreV1().
+		Pods(cmd.Auth.KubeNamespace).
+		GetLogs(names.PodName(service), &cmd.Opts)
+
+	logsStream, err := logsReq.Stream()
+	if err != nil {
+		return errors.WithContext("start logs stream", err)
+	}
+	defer logsStream.Close()
 	reader := bufio.NewReader(logsStream)
 	for {
 		message, err := reader.ReadString('\n')
@@ -173,7 +216,7 @@ func forwardLogs(combinedLogs chan<- rawLogLine, service string, logsStream io.R
 			fromContainer: service,
 			message:       strings.TrimSuffix(message, "\n"),
 			receivedAt:    time.Now(),
-			readError:     err,
+			error:         err,
 		}
 		if err == io.EOF {
 			// Signal to the parent that there will be no more logs for this
@@ -181,9 +224,20 @@ func forwardLogs(combinedLogs chan<- rawLogLine, service string, logsStream io.R
 			// log streams have ended.
 			// We let the consumer of `combinedLogs` decide how to handle all
 			// other errors.
-			return
+			return nil
 		}
 	}
+}
+
+func waitForRestart(ctx context.Context, service, namespace string, kubeClient kubernetes.Interface) error {
+	return kubewait.WaitForObject(ctx,
+		kubewait.PodGetter(kubeClient, namespace, names.PodName(service)),
+		kubeClient.CoreV1().Pods(namespace).Watch,
+		func(intf interface{}) bool {
+			pod := intf.(*corev1.Pod)
+			return pod.Status.Phase == corev1.PodRunning
+		},
+	)
 }
 
 // The logs within a window are guaranteed to be sorted.
@@ -203,7 +257,7 @@ func printLogs(ctx context.Context, rawLogs <-chan rawLogLine,
 		// Parse the logs in the windows to extract their timestamps.
 		var parsedLogs []parsedLogLine
 		for _, rawLog := range window {
-			if rawLog.readError == io.EOF {
+			if rawLog.error == io.EOF {
 				// Specially handle EOF.
 
 				// If we got a message (which might be possible), try to parse
@@ -294,8 +348,8 @@ func printLogs(ctx context.Context, rawLogs <-chan rawLogLine,
 			// If it's an EOF error, still print the final contents of the buffer.
 			// We don't need any special handling for ending the stream because
 			// the log reader goroutine will just stop sending us messages.
-			if logLine.readError != nil && logLine.readError != io.EOF {
-				return errors.WithContext(fmt.Sprintf("read logs for %s", logLine.fromContainer), logLine.readError)
+			if logLine.error != nil && logLine.error != io.EOF {
+				return errors.WithContext(fmt.Sprintf("read logs for %s", logLine.fromContainer), logLine.error)
 			}
 
 			// Wake up later to flush the buffered lines.
@@ -307,6 +361,7 @@ func printLogs(ctx context.Context, rawLogs <-chan rawLogLine,
 			flush()
 			flushTrigger = nil
 		case <-ctx.Done():
+			flush()
 			return nil
 		}
 	}
