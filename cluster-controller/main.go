@@ -38,6 +38,7 @@ import (
 	"github.com/kelda/blimp/pkg/dockercompose"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/hash"
+	"github.com/kelda/blimp/pkg/kubewait"
 	"github.com/kelda/blimp/pkg/proto/cluster"
 	"github.com/kelda/blimp/pkg/syncthing"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -428,8 +429,8 @@ func (s *server) createNamespace(ctx context.Context, namespace string) error {
 	// Wait for the default service account to exist before returning.
 	// Pods will fail to deploy to the namespace until the account exists.
 	ctx, _ = context.WithTimeout(ctx, 3*time.Minute)
-	err := kube.WaitForObject(ctx,
-		kube.ServiceAccountGetter(s.kubeClient, namespace, "default"),
+	err := kubewait.WaitForObject(ctx,
+		kubewait.ServiceAccountGetter(s.kubeClient, namespace, "default"),
 		s.kubeClient.CoreV1().ServiceAccounts(namespace).Watch,
 		func(saIntf interface{}) bool {
 			return true
@@ -465,8 +466,8 @@ func (s *server) addVolumeFinalizer(namespace, node string) error {
 
 func (s *server) getDNSPod(ctx context.Context, namespace string, cond podCondition) (pod *corev1.Pod, err error) {
 	ctx, _ = context.WithTimeout(ctx, 3*time.Minute)
-	err = kube.WaitForObject(ctx,
-		kube.PodGetter(s.kubeClient, namespace, "dns"),
+	err = kubewait.WaitForObject(ctx,
+		kubewait.PodGetter(s.kubeClient, namespace, "dns"),
 		s.kubeClient.CoreV1().Pods(namespace).Watch,
 		func(podIntf interface{}) bool {
 			pod = podIntf.(*corev1.Pod)
@@ -627,11 +628,11 @@ func (s *server) createCLICreds(ctx context.Context, namespace string) (cluster.
 				Verbs:     []string{"create"},
 			},
 
-			// Needed for `blimp cp`.
+			// Get needed for `blimp cp`. Get and watch needed for `blimp logs`.
 			{
 				APIGroups: []string{""},
 				Resources: []string{"pods"},
-				Verbs:     []string{"get"},
+				Verbs:     []string{"get", "watch"},
 			},
 		},
 	}
@@ -643,8 +644,8 @@ func (s *server) createCLICreds(ctx context.Context, namespace string) (cluster.
 	// Wait until the ServiceAccount's secret is populated.
 	var secretName string
 	ctx, _ = context.WithTimeout(ctx, 3*time.Minute)
-	err := kube.WaitForObject(ctx,
-		kube.ServiceAccountGetter(s.kubeClient, namespace, serviceAccount.Name),
+	err := kubewait.WaitForObject(ctx,
+		kubewait.ServiceAccountGetter(s.kubeClient, namespace, serviceAccount.Name),
 		s.kubeClient.CoreV1().ServiceAccounts(namespace).Watch,
 		func(saIntf interface{}) bool {
 			sa := saIntf.(*corev1.ServiceAccount)

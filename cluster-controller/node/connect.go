@@ -8,8 +8,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/kubewait"
 )
 
 // GetConnectionInfo returns the information the CLI needs to connect to the
@@ -20,8 +20,8 @@ func GetConnectionInfo(ctx context.Context, kubeClient kubernetes.Interface, nod
 	// controller exists, and so that we know that the CLI's requests to the
 	// node controller will succeed.
 	ctx, _ = context.WithTimeout(ctx, 3*time.Minute)
-	err = kube.WaitForObject(ctx,
-		kube.PodGetter(kubeClient, NodeControllerNamespace, nodeControllerName(node)),
+	err = kubewait.WaitForObject(ctx,
+		kubewait.PodGetter(kubeClient, NodeControllerNamespace, nodeControllerName(node)),
 		kubeClient.CoreV1().Pods(NodeControllerNamespace).Watch,
 		func(podIntf interface{}) bool {
 			pod := podIntf.(*corev1.Pod)

@@ -30,6 +30,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/version"
 	"github.com/kelda-inc/blimp/pkg/volume"
 	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/kubewait"
 )
 
 const (
@@ -301,8 +302,8 @@ func (booter *booter) deployNodeController(node string) error {
 
 	var publicIP string
 	ctx, _ := context.WithTimeout(context.Background(), 3*time.Minute)
-	err := kube.WaitForObject(ctx,
-		kube.ServiceGetter(booter.kubeClient, NodeControllerNamespace, service.Name),
+	err := kubewait.WaitForObject(ctx,
+		kubewait.ServiceGetter(booter.kubeClient, NodeControllerNamespace, service.Name),
 		booter.kubeClient.CoreV1().Services(NodeControllerNamespace).Watch,
 		func(svcIntf interface{}) bool {
 			svc := svcIntf.(*corev1.Service)
