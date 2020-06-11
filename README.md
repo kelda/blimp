@@ -1,7 +1,7 @@
 # Blimp CLI
 
 [![Build Status](https://circleci.com/gh/kelda/blimp.svg?style=svg)](https://circleci.com/gh/kelda/blimp)
-[![Go Report Card](https://goreportcard.com/badge/github.com/kelda/blimp)](https://goreportcard.com/report/github.com/kelda/blimp)
+[![Go Report Card](https://goreportcard.com/badge/github.com/kelda/blimp?)](https://goreportcard.com/report/github.com/kelda/blimp)
 [![Slack](https://kelda.io/img/slack-badge.svg)](http://slack.kelda.io)
 
 This repository contains the CLI for [Kelda Blimp](https://kelda.io/blimp).
