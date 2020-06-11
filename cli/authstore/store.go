@@ -23,13 +23,10 @@ type Store struct {
 
 func (store Store) KubeClient() (kubernetes.Interface, *rest.Config, error) {
 	restConfig := &rest.Config{
-		Host: store.KubeHost,
-		// TODO: Handle decode errors.
+		Host:        store.KubeHost,
 		BearerToken: store.KubeToken,
 		TLSClientConfig: rest.TLSClientConfig{
-			Insecure: true,
-			// TODO
-			//CAData: mustEncodeBase64(store.KubeCaCrt),
+			CAData: []byte(store.KubeCACrt),
 		},
 	}
 
