@@ -291,16 +291,6 @@ func (c Client) performInitialSync(ctx context.Context, remoteAPIAddr string, id
 		return errors.WithContext("wait for devices to connect", err)
 	}
 
-	if err := resetDatabases(ctx, localAPI, remoteAPI); err != nil {
-		return errors.WithContext("reset databases", err)
-	}
-
-	// Wait for the Syncthing daemons to reboot after the reset.
-	waitCtx, _ = context.WithTimeout(ctx, 1*time.Minute)
-	if err := waitUntilConnected(waitCtx, localAPI, remoteAPI); err != nil {
-		return errors.WithContext("wait for devices to connect", err)
-	}
-
 	if err := waitUntilScanned(ctx, localAPI, folders); err != nil {
 		return errors.WithContext("wait for initial scan", err)
 	}
