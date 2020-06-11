@@ -176,18 +176,16 @@ func (p *podSpec) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig) {
 
 	p.addInitContainers(
 		corev1.Container{
-			Name:            kube.ContainerNameCopyBusybox,
-			Image:           version.InitImage,
-			ImagePullPolicy: "Always",
-			Command:         []string{"/bin/cp", "/bin/busybox.static", "/vcpbin/cp"},
-			VolumeMounts:    vcpBinMount,
+			Name:         kube.ContainerNameCopyBusybox,
+			Image:        version.InitImage,
+			Command:      []string{"/bin/cp", "/bin/busybox.static", "/vcpbin/cp"},
+			VolumeMounts: vcpBinMount,
 		},
 		corev1.Container{
-			Name:            kube.ContainerNameCopyVCP,
-			Image:           version.InitImage,
-			ImagePullPolicy: "Always",
-			Command:         []string{"/bin/cp", "/bin/blimp-vcp", "/vcpbin/blimp-cp"},
-			VolumeMounts:    vcpBinMount,
+			Name:         kube.ContainerNameCopyVCP,
+			Image:        version.InitImage,
+			Command:      []string{"/bin/cp", "/bin/blimp-vcp", "/vcpbin/blimp-cp"},
+			VolumeMounts: vcpBinMount,
 		},
 	)
 
@@ -216,10 +214,9 @@ func (p *podSpec) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig) {
 	hostPathOwner := int64(0)
 	p.addInitContainers(
 		corev1.Container{
-			Name:            kube.ContainerNameInitializeVolumeFromImage,
-			Image:           p.image,
-			ImagePullPolicy: "Always",
-			Command:         append([]string{"/vcpbin/blimp-cp", "/vcpbin/cp"}, vcpArgs...),
+			Name:    kube.ContainerNameInitializeVolumeFromImage,
+			Image:   p.image,
+			Command: append([]string{"/vcpbin/blimp-cp", "/vcpbin/cp"}, vcpArgs...),
 			SecurityContext: &corev1.SecurityContext{
 				// Run the container as the directory's owner so that vcp can
 				// write to it. Note that this UID doesn't need to exist within
@@ -595,9 +592,8 @@ func (p *podSpec) addWaiter(nodeControllerIP, svcName, waitType string, spec wai
 	p.addVolume(volume)
 
 	container := corev1.Container{
-		Name:            waitType,
-		Image:           version.InitImage,
-		ImagePullPolicy: "Always",
+		Name:  waitType,
+		Image: version.InitImage,
 		Env: []corev1.EnvVar{
 			{
 				Name:  "NODE_CONTROLLER_HOST",

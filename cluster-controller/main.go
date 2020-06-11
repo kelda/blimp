@@ -501,11 +501,10 @@ func (s *server) createSyncthing(namespace string, syncedFolders map[string]stri
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{{
-				Name:            "syncthing",
-				Image:           version.SyncthingImage,
-				ImagePullPolicy: "Always",
-				Args:            syncthing.MapToArgs(idPathMap),
-				VolumeMounts:    []corev1.VolumeMount{mount},
+				Name:         "syncthing",
+				Image:        version.SyncthingImage,
+				Args:         syncthing.MapToArgs(idPathMap),
+				VolumeMounts: []corev1.VolumeMount{mount},
 				Resources: corev1.ResourceRequirements{
 					Limits: corev1.ResourceList{
 						"cpu":    resource.MustParse("1"),
@@ -576,8 +575,7 @@ func (s *server) deployDNS(namespace string) error {
 						},
 					},
 				},
-				Image:           version.DNSImage,
-				ImagePullPolicy: "Always",
+				Image: version.DNSImage,
 				Resources: corev1.ResourceRequirements{
 					Limits: corev1.ResourceList{
 						"cpu":    resource.MustParse("1"),
