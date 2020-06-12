@@ -4,7 +4,7 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/kelda/blimp?)](https://goreportcard.com/report/github.com/kelda/blimp)
 [![Slack](https://kelda.io/img/slack-badge.svg)](http://slack.kelda.io)
 
-This repository contains the CLI for [Kelda Blimp](https://kelda.io/blimp).
+This repository contains the CLI for [Blimp](https://kelda.io/blimp).
 Blimp lets you develop in the cloud, reducing CPU and RAM usage on your laptop.
 It supports the same
 [configuration](https://docs.docker.com/compose/compose-file) and
