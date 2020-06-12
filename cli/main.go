@@ -111,7 +111,7 @@ func getNamespace() string {
 		return "unauthenticated"
 	}
 
-	user, err := auth.ParseIDToken(store.AuthToken)
+	user, err := auth.ParseIDToken(store.AuthToken, auth.DefaultVerifier)
 	if err == nil {
 		return user.Namespace
 	}

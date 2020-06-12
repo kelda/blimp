@@ -35,7 +35,7 @@ func ServerHeader(nsrv node.Controller_TunnelServer) (
 		return "", 0, "", status.New(codes.Internal, msg).Err()
 	}
 
-	user, err := auth.ParseIDToken(header.GetToken())
+	user, err := auth.ParseIDToken(header.GetToken(), auth.DefaultVerifier)
 	if err != nil {
 		return "", 0, "", errors.WithContext("bad token", err)
 	}
