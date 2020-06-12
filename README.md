@@ -65,7 +65,7 @@ curl localhost:8080
 * [Design principles](https://kelda.io/blimp/docs/#design-principles) (be
   light, require zero setup, and require zero workflow changes)
 * [Basic usage analytics](https://kelda.io/blimp/docs/security/#services-used-and-data-stored-in-them)
-  are collected by default.
+  are collected by default (you can opt out).
 * [The Kelda Slack](https://slack.kelda.io) is the best way to reach the maintainers.
 
 ## Contributing
