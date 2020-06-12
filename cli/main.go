@@ -79,6 +79,15 @@ func setupAnalytics(cmd *cobra.Command, _ []string) {
 		log.WithError(err).Fatal("Failed to connect to the Blimp cluster")
 	}
 
+	cfg, err := cfgdir.ParseConfig()
+	if err != nil {
+		log.WithError(err).Fatal("Failed to read blimp config")
+	}
+
+	if cfg.OptOutAnalytics {
+		return
+	}
+
 	analytics.Init(manager.C, analytics.StreamID{
 		Source:    cmd.CalledAs(),
 		Namespace: getNamespace(),
