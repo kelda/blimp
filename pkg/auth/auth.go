@@ -24,6 +24,7 @@ const (
 	AuthHost           = "https://blimp-testing.auth0.com"
 	AuthURL            = AuthHost + "/authorize"
 	TokenURL           = AuthHost + "/oauth/token"
+	JWKSURL            = "https://blimp-testing.auth0.com/.well-known/jwks.json"
 	LoginProxyGRPCPort = 444
 )
 
@@ -33,17 +34,23 @@ var Endpoint = oauth2.Endpoint{
 	AuthStyle: oauth2.AuthStyleInParams,
 }
 
-var verifier = oidc.NewVerifier(
-	"https://blimp-testing.auth0.com/",
-	// TODO: Fetching over the network.. Any issues if no network connectivity?
-	oidc.NewRemoteKeySet(context.Background(), "https://blimp-testing.auth0.com/.well-known/jwks.json"),
-	&oidc.Config{
-		ClientID: ClientID,
+// TODO: Fetching over the network.. Any issues if no network connectivity?
+var DefaultKeySet = oidc.NewRemoteKeySet(context.Background(), JWKSURL)
 
-		// We handle the expiration check ourselves in `ParseIDToken` so that
-		// we can return a friendly error if it's expired.
-		SkipExpiryCheck: true,
-	})
+var DefaultVerifier = VerifierFromKeySet(DefaultKeySet)
+
+func VerifierFromKeySet(keySet oidc.KeySet) *oidc.IDTokenVerifier {
+	return oidc.NewVerifier(
+		"https://blimp-testing.auth0.com/",
+		keySet,
+		&oidc.Config{
+			ClientID: ClientID,
+
+			// We handle the expiration check ourselves in `ParseIDToken` so that
+			// we can return a friendly error if it's expired.
+			SkipExpiryCheck: true,
+		})
+}
 
 func GetOAuthConfig(clientSecret string) oauth2.Config {
 	return oauth2.Config{
@@ -56,7 +63,7 @@ func GetOAuthConfig(clientSecret string) oauth2.Config {
 	}
 }
 
-func ParseIDToken(token string) (User, error) {
+func ParseIDToken(token string, verifier *oidc.IDTokenVerifier) (User, error) {
 	idToken, err := verifier.Verify(context.Background(), token)
 	if err != nil {
 		return User{}, errors.WithContext("verify", err)
