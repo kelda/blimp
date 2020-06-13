@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
@@ -25,6 +26,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/kelda/blimp/cli/manager"
+	"github.com/kelda/blimp/cli/util"
 	"github.com/kelda/blimp/pkg/auth"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/hash"
@@ -90,30 +92,56 @@ func (cmd *up) buildImages(composeFile composeTypes.Config) (map[string]string, 
 		images[svc.Name] = image{imageID, imageName}
 	}
 
-	// We expect each service to be sent exactly once, and we expect the channel
-	// to be closed when all images have been signalled as ready to push.
-	for base := range readyToPush {
-		// If the imageName is empty, it means the base image pre-push failed.
-		// Just fall back to pushing the full image.
-		if base.imageName != "" {
-			// Even though the base image has already been pushed by the cluster
-			// manager, we need to locally push it to the same tag.  This is a
-			// no-op (in that no layers will actually be pushed) but it lets the
-			// local docker daemon know that these layers are already present on
-			// the registry, so that they won't be pushed when we push the main
-			// image.
-			err = cmd.pushBaseTag(base.imageName, base.service)
-			if err != nil {
-				// Don't die.
-				log.WithError(err).WithField("service", base.service).Warn("Push base image tag failed")
-			}
-		}
+	var pp util.ProgressPrinter
+	progressPrinting := false
+loop:
+	for {
+		// If we are waiting for more than 2 seconds, print some indication of
+		// what's going on.
+		timer := time.NewTimer(2 * time.Second)
 
-		img := images[base.service]
-		fmt.Printf("Pushing image for %s:\n", base.service)
-		err := cmd.pushServiceImage(img.id, img.name)
-		if err != nil {
-			return nil, errors.WithContext(fmt.Sprintf("push %s", img.name), err)
+		select {
+		case base, ok := <-readyToPush:
+			if progressPrinting {
+				pp.Stop()
+				progressPrinting = false
+			}
+			// We expect each service to be sent exactly once, and we expect the
+			// channel to be closed when all images have been signalled as ready
+			// to push.
+			if !ok {
+				break loop
+			}
+
+			// If the imageName is empty, it means the base image pre-push
+			// failed. Just fall back to pushing the full image.
+			if base.imageName != "" {
+				// Even though the base image has already been pushed by the
+				// cluster manager, we need to locally push it to the same tag.
+				// This is a no-op (in that no layers will actually be pushed)
+				// but it lets the local docker daemon know that these layers
+				// are already present on the registry, so that they won't be
+				// pushed when we push the main image.
+				err = cmd.pushBaseTag(base.imageName, base.service)
+				if err != nil {
+					// Don't die.
+					log.WithError(err).WithField("service", base.service).Warn("Push base image tag failed")
+				}
+			}
+
+			img := images[base.service]
+			fmt.Printf("Pushing image for %s:\n", base.service)
+			err := cmd.pushServiceImage(img.id, img.name)
+			if err != nil {
+				return nil, errors.WithContext(fmt.Sprintf("push %s", img.name), err)
+			}
+
+		case <-timer.C:
+			if !progressPrinting {
+				pp = util.NewProgressPrinter(os.Stdout, "Waiting for base images to be uploaded")
+				go pp.Run()
+				progressPrinting = true
+			}
 		}
 	}
 
