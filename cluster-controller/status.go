@@ -268,6 +268,18 @@ func (sf *statusFetcher) getServiceStatus(pod *corev1.Pod) cluster.ServiceStatus
 		}
 	}
 
+	// If we are pending because the pod is unschedulable, report this
+	// specifically.
+	if pod.Status.Phase == corev1.PodPending {
+		for _, condition := range pod.Status.Conditions {
+			if condition.Type == corev1.PodScheduled &&
+				condition.Status == corev1.ConditionFalse &&
+				condition.Reason == corev1.PodReasonUnschedulable {
+				return cluster.ServiceStatus{Phase: cluster.ServicePhase_UNSCHEDULABLE}
+			}
+		}
+	}
+
 	// Fallback to the pod's phase.
 	switch pod.Status.Phase {
 	case corev1.PodRunning:
