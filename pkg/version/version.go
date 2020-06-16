@@ -4,6 +4,7 @@ var (
 	Version             = ""
 	NodeControllerImage = ""
 	InitImage           = ""
+	ReservationImage    = ""
 	SyncthingImage      = ""
 	DNSImage            = ""
 )

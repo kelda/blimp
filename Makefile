@@ -16,6 +16,7 @@ LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
 	   -X github.com/kelda-inc/blimp/pkg/version.DNSImage=${DNS_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/version.InitImage=${INIT_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/version.SyncthingImage=${SYNCTHING_IMAGE} \
+	   -X github.com/kelda-inc/blimp/pkg/version.ReservationImage=${RESERVATION_IMAGE} \
 	   -X main.LoginProxyHost=${LOGIN_PROXY_HOSTNAME} \
 	   -X main.RegistryHostname=${REGISTRY_HOSTNAME} \
 	   -s -w"
@@ -58,6 +59,7 @@ INIT_IMAGE = ${DOCKER_REPO}/blimp-init:${VERSION}
 SYNCTHING_IMAGE = ${DOCKER_REPO}/sandbox-syncthing:${VERSION}
 DOCKER_AUTH_IMAGE = ${DOCKER_REPO}/blimp-docker-auth:${VERSION}
 LOGIN_PROXY_IMAGE = ${DOCKER_REPO}/login-proxy:${VERSION}
+RESERVATION_IMAGE = ${DOCKER_REPO}/sandbox-reservation:${VERSION}
 
 build-docker: certs
 	# Exit if the base container fails to build.
@@ -70,6 +72,7 @@ build-docker: certs
 	docker build -t blimp-init -t ${INIT_IMAGE} - < ./sandbox/init/Dockerfile & \
 	docker build -t blimp-docker-auth -t ${DOCKER_AUTH_IMAGE} - < ./registry/Dockerfile & \
 	docker build -t login-proxy -t ${LOGIN_PROXY_IMAGE} - < ./login-proxy/Dockerfile & \
+	docker build -t sandbox-reservation -t ${RESERVATION_IMAGE} - < ./sandbox/reservation/Dockerfile & \
 	wait # Wait for all background jobs to exit before continuing so that we can guarantee the images are built.
 
 push-docker: build-docker
@@ -80,6 +83,7 @@ push-docker: build-docker
 	docker push ${INIT_IMAGE} & \
 	docker push ${DOCKER_AUTH_IMAGE} & \
 	docker push ${LOGIN_PROXY_IMAGE} & \
+	docker push ${RESERVATION_IMAGE} & \
 	wait # Wait for all background jobs to exit before continuing so that we can guarantee the images are pushed.
 
 deploy-registry:

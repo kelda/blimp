@@ -24,6 +24,13 @@ import (
 	"github.com/kelda/blimp/pkg/strs"
 )
 
+const (
+	cpuRequest         = 50
+	cpuRequestUnits    = "m"
+	memoryRequest      = 100
+	memoryRequestUnits = "Mi"
+)
+
 type podBuilder struct {
 	namespace        string
 	dnsIP            string
@@ -328,8 +335,10 @@ func (p *podSpec) addRuntimeContainer(svc composeTypes.ServiceConfig, dnsIP stri
 				// If Requests are not set, they will default to the
 				// same as the Limits, which are too high.
 				Requests: corev1.ResourceList{
-					"cpu":    resource.MustParse("50m"),
-					"memory": resource.MustParse("100Mi"),
+					"cpu": resource.MustParse(
+						fmt.Sprintf("%d%s", cpuRequest, cpuRequestUnits)),
+					"memory": resource.MustParse(
+						fmt.Sprintf("%d%s", memoryRequest, memoryRequestUnits)),
 				},
 			},
 		},

@@ -240,6 +240,31 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, errors.WithContext("create namespace", err)
 	}
 
+	// If customer pods are already present in the namespace, don't worry about
+	// creating a reservation pod.
+	customerPods, err := s.statusFetcher.podLister.Pods(namespace).
+		List(labels.Set{"blimp.customerPod": "true"}.AsSelector())
+	if err != nil {
+		return &cluster.CreateSandboxResponse{}, errors.WithContext("list customer pods", err)
+	}
+
+	if len(customerPods) == 0 {
+		// Create a pod that has the same resource requests as the pods that
+		// will ultimately be deployed, to make sure that the namespace is
+		// scheduled on a node that ultimately will be able to handle the
+		// workload.
+		if err := s.createReservation(namespace, len(dcCfg.Services)); err != nil {
+			return &cluster.CreateSandboxResponse{}, errors.WithContext("deploy reservation", err)
+		}
+
+		// Wait until the reservation pod is scheduled before creating the other
+		// pods, to make sure that the reservation pod is scheduled first.
+		_, err := s.getPod(ctx, namespace, "reservation", podIsScheduled)
+		if err != nil {
+			return &cluster.CreateSandboxResponse{}, errors.WithContext("get reservation pod", err)
+		}
+	}
+
 	if err := s.createSyncthing(namespace, req.GetSyncedFolders()); err != nil {
 		return &cluster.CreateSandboxResponse{}, errors.WithContext("deploy syncthing", err)
 	}
@@ -250,7 +275,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 
 	// Wait until the DNS pod is scheduled so that we know what node the other
 	// pods in the namespace will get scheduled on.
-	dnsPod, err := s.getDNSPod(ctx, namespace, podIsScheduled)
+	dnsPod, err := s.getPod(ctx, namespace, "dns", podIsScheduled)
 	if err != nil {
 		return &cluster.CreateSandboxResponse{}, errors.WithContext("get dns pod", err)
 	}
@@ -319,7 +344,7 @@ func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest
 	}
 
 	namespace := user.Namespace
-	dnsPod, err := s.getDNSPod(ctx, namespace, podIsRunning)
+	dnsPod, err := s.getPod(ctx, namespace, "dns", podIsRunning)
 	if err != nil {
 		return &cluster.DeployResponse{}, errors.WithContext("get dns server's IP", err)
 	}
@@ -467,10 +492,10 @@ func (s *server) addVolumeFinalizer(namespace, node string) error {
 	return err
 }
 
-func (s *server) getDNSPod(ctx context.Context, namespace string, cond podCondition) (pod *corev1.Pod, err error) {
+func (s *server) getPod(ctx context.Context, namespace, name string, cond podCondition) (pod *corev1.Pod, err error) {
 	ctx, _ = context.WithTimeout(ctx, 3*time.Minute)
 	err = kubewait.WaitForObject(ctx,
-		kubewait.PodGetter(s.kubeClient, namespace, "dns"),
+		kubewait.PodGetter(s.kubeClient, namespace, name),
 		s.kubeClient.CoreV1().Pods(namespace).Watch,
 		func(podIntf interface{}) bool {
 			pod = podIntf.(*corev1.Pod)
@@ -481,6 +506,45 @@ func (s *server) getDNSPod(ctx context.Context, namespace string, cond podCondit
 	}
 
 	return pod, nil
+}
+
+func (s *server) createReservation(namespace string, numServices int) error {
+	cpu := resource.MustParse(
+		fmt.Sprintf("%d%s", cpuRequest*numServices, cpuRequestUnits))
+	memory := resource.MustParse(
+		fmt.Sprintf("%d%s", memoryRequest*numServices, memoryRequestUnits))
+
+	pod := corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      "reservation",
+			Labels: map[string]string{
+				"service":        "reservation",
+				"blimp.customer": namespace,
+				// We set blimp.customerPod=true so that the pod will get
+				// cleaned up when the actual sandbox is deployed.
+				"blimp.customerPod": "true",
+			},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{
+				Name:  "reservation",
+				Image: version.ReservationImage,
+				Resources: corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{
+						"cpu":    cpu,
+						"memory": memory,
+					},
+				},
+			}},
+			Affinity: sameNodeAffinity(namespace),
+		},
+	}
+
+	if err := kube.DeployPod(s.kubeClient, pod, false); err != nil {
+		return errors.WithContext("deploy pod", err)
+	}
+	return nil
 }
 
 func (s *server) createSyncthing(namespace string, syncedFolders map[string]string) error {
