@@ -30,6 +30,9 @@ func GetStatusString(svcStatus *cluster.ServiceStatus) (msg string, color int, b
 	case cluster.ServicePhase_EXITED:
 		msg = "Exited"
 		color = goterm.RED
+	case cluster.ServicePhase_UNSCHEDULABLE:
+		msg = "Unschedulable. You may need to run `blimp down` and recreate your sandbox."
+		color = goterm.RED
 	}
 
 	if svcStatus.Msg != "" {
