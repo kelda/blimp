@@ -203,10 +203,13 @@ func (cmd *up) prePushBaseImages(services composeTypes.Services) (<-chan baseIma
 	baseImages := map[string]string{}
 
 	for _, svc := range services {
-		dockerfilePath := svc.Build.Dockerfile
-		if dockerfilePath == "" {
-			dockerfilePath = "Dockerfile"
+		dockerfile := svc.Build.Dockerfile
+		if dockerfile == "" {
+			dockerfile = "Dockerfile"
 		}
+
+		dockerfilePath := filepath.Join(filepath.Dir(cmd.composePath),
+			svc.Build.Context, dockerfile)
 
 		baseImageName, err := cmd.getBaseImage(dockerfilePath)
 		if err != nil {
