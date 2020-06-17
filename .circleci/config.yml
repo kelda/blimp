@@ -31,14 +31,6 @@ jobs:
             docker login gcr.io --username _json_key --password "${DOCKER_KEY}"
             BLIMP_DOCKER_REPO=gcr.io/kelda-blimp VERSION=${CIRCLE_TAG} make push-docker
 
-  upload-release:
-    executor: docker-executor
-    steps:
-      - checkout
-      - run:
-          name: Upload Release
-          command: ./scripts/upload_release.sh
-
 workflows:
   version: 2
 
@@ -57,15 +49,6 @@ workflows:
       - push-docker-tagged:
           requires:
             - build
-          filters:
-            tags:
-              only: /.*/
-            branches:
-              ignore: /.*/
-      - upload-release:
-          requires:
-            - build
-            - push-docker-tagged
           filters:
             tags:
               only: /.*/
