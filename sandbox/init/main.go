@@ -18,6 +18,22 @@ import (
 )
 
 func main() {
+	// A bug in Docker causes very short-lived containers to appear like they
+	// failed, even if they exited cleanly:
+	// https://github.com/opencontainers/runc/issues/2183
+	// This can happen if the wait spec is already satisfied when this
+	// container starts.
+	// To work around this, we add an artificial sleep to make sure the
+	// container stays up for at least 5 seconds.
+	// This hack can be removed when we upgrade to Docker >=19.03.
+	start := time.Now()
+	defer func() {
+		elapsedTime := time.Now().Sub(start)
+		if elapsedTime < 5*time.Second {
+			time.Sleep(5*time.Second - elapsedTime)
+		}
+	}()
+
 	nodeControllerHost := os.Getenv("NODE_CONTROLLER_HOST")
 	if nodeControllerHost == "" {
 		log.Fatal("NODE_CONTROLLER_HOST environment variable is required")
@@ -45,7 +61,7 @@ func main() {
 			time.Sleep(10 * time.Second)
 		} else {
 			log.Info("Ready to boot")
-			os.Exit(0)
+			return
 		}
 	}
 }
