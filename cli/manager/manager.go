@@ -14,11 +14,12 @@ import (
 	"github.com/kelda/blimp/pkg/version"
 )
 
-// Can be overriden by `make`.
+// DefaultManagerHost can be overridden by `make`.
 var DefaultManagerHost = "blimp-manager.kelda.io:443"
 
 var (
-	// The base64 encoded certificate for the cluster manager. This is set at build time.
+	// ClusterManagerCertBase64 is the base64 encoded certificate for the
+	// cluster manager. This is set at build time.
 	ClusterManagerCertBase64 string
 
 	// The PEM-encoded certificate for the cluster manager.

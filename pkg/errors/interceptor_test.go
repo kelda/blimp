@@ -1,13 +1,14 @@
-package errors
+package errors_test
 
 import (
 	"context"
-	"errors"
+	goErrors "errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 
+	"github.com/kelda/blimp/pkg/errors"
 	proto "github.com/kelda/blimp/pkg/proto/errors"
 )
 
@@ -27,8 +28,8 @@ func TestUnaryClientInterceptor(t *testing.T) {
 		{
 			name:      "No custom error - non-nil gRPC error",
 			mockReply: &MsgWithoutCustomError{},
-			mockError: errors.New("grpc"),
-			expError:  errors.New("grpc"),
+			mockError: goErrors.New("grpc"),
+			expError:  goErrors.New("grpc"),
 		},
 		{
 			name:      "No custom error - no errors",
@@ -39,16 +40,16 @@ func TestUnaryClientInterceptor(t *testing.T) {
 		{
 			name:      "Custom error - non-nil gRPC error",
 			mockReply: &MsgWithCustomError{},
-			mockError: errors.New("grpc"),
-			expError:  errors.New("grpc"),
+			mockError: goErrors.New("grpc"),
+			expError:  goErrors.New("grpc"),
 		},
 		{
 			name: "Custom error - non-nil custom error",
 			mockReply: &MsgWithCustomError{
-				Error: Marshal(NewFriendlyError("friendly error")),
+				Error: errors.Marshal(errors.NewFriendlyError("friendly error")),
 			},
 			mockError: nil,
-			expError:  NewFriendlyError("friendly error"),
+			expError:  errors.NewFriendlyError("friendly error"),
 		},
 		{
 			name:      "Custom error - no errors",
@@ -72,7 +73,7 @@ func TestUnaryClientInterceptor(t *testing.T) {
 				return test.mockError
 			}
 
-			err := UnaryClientInterceptor(nil, "", nil, test.mockReply, nil, invoker)
+			err := errors.UnaryClientInterceptor(nil, "", nil, test.mockReply, nil, invoker)
 			assert.Equal(t, test.expError, err)
 		})
 	}
@@ -89,9 +90,9 @@ func TestUnaryServerInterceptor(t *testing.T) {
 		{
 			name:      "No custom error - non-nil gRPC error",
 			mockReply: &MsgWithoutCustomError{},
-			mockError: errors.New("grpc"),
+			mockError: goErrors.New("grpc"),
 			expReply:  &MsgWithoutCustomError{},
-			expError:  errors.New("grpc"),
+			expError:  goErrors.New("grpc"),
 		},
 		{
 			name:      "No custom error - no errors",
@@ -103,18 +104,18 @@ func TestUnaryServerInterceptor(t *testing.T) {
 		{
 			name:      "Custom error - non-nil gRPC error",
 			mockReply: &MsgWithCustomError{},
-			mockError: errors.New("grpc"),
+			mockError: goErrors.New("grpc"),
 			expReply: &MsgWithCustomError{
-				Error: Marshal(errors.New("grpc")),
+				Error: errors.Marshal(goErrors.New("grpc")),
 			},
 			expError: nil,
 		},
 		{
 			name:      "Custom error - non-nil custom error",
 			mockReply: &MsgWithCustomError{},
-			mockError: NewFriendlyError("friendly error"),
+			mockError: errors.NewFriendlyError("friendly error"),
 			expReply: &MsgWithCustomError{
-				Error: Marshal(NewFriendlyError("friendly error")),
+				Error: errors.Marshal(errors.NewFriendlyError("friendly error")),
 			},
 			expError: nil,
 		},
@@ -141,7 +142,7 @@ func TestUnaryServerInterceptor(t *testing.T) {
 				return test.mockReply, test.mockError
 			}
 
-			reply, err := UnaryServerInterceptor(nil, nil, nil, handler)
+			reply, err := errors.UnaryServerInterceptor(nil, nil, nil, handler)
 			assert.Equal(t, test.expReply, reply)
 			assert.Equal(t, test.expError, err)
 		})

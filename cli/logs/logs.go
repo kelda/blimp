@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/buger/goterm"
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
@@ -28,7 +27,7 @@ import (
 	"github.com/kelda/blimp/pkg/names"
 )
 
-type LogsCommand struct {
+type Command struct {
 	Services []string
 	Opts     corev1.PodLogOptions
 	Auth     authstore.Store
@@ -67,7 +66,7 @@ type parsedLogLine struct {
 }
 
 func New() *cobra.Command {
-	cmd := &LogsCommand{}
+	cmd := &Command{}
 
 	cobraCmd := &cobra.Command{
 		Use:   "logs SERVICE ...",
@@ -106,7 +105,7 @@ func New() *cobra.Command {
 	return cobraCmd
 }
 
-func (cmd LogsCommand) Run() error {
+func (cmd Command) Run() error {
 	kubeClient, _, err := cmd.Auth.KubeClient()
 	if err != nil {
 		return errors.WithContext("connect to cluster", err)
@@ -197,7 +196,8 @@ func (cmd LogsCommand) Run() error {
 
 // forwardLogs forwards each log line from `logsReq` to the `combinedLogs`
 // channel.
-func (cmd *LogsCommand) forwardLogs(combinedLogs chan<- rawLogLine, service string, kubeClient kubernetes.Interface) error {
+func (cmd *Command) forwardLogs(combinedLogs chan<- rawLogLine,
+	service string, kubeClient kubernetes.Interface) error {
 	// Enable timestamps so that `forwardLogs` can parse the logs.
 	cmd.Opts.Timestamps = true
 	logsReq := kubeClient.CoreV1().
@@ -296,7 +296,7 @@ func printLogs(ctx context.Context, rawLogs <-chan rawLogLine,
 			// If we fail to parse the log's timestamp, revert to sorting based
 			// on its receival time.
 			if err != nil {
-				logrus.WithField("message", rawLog.message).
+				log.WithField("message", rawLog.message).
 					WithField("container", rawLog.fromContainer).
 					WithError(err).Warn("Failed to parse timestamp")
 				message = rawLog.message
@@ -400,7 +400,10 @@ var colorList = []int{
 
 func pickColor(container string) int {
 	hash := fnv.New32()
-	hash.Write([]byte(container))
+	_, err := hash.Write([]byte(container))
+	if err != nil {
+		panic(err)
+	}
 	idx := hash.Sum32() % uint32(len(colorList))
 	return colorList[idx]
 }

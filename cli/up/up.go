@@ -140,7 +140,11 @@ func (cmd *up) run(services []string) error {
 			os.Exit(1)
 		}
 	}
-	util.TakeUpLock()
+
+	err := util.TakeUpLock()
+	if err != nil {
+		return err
+	}
 	defer util.ReleaseUpLock()
 
 	parsedCompose, err := dockercompose.Load(cmd.composePath, cmd.overridePaths, services)
@@ -304,7 +308,7 @@ func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) err
 	resp, err := manager.C.CreateSandbox(context.TODO(),
 		&cluster.CreateSandboxRequest{
 			Token:               cmd.auth.AuthToken,
-			ComposeFile:         string(composeCfg),
+			ComposeFile:         composeCfg,
 			RegistryCredentials: registryCredentialsToProtobuf(cmd.regCreds),
 			SyncedFolders:       idPathMap,
 		})
@@ -346,7 +350,7 @@ func (cmd *up) runGUI(parsedCompose composeTypes.Config) error {
 	statusPrinter.Run(manager.C, cmd.auth.AuthToken)
 	analytics.Log.Info("Containers booted")
 
-	return logs.LogsCommand{
+	return logs.Command{
 		Services: services,
 		Opts:     corev1.PodLogOptions{Follow: true},
 		Auth:     cmd.auth,

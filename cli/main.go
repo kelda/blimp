@@ -172,6 +172,7 @@ func (f formatter) Format(e *log.Entry) ([]byte, error) {
 		eBuffer := e.Buffer
 		e.Buffer = nil
 		if l, err := f.delegated.Format(e); err == nil {
+			//nolint:errcheck // We should continue even if we fail to write to disk.
 			f.mirrorFile.Write(l)
 		}
 		e.Buffer = eBuffer

@@ -33,8 +33,6 @@ import (
 	"github.com/kelda/blimp/pkg/proto/cluster"
 )
 
-var errNoCachedImage = errors.New("no cached image")
-
 // imageCacheRepo is the local image name used to tag built versions of images.
 // Each cached image is identified by a tag appended to the imageCacheRepo.
 const imageCacheRepo = "blimp-cache"
@@ -464,7 +462,7 @@ func (cmd *up) getCachedImages() ([]types.ImageSummary, error) {
 }
 
 func (cmd *up) getCachedImageName(svc string) string {
-	tag := hash.DnsCompliant(fmt.Sprintf("%s-%s", cmd.composePath, svc))
+	tag := hash.DNSCompliant(fmt.Sprintf("%s-%s", cmd.composePath, svc))
 	return fmt.Sprintf("%s:%s", imageCacheRepo, tag)
 }
 

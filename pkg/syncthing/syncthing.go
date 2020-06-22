@@ -14,7 +14,7 @@ const (
 	Marker = ".blimp_syncthing"
 	apiKey = "blimp-syncthing"
 
-	// I don't wnat to use the standard syncthing port, in case one of our users
+	// I don't want to use the standard syncthing port, in case one of our users
 	// wants to run syncthing in docker compose.  It doesn't look like anything
 	// actually uses this port so we should be good w.r.t. conflicts.  The "right"
 	// thing to do, would be to use a unix socket in the CLI, and then conflicts
@@ -110,6 +110,7 @@ func makeConfig(server bool, folders map[string]string, folderType string) strin
 		guiAddress = fmt.Sprintf(":%d", APIPort)
 	}
 
+	//nolint:lll
 	return fmt.Sprintf(`<configuration version="30">%s
     <gui enabled="true">
         <address>%s</address>
@@ -140,10 +141,13 @@ func makeConfig(server bool, folders map[string]string, folderType string) strin
         <!-- Don't keep temporary files from failed transfers. They pollute the filesystem, and the transfer will complete when the devices reconnect. -->
         <keepTemporariesH>0</keepTemporariesH>
     </options>
-</configuration>`, strings.Join(folderStrs, ""), guiAddress, apiKey, RemoteDeviceID, address, CLIDeviceID, listenAddress)
+</configuration>`,
+		strings.Join(folderStrs, ""), guiAddress, apiKey, RemoteDeviceID,
+		address, CLIDeviceID, listenAddress)
 }
 
 func makeFolder(id, path, folderType string) string {
+	//nolint:lll
 	return fmt.Sprintf(`
     <folder id="%s" path="%s" type="%s"
         rescanIntervalS="30" fsWatcherEnabled="true" fsWatcherDelayS="1"

@@ -21,7 +21,8 @@ func UnaryClientInterceptor(ctx context.Context, method string, req, reply inter
 	return Unmarshal(grpcErr, protoErr)
 }
 
-func UnaryServerInterceptor(ctx context.Context, req interface{}, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+func UnaryServerInterceptor(ctx context.Context, req interface{},
+	_ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	m, err := handler(ctx, req)
 	// If `m` has a Error field, try to set it.
 	if setWrappedError(m, err) {

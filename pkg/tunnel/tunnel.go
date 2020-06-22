@@ -2,7 +2,6 @@ package tunnel
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -31,8 +30,7 @@ func ServerHeader(nsrv node.Controller_TunnelServer) (
 
 	header := msg.GetHeader()
 	if header == nil {
-		msg := fmt.Sprintf("first message must be a header")
-		return "", 0, "", status.New(codes.Internal, msg).Err()
+		return "", 0, "", status.New(codes.Internal, "first message must be a header").Err()
 	}
 
 	user, err := auth.ParseIDToken(header.GetToken(), auth.DefaultVerifier)
@@ -69,8 +67,6 @@ func Client(scc node.ControllerClient, ln net.Listener, token,
 			log.WithFields(fields).Trace("finish connection")
 		}()
 	}
-
-	return nil
 }
 
 func connect(scc node.ControllerClient, stream net.Conn,
@@ -92,6 +88,7 @@ func connect(scc node.ControllerClient, stream net.Conn,
 		}}})
 	if err != nil {
 		log.WithError(err).Error("failed to send tunnel connect")
+		//nolint:errcheck // Nothing we could do to handle this anyway.
 		tnl.CloseSend()
 		return
 	}

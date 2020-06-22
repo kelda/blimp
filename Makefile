@@ -54,3 +54,9 @@ build-cli-osx: syncthing-macos certs
 	cp syncthing-macos ./pkg/syncthing/stbin
 	rice append -i ./pkg/syncthing --exec blimp-osx
 	rm ./pkg/syncthing/stbin
+
+lint:
+	golangci-lint run
+
+lint-fix:
+	golangci-lint run --fix

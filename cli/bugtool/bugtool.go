@@ -39,7 +39,7 @@ func New() *cobra.Command {
 func run(out string) error {
 	tmpdir, err := afero.TempDir(fs, "", "kelda-bug-tool")
 	if err != nil {
-		return fmt.Errorf("Failed to create report directory:\n%s", err)
+		return fmt.Errorf("failed to create report directory:\n%s", err)
 	}
 
 	defer func() {
@@ -57,7 +57,7 @@ func run(out string) error {
 	}
 
 	if err := tarDirectory(tmpdir, out); err != nil {
-		return fmt.Errorf("Failed to tar:\n%s", err)
+		return fmt.Errorf("failed to tar:\n%s", err)
 	}
 
 	msg := `Created bug information archive at '%s'.

@@ -1,29 +1,31 @@
-package errors
+package errors_test
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/kelda/blimp/pkg/errors"
 )
 
 func TestMarshalUnmarshal(t *testing.T) {
 	tests := []error{
-		New("error"),
-		WithContext("context", New("error")),
-		NewFriendlyError("friendly error"),
-		WithContext("context", NewFriendlyError("friendly error")),
+		errors.New("error"),
+		errors.WithContext("context", errors.New("error")),
+		errors.NewFriendlyError("friendly error"),
+		errors.WithContext("context", errors.NewFriendlyError("friendly error")),
 		nil,
-		WithContext("context", nil),
+		errors.WithContext("context", nil),
 	}
 	for _, err := range tests {
-		assert.Equal(t, err, Unmarshal(nil, Marshal(err)))
+		assert.Equal(t, err, errors.Unmarshal(nil, errors.Marshal(err)))
 	}
 }
 
 func TestUnmarshalGRPCError(t *testing.T) {
-	err := New("grpc error")
-	assert.Equal(t, err, Unmarshal(err, nil))
+	err := errors.New("grpc error")
+	assert.Equal(t, err, errors.Unmarshal(err, nil))
 }
 
 type customFriendlyError struct {
@@ -41,6 +43,6 @@ func (err customFriendlyError) Error() string {
 
 func TestMarshalCustomFriendlyError(t *testing.T) {
 	err := customFriendlyError{"foo", 3}
-	exp := NewFriendlyError("foofoofoo")
-	assert.Equal(t, exp, Unmarshal(nil, Marshal(err)))
+	exp := errors.NewFriendlyError("foofoofoo")
+	assert.Equal(t, exp, errors.Unmarshal(nil, errors.Marshal(err)))
 }

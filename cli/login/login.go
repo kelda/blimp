@@ -18,7 +18,7 @@ import (
 	"github.com/kelda/blimp/pkg/proto/login"
 )
 
-// Set by make.
+// LoginProxyHost is set by make.
 var LoginProxyHost = ""
 
 func New() *cobra.Command {

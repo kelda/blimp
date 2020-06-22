@@ -117,7 +117,7 @@ func (m Mount) GetStignore() (stignore string, needed bool) {
 }
 
 func (m Mount) ID() string {
-	return hash.DnsCompliant(m.Path)
+	return hash.DNSCompliant(m.Path)
 }
 
 // Syncs returns whether the mount already syncs the given child.
@@ -295,7 +295,7 @@ func (c Client) performInitialSync(ctx context.Context, remoteAPIAddr string, id
 		return errors.WithContext("wait for initial scan", err)
 	}
 
-	if err := waitUntilSynced(ctx, localAPI, remoteAPI, folders); err != nil {
+	if err := waitUntilSynced(ctx, localAPI, folders); err != nil {
 		return errors.WithContext("wait for initial sync", err)
 	}
 
