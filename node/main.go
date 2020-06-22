@@ -20,10 +20,10 @@ import (
 	"github.com/kelda-inc/blimp/node/finalizer"
 	"github.com/kelda-inc/blimp/node/wait"
 	"github.com/kelda-inc/blimp/pkg/analytics"
-	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/ports"
 	"github.com/kelda/blimp/pkg/auth"
 	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/names"
 	"github.com/kelda/blimp/pkg/proto/node"
 	"github.com/kelda/blimp/pkg/tunnel"
 
@@ -116,7 +116,7 @@ func (s *server) Tunnel(nsrv node.Controller_TunnelServer) error {
 	// SSH.
 	podName := serviceName
 	if serviceName != "syncthing" {
-		podName = kube.PodName(serviceName)
+		podName = names.PodName(serviceName)
 	}
 
 	dstPod, err := s.podLister.Pods(namespace).Get(podName)

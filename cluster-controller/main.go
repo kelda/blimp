@@ -42,6 +42,7 @@ import (
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/hash"
 	"github.com/kelda/blimp/pkg/kubewait"
+	"github.com/kelda/blimp/pkg/names"
 	"github.com/kelda/blimp/pkg/proto/cluster"
 	"github.com/kelda/blimp/pkg/syncthing"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -917,7 +918,7 @@ func (s *server) Restart(ctx context.Context, req *cluster.RestartRequest) (*clu
 		return &cluster.RestartResponse{}, err
 	}
 
-	podName := kube.PodName(req.GetService())
+	podName := names.PodName(req.GetService())
 	currPod, err := s.kubeClient.CoreV1().Pods(user.Namespace).
 		Get(podName, metav1.GetOptions{})
 	if err != nil {

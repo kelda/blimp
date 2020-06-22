@@ -19,6 +19,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/proto/wait"
 	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/names"
 
 	// Install the gzip compressor.
 	_ "google.golang.org/grpc/encoding/gzip"
@@ -102,7 +103,7 @@ func (s *server) CheckReady(req *wait.CheckReadyRequest, srv wait.BootWaiter_Che
 
 		waiters = append(waiters, podWaiter{
 			namespace: req.GetNamespace(),
-			name:      kube.PodName(condition.Service),
+			name:      names.PodName(condition.Service),
 			condition: pc,
 			watcher:   s.podWatcher,
 			lister:    s.podLister,
@@ -112,7 +113,7 @@ func (s *server) CheckReady(req *wait.CheckReadyRequest, srv wait.BootWaiter_Che
 	for _, service := range req.GetWaitSpec().GetFinishedVolumeInit() {
 		waiters = append(waiters, podWaiter{
 			namespace: req.GetNamespace(),
-			name:      kube.PodName(service),
+			name:      names.PodName(service),
 			condition: conditionFinishedVolumeInit,
 			watcher:   s.podWatcher,
 			lister:    s.podLister,

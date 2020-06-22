@@ -21,6 +21,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/volume"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/hash"
+	"github.com/kelda/blimp/pkg/names"
 	"github.com/kelda/blimp/pkg/strs"
 )
 
@@ -253,7 +254,7 @@ func (p *podSpec) addRuntimeContainer(svc composeTypes.ServiceConfig, dnsIP stri
 	svcAliasesMapping map[string][]string) error {
 
 	p.pod.Namespace = p.namespace
-	p.pod.Name = kube.PodName(svc.Name)
+	p.pod.Name = names.PodName(svc.Name)
 	p.pod.Labels = map[string]string{
 		"blimp.service":     svc.Name,
 		"blimp.customerPod": "true",
@@ -320,7 +321,7 @@ func (p *podSpec) addRuntimeContainer(svc composeTypes.ServiceConfig, dnsIP stri
 			Env:             toEnvVars(svc.Environment),
 			Image:           p.image,
 			ImagePullPolicy: "Always",
-			Name:            kube.PodName(svc.Name),
+			Name:            names.PodName(svc.Name),
 			SecurityContext: securityContext,
 			Stdin:           svc.StdinOpen,
 			TTY:             svc.Tty,
@@ -577,7 +578,7 @@ func (p *podSpec) addWaiter(nodeControllerIP, svcName, waitType string, spec wai
 	configMap := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: p.namespace,
-			Name:      kube.PodName(fmt.Sprintf("wait-spec-%s-%s", waitType, svcName)),
+			Name:      names.PodName(fmt.Sprintf("wait-spec-%s-%s", waitType, svcName)),
 		},
 		BinaryData: map[string][]byte{
 			"wait-spec": waitSpecBytes,
