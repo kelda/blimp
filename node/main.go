@@ -121,8 +121,7 @@ func (s *server) Tunnel(nsrv node.Controller_TunnelServer) error {
 
 	dstPod, err := s.podLister.Pods(namespace).Get(podName)
 	if err != nil {
-		msg := fmt.Sprintf("unknown destination")
-		return status.New(codes.OutOfRange, msg).Err()
+		return status.New(codes.OutOfRange, "unknown destination").Err()
 	}
 
 	dialAddr := fmt.Sprintf("%s:%d", dstPod.Status.PodIP, port)

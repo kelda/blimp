@@ -34,7 +34,7 @@ type server struct {
 
 // Implementations of waiters should block until they have finished waiting.
 // They may send status updates on the updates channel.
-type waiter func(ctx context.Context, updates chan<- string) error
+type Waiter func(ctx context.Context, updates chan<- string) error
 
 // podCondition tests for a condition on a pod. Status is a friendly message used
 // for sending status updates to the client.
@@ -88,7 +88,7 @@ func (s *server) CheckReady(req *wait.CheckReadyRequest, srv wait.BootWaiter_Che
 	log.WithField("req", req).Info("Received CheckReady request")
 
 	// Transform the boot requirements into a set of waiters.
-	var waiters []waiter
+	var waiters []Waiter
 	for _, condition := range req.GetWaitSpec().GetDependsOn() {
 		var pc podCondition
 		switch condition.Condition {
@@ -129,7 +129,7 @@ func (s *server) CheckReady(req *wait.CheckReadyRequest, srv wait.BootWaiter_Che
 	return s.waitForAll(srv, waiters)
 }
 
-func (s *server) waitForAll(srv wait.BootWaiter_CheckReadyServer, waiters []waiter) error {
+func (s *server) waitForAll(srv wait.BootWaiter_CheckReadyServer, waiters []Waiter) error {
 	waitCtx, cancelWaiters := context.WithCancel(context.Background())
 	defer cancelWaiters()
 

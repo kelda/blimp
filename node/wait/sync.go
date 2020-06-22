@@ -88,7 +88,7 @@ func (st *SyncTracker) RunServer(namespace string, srv node.Controller_SyncNotif
 
 // WaitFor creates a waiter function that blocks until the initial sync is
 // completed for the given namespace.
-func (st *SyncTracker) WaitFor(namespace string) waiter {
+func (st *SyncTracker) WaitFor(namespace string) Waiter {
 	return func(ctx context.Context, updates chan<- string) error {
 		log.WithField("namespace", namespace).Info("Started waiting for bind volumes to sync")
 

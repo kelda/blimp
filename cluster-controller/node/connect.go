@@ -14,7 +14,8 @@ import (
 
 // GetConnectionInfo returns the information the CLI needs to connect to the
 // Node Controller running on `node`.
-func GetConnectionInfo(ctx context.Context, kubeClient kubernetes.Interface, node string) (addr string, cert string, err error) {
+func GetConnectionInfo(ctx context.Context, kubeClient kubernetes.Interface, node string) (
+	addr string, cert string, err error) {
 	// Block until the Node Controller is ready to accept connections.
 	// This is required so that we can be certain that the certificate for the
 	// controller exists, and so that we know that the CLI's requests to the

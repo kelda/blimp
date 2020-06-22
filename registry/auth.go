@@ -36,33 +36,11 @@ func (ks diskCachedKeySet) VerifySignature(ctx context.Context, jwt string) ([]b
 
 	if err != nil {
 		log.WithError(err).Info("Fetching JWKS from remote")
-		resp, err := http.Get(ks.remoteURL)
-		if err != nil {
-			return nil, errors.WithContext("fetch jwks from remote", err)
-		}
-		defer resp.Body.Close()
+		keys, err = ks.fetchKeySet()
+	}
 
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, errors.WithContext("read jwks response body", err)
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			return nil, errors.New(
-				"bad status code %s while fetching jwks, body: %s", resp.Status, body)
-		}
-
-		err = json.Unmarshal(body, &keys)
-		if err != nil {
-			return nil, errors.WithContext(
-				fmt.Sprintf("failed to decode jwks with body %s", body), err)
-		}
-
-		// Write to disk cache.
-		err = ioutil.WriteFile(ks.localPath, body, 0600)
-		if err != nil {
-			log.WithError(err).Error("Couldn't write JWKS to disk cache.")
-		}
+	if err != nil {
+		return nil, err
 	}
 
 	for _, key := range keys.Keys {
@@ -72,4 +50,36 @@ func (ks diskCachedKeySet) VerifySignature(ctx context.Context, jwt string) ([]b
 		}
 	}
 	return nil, errors.New("failed to verify id token signature")
+}
+
+func (ks diskCachedKeySet) fetchKeySet() (jose.JSONWebKeySet, error) {
+	resp, err := http.Get(ks.remoteURL)
+	if err != nil {
+		return jose.JSONWebKeySet{}, errors.WithContext("fetch jwks from remote", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return jose.JSONWebKeySet{}, errors.WithContext("read jwks response body", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return jose.JSONWebKeySet{}, errors.New(
+			"bad status code %s while fetching jwks, body: %s", resp.Status, body)
+	}
+
+	var keys jose.JSONWebKeySet
+	err = json.Unmarshal(body, &keys)
+	if err != nil {
+		return jose.JSONWebKeySet{}, errors.WithContext(
+			fmt.Sprintf("failed to decode jwks with body %s", body), err)
+	}
+
+	// Write to disk cache.
+	err = ioutil.WriteFile(ks.localPath, body, 0600)
+	if err != nil {
+		log.WithError(err).Error("Couldn't write JWKS to disk cache.")
+	}
+	return keys, nil
 }

@@ -109,7 +109,7 @@ func (s *cliLoginServer) cliLoginCallback(w http.ResponseWriter, r *http.Request
 		log.WithError(err).Warn("Failed to parse ID token from auth0")
 	}
 
-	http.Redirect(w, r, redirectURL, 302)
+	http.Redirect(w, r, redirectURL, http.StatusFound)
 }
 
 func (s *cliLoginServer) Login(_ *login.LoginRequest, srv login.Login_LoginServer) error {

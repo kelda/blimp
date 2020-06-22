@@ -28,7 +28,7 @@ func main() {
 	// This hack can be removed when we upgrade to Docker >=19.03.
 	start := time.Now()
 	defer func() {
-		elapsedTime := time.Now().Sub(start)
+		elapsedTime := time.Since(start)
 		if elapsedTime < 5*time.Second {
 			time.Sleep(5*time.Second - elapsedTime)
 		}

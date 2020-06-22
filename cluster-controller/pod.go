@@ -145,19 +145,28 @@ func (b podBuilder) ToPod(svc composeTypes.ServiceConfig) (corev1.Pod, []corev1.
 		}
 		servicesSharingVolumes = remove(strs.Unique(servicesSharingVolumes), svc.Name)
 		if len(servicesSharingVolumes) != 0 {
-			spec.addWaiter(b.nodeControllerIP, svc.Name, kube.ContainerNameWaitInitializedVolumes,
+			err := spec.addWaiter(b.nodeControllerIP, svc.Name, kube.ContainerNameWaitInitializedVolumes,
 				wait.WaitSpec{FinishedVolumeInit: servicesSharingVolumes})
+			if err != nil {
+				return corev1.Pod{}, nil, err
+			}
 		}
 	}
 
 	if len(svc.DependsOn) != 0 {
-		spec.addWaiter(b.nodeControllerIP, svc.Name, kube.ContainerNameWaitDependsOn,
+		err := spec.addWaiter(b.nodeControllerIP, svc.Name, kube.ContainerNameWaitDependsOn,
 			wait.WaitSpec{DependsOn: marshalDependencies(svc.DependsOn, svc.Links)})
+		if err != nil {
+			return corev1.Pod{}, nil, err
+		}
 	}
 
 	if len(bindVolumes) != 0 {
-		spec.addWaiter(b.nodeControllerIP, svc.Name, kube.ContainerNameWaitInitialSync,
+		err := spec.addWaiter(b.nodeControllerIP, svc.Name, kube.ContainerNameWaitInitialSync,
 			wait.WaitSpec{BindVolumes: bindVolumes})
+		if err != nil {
+			return corev1.Pod{}, nil, err
+		}
 	}
 
 	if err := spec.addRuntimeContainer(svc, b.dnsIP, b.svcAliasesMapping); err != nil {
@@ -442,7 +451,7 @@ func toEnvVars(vars composeTypes.MappingWithEquals) (kubeVars []corev1.EnvVar) {
 		}
 
 		// Escape dollar signs to disable interpolation by Kubernetes. Any variable
-		// interpolation will have occured by now during the initial parsing of
+		// interpolation will have occurred by now during the initial parsing of
 		// the Docker Compose file.
 		v = strings.Replace(v, "$", "$$", -1)
 

@@ -42,7 +42,7 @@ func Init(id StreamID) {
 	})
 }
 
-// ddFormatter formats log entries according to DD's preferred format
+// ddFormatter formats log entries according to DD's preferred format.
 var ddFormatter = &logrus.JSONFormatter{
 	FieldMap: logrus.FieldMap{
 		logrus.FieldKeyTime:  "timestamp",

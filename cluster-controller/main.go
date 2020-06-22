@@ -8,7 +8,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"time"
 
@@ -62,7 +61,7 @@ type server struct {
 	maxSandboxes      int
 }
 
-// Set by make.
+// RegistryHostname is set by make.
 var RegistryHostname string
 
 // MaxServices is the maximum number of service pods allowed in a single
@@ -192,7 +191,8 @@ func (s *server) ProxyAnalytics(ctx context.Context, req *cluster.ProxyAnalytics
 	return &cluster.ProxyAnalyticsResponse{}, analytics.Post([]byte(req.GetBody()))
 }
 
-func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRequest) (*cluster.CreateSandboxResponse, error) {
+func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRequest) (
+	*cluster.CreateSandboxResponse, error) {
 	log.Info("Start CreateSandbox")
 
 	// Validate that the user logged in, and get their information.
@@ -209,7 +209,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 	analytics.Log.
 		WithField("namespace", user.Namespace).
 		WithField("serviceNames", dcCfg.ServiceNames()).
-		WithField("composeHash", hash.DnsCompliant(req.GetComposeFile())).
+		WithField("composeHash", hash.DNSCompliant(req.GetComposeFile())).
 		Info("Parsed CreateSandbox request")
 
 	// If the user has already booted a sandbox, don't count it against the
@@ -768,7 +768,8 @@ func toDockerAuthConfig(creds map[string]*cluster.RegistryCredential) (string, e
 	return string(dockerConfig), err
 }
 
-func (s *server) createPodRunnerServiceAccount(namespace string, registryCredentials map[string]*cluster.RegistryCredential) error {
+func (s *server) createPodRunnerServiceAccount(namespace string,
+	registryCredentials map[string]*cluster.RegistryCredential) error {
 	dockerAuthConfig, err := toDockerAuthConfig(registryCredentials)
 	if err != nil {
 		return errors.WithContext("marshal docker auth config", err)
@@ -782,7 +783,7 @@ func (s *server) createPodRunnerServiceAccount(namespace string, registryCredent
 		},
 		Type: corev1.SecretTypeDockerConfigJson,
 		StringData: map[string]string{
-			corev1.DockerConfigJsonKey: string(dockerAuthConfig),
+			corev1.DockerConfigJsonKey: dockerAuthConfig,
 		},
 	}
 
@@ -803,10 +804,8 @@ func (s *server) createPodRunnerServiceAccount(namespace string, registryCredent
 		if _, err := secretClient.Update(&secret); err != nil {
 			return errors.WithContext("update regcred secret", err)
 		}
-	} else {
-		if _, err := secretClient.Create(&secret); err != nil {
-			return errors.WithContext("create regcred secret", err)
-		}
+	} else if _, err := secretClient.Create(&secret); err != nil {
+		return errors.WithContext("create regcred secret", err)
 	}
 
 	return kube.DeployServiceAccount(s.kubeClient, serviceAccount)
@@ -840,7 +839,8 @@ func (s *server) deployCustomerPods(namespace string, desired []corev1.Pod) erro
 	return nil
 }
 
-func (s *server) DeleteSandbox(ctx context.Context, req *cluster.DeleteSandboxRequest) (*cluster.DeleteSandboxResponse, error) {
+func (s *server) DeleteSandbox(ctx context.Context, req *cluster.DeleteSandboxRequest) (
+	*cluster.DeleteSandboxResponse, error) {
 	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
 	if err != nil {
 		return &cluster.DeleteSandboxResponse{}, err
@@ -906,9 +906,7 @@ func (s *server) WatchStatus(req *cluster.GetStatusRequest, stream cluster.Manag
 			return err
 		}
 
-		select {
-		case <-trig:
-		}
+		<-trig
 	}
 }
 
@@ -1163,14 +1161,6 @@ func podIsRunning(pod *corev1.Pod) bool {
 
 func podIsScheduled(pod *corev1.Pod) bool {
 	return pod.Spec.NodeName != ""
-}
-
-func mapToSlice(set map[string]struct{}) (slc []string) {
-	for str := range set {
-		slc = append(slc, str)
-	}
-	sort.Strings(slc)
-	return slc
 }
 
 func contains(slc []string, exp string) bool {

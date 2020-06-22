@@ -23,7 +23,7 @@ func BindVolumeRoot(namespace string) corev1.Volume {
 }
 
 func hostPathVolume(namespace, id string) corev1.Volume {
-	id = hash.DnsCompliant(id)
+	id = hash.DNSCompliant(id)
 	hostPathType := corev1.HostPathDirectoryOrCreate
 	return corev1.Volume{
 		Name: id,

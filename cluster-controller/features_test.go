@@ -1,10 +1,12 @@
-package main
+package main_test
 
 import (
 	"testing"
 
 	"github.com/kelda/compose-go/types"
 	"github.com/stretchr/testify/assert"
+
+	main "github.com/kelda-inc/blimp/cluster-controller"
 )
 
 func TestValidateFeatures(t *testing.T) {
@@ -103,6 +105,6 @@ func TestValidateFeatures(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		assert.Equal(t, test.exp, GetUnsupportedFeatures(test.cfg))
+		assert.Equal(t, test.exp, main.GetUnsupportedFeatures(test.cfg))
 	}
 }

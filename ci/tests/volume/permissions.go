@@ -12,7 +12,7 @@ import (
 )
 
 var permissionsTestFiles = map[string]string{
-	"docker-compose.yml": `verison: '3'
+	"docker-compose.yml": `version: '3'
 services:
   ubuntu:
     build: .

@@ -41,9 +41,9 @@ func main() {
 
 		toContents, err := ioutil.ReadDir(to)
 		switch {
-		// It's ok if the volume does not exist yet -- the copy will create it.
 		case os.IsNotExist(err):
-			toContents = nil
+			// It's ok if the volume does not exist yet -- the copy will create
+			// it.
 		case err != nil:
 			log.WithError(err).Error("Failed to stat volume contents. Skipping.")
 			continue

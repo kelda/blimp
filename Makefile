@@ -103,3 +103,9 @@ deploy-login-proxy:
 	sed -i.bak 's|<LOGIN_PROXY_HOSTNAME>|${LOGIN_PROXY_HOSTNAME}|' ./login-proxy/kube/login-deployment.yaml
 	sed -i.bak 's|<LOGIN_PROXY_IP>|${LOGIN_PROXY_IP}|' ./login-proxy/kube/login-service.yaml
 	kubectl apply -f ./login-proxy/kube
+
+lint:
+	golangci-lint run
+
+lint-fix:
+	golangci-lint run --fix

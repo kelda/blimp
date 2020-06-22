@@ -110,7 +110,8 @@ func DeployServiceAccount(kubeClient kubernetes.Interface, sa corev1.ServiceAcco
 	return deployServiceAccount(kubeClient, sa, roles, nil)
 }
 
-func DeployClusterServiceAccount(kubeClient kubernetes.Interface, sa corev1.ServiceAccount, roles ...rbacv1.ClusterRole) error {
+func DeployClusterServiceAccount(kubeClient kubernetes.Interface, sa corev1.ServiceAccount,
+	roles ...rbacv1.ClusterRole) error {
 	return deployServiceAccount(kubeClient, sa, nil, roles)
 }
 
@@ -167,7 +168,8 @@ func deployServiceAccount(kubeClient kubernetes.Interface, serviceAccount corev1
 	return nil
 }
 
-func roleBindingForRole(sa corev1.ServiceAccount, roleKind, roleName string) (metav1.ObjectMeta, []rbacv1.Subject, rbacv1.RoleRef) {
+func roleBindingForRole(sa corev1.ServiceAccount, roleKind, roleName string) (
+	metav1.ObjectMeta, []rbacv1.Subject, rbacv1.RoleRef) {
 	meta := metav1.ObjectMeta{
 		Name:      fmt.Sprintf("%s-%s", sa.Name, roleName),
 		Namespace: sa.Namespace,
@@ -196,10 +198,8 @@ func DeployConfigMap(kubeClient kubernetes.Interface, configMap corev1.ConfigMap
 		if _, err := configMapClient.Update(&configMap); err != nil {
 			return errors.WithContext("update configMap", err)
 		}
-	} else {
-		if _, err := configMapClient.Create(&configMap); err != nil {
-			return errors.WithContext("create configMap", err)
-		}
+	} else if _, err := configMapClient.Create(&configMap); err != nil {
+		return errors.WithContext("create configMap", err)
 	}
 	return nil
 }
