@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -153,7 +154,7 @@ func (cmd *up) getServicesToPush(services composeTypes.Services) (toPush compose
 	cachedImageNames := []string{}
 	svcToCachedImage := map[string]string{}
 	for _, svc := range services {
-		id, ok := getImage(cmd.cachedImages, cmd.getCachedImageName(svc.Name))
+		id, ok := cmd.getCachedImage(svc.Name)
 		if ok {
 			imageName := getImageName(cmd.imageNamespace, svc.Name, id)
 			cachedImageNames = append(cachedImageNames, imageName)
@@ -343,7 +344,7 @@ func (cmd *up) getBaseImage(dockerfilePath string) (string, error) {
 func (cmd *up) buildImage(spec composeTypes.BuildConfig, svc string) (string, error) {
 	// If we've built the image already on a previous run, just use the cached
 	// version.
-	id, ok := getImage(cmd.cachedImages, cmd.getCachedImageName(svc))
+	id, ok := cmd.getCachedImage(svc)
 	if ok {
 		log.WithField("service", svc).
 			WithField("id", id).
@@ -454,16 +455,43 @@ func (cmd *up) getCachedImages() ([]types.ImageSummary, error) {
 
 	opts := types.ImageListOptions{
 		Filters: filters.NewArgs(filters.KeyValuePair{
-			Key:   "reference",
+			Key: "reference",
+			// This will match images built by Blimp.
 			Value: fmt.Sprintf("%s:*", imageCacheRepo),
+		}, filters.KeyValuePair{
+			Key: "reference",
+			// This will match images built by Docker Compose.
+			Value: fmt.Sprintf("%s_*:latest", cmd.getComposeImagePrefix()),
 		}),
 	}
 	return cmd.dockerClient.ImageList(context.Background(), opts)
 }
 
+// See https://github.com/docker/compose/blob/854c14a5bcf566792ee8a972325c37590521656b/compose/service.py#L379
+// and https://github.com/docker/compose/blob/854c14a5bcf566792ee8a972325c37590521656b/compose/cli/command.py#L176.
+func (cmd *up) getComposeImagePrefix() string {
+	project := filepath.Base(filepath.Dir(cmd.composePath))
+	badChar := regexp.MustCompile(`[^-_a-z0-9]`)
+	return badChar.ReplaceAllString(strings.ToLower(project), "")
+}
+
 func (cmd *up) getCachedImageName(svc string) string {
 	tag := hash.DNSCompliant(fmt.Sprintf("%s-%s", cmd.composePath, svc))
 	return fmt.Sprintf("%s:%s", imageCacheRepo, tag)
+}
+
+func (cmd *up) getCachedImage(svc string) (string, bool) {
+	// Look for an image built by Blimp.
+	imageName := cmd.getCachedImageName(svc)
+	image, ok := getImage(cmd.cachedImages, imageName)
+	if ok {
+		return image, ok
+	}
+
+	// If we didn't find a Blimp-built image, look for one built by Docker
+	// Compose.
+	composeImageName := fmt.Sprintf("%s_%s:latest", cmd.getComposeImagePrefix(), svc)
+	return getImage(cmd.cachedImages, composeImageName)
 }
 
 func getImage(images []types.ImageSummary, exp string) (id string, ok bool) {
