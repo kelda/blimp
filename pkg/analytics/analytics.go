@@ -43,7 +43,7 @@ func Init(c cluster.ManagerClient, id StreamID) {
 	})
 }
 
-// ddFormatter formats log entries according to DD's preferred format
+// ddFormatter formats log entries according to DD's preferred format.
 var ddFormatter = &logrus.JSONFormatter{
 	FieldMap: logrus.FieldMap{
 		logrus.FieldKeyTime:  "timestamp",
@@ -94,6 +94,7 @@ func (h *hook) Fire(entry *logrus.Entry) error {
 		return nil
 	}
 
+	//nolint:errcheck // We want to return nil whether or not this errors.
 	h.client.ProxyAnalytics(context.TODO(), &cluster.ProxyAnalyticsRequest{
 		Body: string(jsonBytes),
 	})

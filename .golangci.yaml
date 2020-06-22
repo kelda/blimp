@@ -1,0 +1,24 @@
+run:
+  deadline: 3m
+  concurrency: 2
+
+linters:
+  enable-all: true
+  disable:
+    - dogsled
+    - funlen
+    - gochecknoglobals
+    - gochecknoinits
+    - gocognit
+    - gocyclo
+    - godox
+    - goerr113
+    - gomnd
+    - gosec
+    - interfacer
+    - maligned
+    - prealloc
+    - staticcheck
+    - vetshadow
+    - whitespace
+    - wsl

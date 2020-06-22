@@ -1,3 +1,5 @@
+// This is not in dockercompose_test so that we can override the fs global
+// variable.
 package dockercompose
 
 import (
@@ -36,7 +38,7 @@ ignoreme:
 		t.Run(test.name, func(t *testing.T) {
 			fs = afero.NewMemMapFs()
 			assert.NoError(t, afero.WriteFile(fs, "docker-compose.yml", []byte(test.composeFile), 0644))
-			config, err := Load("docker-compose.yml", nil)
+			config, err := Load("docker-compose.yml", nil, nil)
 			assert.Equal(t, test.expError, err)
 			assert.Equal(t, test.expConfig, config)
 		})

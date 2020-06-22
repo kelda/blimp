@@ -65,7 +65,7 @@ func WithContext(context string, err error) error {
 }
 
 // Cause returns the cause of the given error if it's defined.
-func Cause(err error) (error, bool) { // nolint: golint, staticcheck, stylecheck
+func Cause(err error) (error, bool) { //nolint:golint,stylecheck
 	errWithContext, ok := err.(ContextError)
 	if !ok {
 		return nil, false

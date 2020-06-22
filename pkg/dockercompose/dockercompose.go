@@ -127,35 +127,37 @@ func Load(composePath string, overridePaths, services []string) (types.Config, e
 			//     volumes:
 			//       - '/node_modules'
 			if volume.Type == types.VolumeTypeVolume && volume.Source == "" {
-				name := hash.DnsCompliant(fmt.Sprintf("%s-%s", svc.Name, volume.Target))
+				name := hash.DNSCompliant(fmt.Sprintf("%s-%s", svc.Name, volume.Target))
 				cfgPtr.Services[svcIdx].Volumes[volumeIdx].Source = name
 			}
 
-			// Resolve any bind volumes that reference symlinks. Docker mounts the
-			// contents of the symlink, rather than the symlink itself.
-			if volume.Type == types.VolumeTypeBind {
-				fi, err := os.Lstat(volume.Source)
+			if volume.Type != types.VolumeTypeBind {
+				continue
+			}
+
+			// Resolve any bind volumes that reference symlinks. Docker mounts
+			// the contents of the symlink, rather than the symlink itself.
+			fi, err := os.Lstat(volume.Source)
+			if err != nil {
+				if !os.IsNotExist(err) {
+					log.WithError(err).WithField("path", volume.Source).Warn("Failed to stat volume")
+				}
+				continue
+			}
+
+			if fi.Mode()&os.ModeSymlink != 0 {
+				link, err := os.Readlink(volume.Source)
 				if err != nil {
-					if !os.IsNotExist(err) {
-						log.WithError(err).WithField("path", volume.Source).Warn("Failed to stat volume")
-					}
+					log.WithError(err).WithField("path", volume.Source).Warn(
+						"Failed to get symlink target for volume")
 					continue
 				}
 
-				if fi.Mode()&os.ModeSymlink != 0 {
-					link, err := os.Readlink(volume.Source)
-					if err != nil {
-						log.WithError(err).WithField("path", volume.Source).Warn(
-							"Failed to get symlink target for volume")
-						continue
-					}
-
-					newPath := link
-					if !filepath.IsAbs(link) {
-						newPath = filepath.Join(filepath.Dir(volume.Source), link)
-					}
-					cfgPtr.Services[svcIdx].Volumes[volumeIdx].Source = newPath
+				newPath := link
+				if !filepath.IsAbs(link) {
+					newPath = filepath.Join(filepath.Dir(volume.Source), link)
 				}
+				cfgPtr.Services[svcIdx].Volumes[volumeIdx].Source = newPath
 
 			}
 		}

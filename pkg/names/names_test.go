@@ -1,9 +1,11 @@
-package names
+package names_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/kelda/blimp/pkg/names"
 )
 
 func TestPodName(t *testing.T) {
@@ -70,7 +72,7 @@ func TestPodName(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		podName := PodName(test.input)
+		podName := names.PodName(test.input)
 		assert.Equal(t, test.expOutput, podName, test.name)
 	}
 }

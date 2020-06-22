@@ -34,7 +34,7 @@ func PodName(serviceName string) string {
 
 	// Also append a hash to distinguish between services that are identitical
 	// after being sanitized.
-	h := hash.DnsCompliant(serviceName)
+	h := hash.DNSCompliant(serviceName)
 	if len(h) > 10 {
 		h = h[:10]
 	}

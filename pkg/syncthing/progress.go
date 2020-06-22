@@ -10,9 +10,9 @@ import (
 type progressPhase int
 
 const (
-	PROGRESS_PENDING progressPhase = iota
-	PROGRESS_DONE
-	PROGRESS_ERROR
+	ProgressPending progressPhase = iota
+	ProgressDone
+	ProgressError
 )
 
 type progressStatus struct {
@@ -27,12 +27,12 @@ func waitUntil(ctx context.Context, maxRetries int, fn progressFunction) error {
 	var err error
 	for {
 		switch status := fn(); status.phase {
-		case PROGRESS_DONE:
+		case ProgressDone:
 			return nil
-		case PROGRESS_PENDING:
+		case ProgressPending:
 			retries = 0
 			err = nil
-		case PROGRESS_ERROR:
+		case ProgressError:
 			retries++
 			err = status.err
 		}

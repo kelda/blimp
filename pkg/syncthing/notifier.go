@@ -18,6 +18,7 @@ func runSyncCompletionServer(ctx context.Context, ncc node.ControllerClient, tok
 		if err != nil {
 			return errors.WithContext("start stream", err)
 		}
+		//nolint:errcheck // Nothing we could do if this errors anyway.
 		defer conn.CloseSend()
 
 		err = conn.Send(&node.SyncStatusResponse{

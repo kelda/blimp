@@ -34,7 +34,6 @@ var Endpoint = oauth2.Endpoint{
 	AuthStyle: oauth2.AuthStyleInParams,
 }
 
-// TODO: Fetching over the network.. Any issues if no network connectivity?
 var DefaultKeySet = oidc.NewRemoteKeySet(context.Background(), JWKSURL)
 
 var DefaultVerifier = VerifierFromKeySet(DefaultKeySet)
@@ -79,7 +78,7 @@ func ParseIDToken(token string, verifier *oidc.IDTokenVerifier) (User, error) {
 		return User{}, errors.WithContext("parse claims", err)
 	}
 
-	user.Namespace = hash.DnsCompliant(user.ID)
+	user.Namespace = hash.DNSCompliant(user.ID)
 	return user, nil
 }
 

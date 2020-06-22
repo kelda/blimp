@@ -131,9 +131,9 @@ func setLocalFolderType(ctx context.Context, c APIClient, t string, idPathMap ma
 
 		err := c.Restart()
 		if err == nil {
-			return progressStatus{phase: PROGRESS_DONE}
+			return progressStatus{phase: ProgressDone}
 		}
-		return progressStatus{phase: PROGRESS_ERROR, err: err}
+		return progressStatus{phase: ProgressError, err: err}
 	})
 }
 
@@ -165,24 +165,9 @@ func waitUntilConnected(ctx context.Context, localClient, remoteClient APIClient
 
 		connErr := isConnected()
 		if connErr == nil {
-			return progressStatus{phase: PROGRESS_DONE}
+			return progressStatus{phase: ProgressDone}
 		}
-		return progressStatus{phase: PROGRESS_ERROR, err: connErr}
-	})
-}
-
-func resetDatabases(ctx context.Context, clients ...APIClient) error {
-	return waitUntil(ctx, 10, func() progressStatus {
-		log.Debug("Resetting Syncthing databases")
-
-		for _, c := range clients {
-			if err := c.Reset(); err != nil {
-				log.WithError(err).Warn("Failed to reset database")
-				return progressStatus{phase: PROGRESS_ERROR, err: err}
-			}
-		}
-
-		return progressStatus{phase: PROGRESS_DONE}
+		return progressStatus{phase: ProgressError, err: connErr}
 	})
 }
 
@@ -200,7 +185,7 @@ func waitUntilScanned(ctx context.Context, c APIClient, folders []string) error 
 			// This check doesn't account for subsequent scans, but Syncthing
 			// is usually in the "idle" state unless there was a file change,
 			// so this isn't a big performance issue. Even if we do some
-			// unecessary checks, it'll probably just be a couple at most.
+			// unnecessary checks, it'll probably just be a couple at most.
 			if status.State == "scanning" || status.State == "scan-waiting" {
 				return false, nil
 			}
@@ -214,17 +199,17 @@ func waitUntilScanned(ctx context.Context, c APIClient, folders []string) error 
 		scanned, err := hasScanned()
 		if err != nil {
 			log.WithError(err).Warn("Failed to get syncthing scan status")
-			return progressStatus{phase: PROGRESS_ERROR, err: err}
+			return progressStatus{phase: ProgressError, err: err}
 		}
 
 		if scanned {
-			return progressStatus{phase: PROGRESS_DONE}
+			return progressStatus{phase: ProgressDone}
 		}
-		return progressStatus{phase: PROGRESS_PENDING}
+		return progressStatus{phase: ProgressPending}
 	})
 }
 
-func waitUntilSynced(ctx context.Context, local, remote APIClient, folders []string) error {
+func waitUntilSynced(ctx context.Context, local APIClient, folders []string) error {
 	isSynced := func() (bool, error) {
 		for _, folder := range folders {
 			// Make sure the remote is using our index.
@@ -257,12 +242,12 @@ func waitUntilSynced(ctx context.Context, local, remote APIClient, folders []str
 		synced, err := isSynced()
 		if err != nil {
 			log.WithError(err).Warn("Failed to check sync status")
-			return progressStatus{phase: PROGRESS_ERROR, err: err}
+			return progressStatus{phase: ProgressError, err: err}
 		}
 
 		if synced {
-			return progressStatus{phase: PROGRESS_DONE}
+			return progressStatus{phase: ProgressDone}
 		}
-		return progressStatus{phase: PROGRESS_PENDING}
+		return progressStatus{phase: ProgressPending}
 	})
 }
