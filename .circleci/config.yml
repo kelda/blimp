@@ -26,12 +26,20 @@ jobs:
           name: Upload Release
           command: ./scripts/upload_release.sh
 
+  lint:
+    docker:
+      - image: golangci/golangci-lint
+    steps:
+      - checkout
+      - run: golangci-lint run -v
+
 workflows:
   version: 2
 
   pr:
     jobs:
       - build
+      - lint
 
   build-push-tag:
     jobs:
