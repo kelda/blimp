@@ -11,13 +11,13 @@ func TestCalculateMounts(t *testing.T) {
 	tests := []struct {
 		name    string
 		dirs    []string
-		volumes []string
+		volumes []BindVolume
 		exp     []Mount
 	}{
 		{
 			name: "Sync directory",
-			volumes: []string{
-				"/Users/kevin/kelda.io",
+			volumes: []BindVolume{
+				{LocalPath: "/Users/kevin/kelda.io"},
 			},
 			dirs: []string{
 				"/Users/kevin/kelda.io",
@@ -31,9 +31,9 @@ func TestCalculateMounts(t *testing.T) {
 		},
 		{
 			name: "Sync two files in same dir",
-			volumes: []string{
-				"/Users/kevin/kelda.io/file-1",
-				"/Users/kevin/kelda.io/file-2",
+			volumes: []BindVolume{
+				{LocalPath: "/Users/kevin/kelda.io/file-1"},
+				{LocalPath: "/Users/kevin/kelda.io/file-2"},
 			},
 			dirs: []string{
 				"/Users/kevin/kelda.io",
@@ -50,10 +50,10 @@ func TestCalculateMounts(t *testing.T) {
 		},
 		{
 			name: "Sync two files in same dir and parent dir",
-			volumes: []string{
-				"/Users/kevin/kelda.io",
-				"/Users/kevin/kelda.io/file-1",
-				"/Users/kevin/kelda.io/file-2",
+			volumes: []BindVolume{
+				{LocalPath: "/Users/kevin/kelda.io"},
+				{LocalPath: "/Users/kevin/kelda.io/file-1"},
+				{LocalPath: "/Users/kevin/kelda.io/file-2"},
 			},
 			dirs: []string{
 				"/Users/kevin/kelda.io",
@@ -67,11 +67,11 @@ func TestCalculateMounts(t *testing.T) {
 		},
 		{
 			name: "Nested syncs",
-			volumes: []string{
-				"/Users/kevin/kelda.io",
-				"/Users/kevin/kelda.io/files",
-				"/Users/kevin/kelda.io/files/file-1",
-				"/Users/kevin/kelda.io/files/file-2",
+			volumes: []BindVolume{
+				{LocalPath: "/Users/kevin/kelda.io"},
+				{LocalPath: "/Users/kevin/kelda.io/files"},
+				{LocalPath: "/Users/kevin/kelda.io/files/file-1"},
+				{LocalPath: "/Users/kevin/kelda.io/files/file-2"},
 			},
 			dirs: []string{
 				"/Users/kevin/kelda.io",
@@ -86,9 +86,9 @@ func TestCalculateMounts(t *testing.T) {
 		},
 		{
 			name: "Nested syncs with top-level file",
-			volumes: []string{
-				"/Users/kevin/kelda.io/top-level",
-				"/Users/kevin/kelda.io/files/subdir",
+			volumes: []BindVolume{
+				{LocalPath: "/Users/kevin/kelda.io/top-level"},
+				{LocalPath: "/Users/kevin/kelda.io/files/subdir"},
 			},
 			dirs: []string{
 				"/Users/kevin/kelda.io",
@@ -107,9 +107,9 @@ func TestCalculateMounts(t *testing.T) {
 		},
 		{
 			name: "Top level file sync with nested dir sync",
-			volumes: []string{
-				"/Users/kevin/kelda.io/file-1",
-				"/Users/kevin/kelda.io/dir",
+			volumes: []BindVolume{
+				{LocalPath: "/Users/kevin/kelda.io/file-1"},
+				{LocalPath: "/Users/kevin/kelda.io/dir"},
 			},
 			dirs: []string{
 				"/Users/kevin/kelda.io",
@@ -127,9 +127,9 @@ func TestCalculateMounts(t *testing.T) {
 		},
 		{
 			name: "Syncing entire directory and nested file, with the file coming first",
-			volumes: []string{
-				"/Users/kevin/kelda.io/file-1",
-				"/Users/kevin/kelda.io",
+			volumes: []BindVolume{
+				{LocalPath: "/Users/kevin/kelda.io/file-1"},
+				{LocalPath: "/Users/kevin/kelda.io"},
 			},
 			dirs: []string{
 				"/Users/kevin/kelda.io",
@@ -143,9 +143,9 @@ func TestCalculateMounts(t *testing.T) {
 		},
 		{
 			name: "Multiple mounts",
-			volumes: []string{
-				"/Users/kevin/dir-1/file",
-				"/Users/kevin/dir-2/file",
+			volumes: []BindVolume{
+				{LocalPath: "/Users/kevin/dir-1/file"},
+				{LocalPath: "/Users/kevin/dir-2/file"},
 			},
 			dirs: []string{
 				"/Users/kevin/kelda.io",
@@ -169,10 +169,10 @@ func TestCalculateMounts(t *testing.T) {
 		},
 		{
 			name: "Syncing entire directory and nested directory, as well as a sibling file",
-			volumes: []string{
-				"/Users/kevin/kelda.io/dir",
-				"/Users/kevin/kelda.io",
-				"/Users/kevin/sibling",
+			volumes: []BindVolume{
+				{LocalPath: "/Users/kevin/kelda.io/dir"},
+				{LocalPath: "/Users/kevin/kelda.io"},
+				{LocalPath: "/Users/kevin/sibling"},
 			},
 			dirs: []string{
 				"/Users/kevin/kelda.io",
@@ -185,6 +185,214 @@ func TestCalculateMounts(t *testing.T) {
 						"sibling",
 						"kelda.io",
 					},
+				},
+			},
+		},
+		{
+			name: "Sync directory with mask",
+			volumes: []BindVolume{
+				{
+					LocalPath: "/Users/kevin/kelda.io",
+					Masks:     []string{"masked"},
+				},
+			},
+			dirs: []string{
+				"/Users/kevin/kelda.io",
+			},
+			exp: []Mount{
+				{
+					Path:    "/Users/kevin/kelda.io",
+					SyncAll: true,
+					Ignore:  []string{"masked"},
+				},
+			},
+		},
+		{
+			name: "Sync directory with multiple masks",
+			volumes: []BindVolume{
+				{
+					LocalPath: "/Users/kevin/kelda.io",
+					Masks: []string{
+						"masked1",
+						"masked2",
+					},
+				},
+			},
+			dirs: []string{
+				"/Users/kevin/kelda.io",
+			},
+			exp: []Mount{
+				{
+					Path:    "/Users/kevin/kelda.io",
+					SyncAll: true,
+					Ignore: []string{
+						"masked1",
+						"masked2",
+					},
+				},
+			},
+		},
+		{
+			name: "Sync directory twice with same mask",
+			volumes: []BindVolume{
+				{
+					LocalPath: "/Users/kevin/kelda.io",
+					Masks:     []string{"masked"},
+				},
+				{
+					LocalPath: "/Users/kevin/kelda.io",
+					Masks:     []string{"masked"},
+				},
+			},
+			dirs: []string{
+				"/Users/kevin/kelda.io",
+			},
+			exp: []Mount{
+				{
+					Path:    "/Users/kevin/kelda.io",
+					SyncAll: true,
+					Ignore:  []string{"masked"},
+				},
+			},
+		},
+		{
+			name: "Sync directory twice with only one mask",
+			volumes: []BindVolume{
+				{
+					LocalPath: "/Users/kevin/kelda.io",
+					Masks:     []string{"masked"},
+				},
+				{
+					LocalPath: "/Users/kevin/kelda.io",
+					Masks:     nil,
+				},
+			},
+			dirs: []string{
+				"/Users/kevin/kelda.io",
+			},
+			exp: []Mount{
+				{
+					Path:    "/Users/kevin/kelda.io",
+					SyncAll: true,
+					Ignore:  nil,
+				},
+			},
+		},
+		{
+			name: "Sync nested directory with shared mask",
+			volumes: []BindVolume{
+				{
+					LocalPath: "/Users/kevin/kelda.io",
+					Masks:     []string{"subdir/masked"},
+				},
+				{
+					LocalPath: "/Users/kevin/kelda.io/subdir",
+					Masks:     []string{"masked"},
+				},
+			},
+			dirs: []string{
+				"/Users/kevin/kelda.io",
+				"/Users/kevin/kelda.io/subdir",
+			},
+			exp: []Mount{
+				{
+					Path:    "/Users/kevin/kelda.io",
+					SyncAll: true,
+					Ignore:  []string{"subdir/masked"},
+				},
+			},
+		},
+		{
+			name: "Sync nested directory with parent mask",
+			volumes: []BindVolume{
+				{
+					LocalPath: "/Users/kevin/kelda.io",
+					Masks:     []string{"subdir/masked"},
+				},
+				{
+					LocalPath: "/Users/kevin/kelda.io/subdir",
+					Masks:     nil,
+				},
+			},
+			dirs: []string{
+				"/Users/kevin/kelda.io",
+				"/Users/kevin/kelda.io/subdir",
+			},
+			exp: []Mount{
+				{
+					Path:    "/Users/kevin/kelda.io",
+					SyncAll: true,
+					Ignore:  nil,
+				},
+			},
+		},
+		{
+			name: "Sync nested directory with child mask",
+			volumes: []BindVolume{
+				{
+					LocalPath: "/Users/kevin/kelda.io",
+					Masks:     nil,
+				},
+				{
+					LocalPath: "/Users/kevin/kelda.io/subdir",
+					Masks:     []string{"masked"},
+				},
+			},
+			dirs: []string{
+				"/Users/kevin/kelda.io",
+				"/Users/kevin/kelda.io/subdir",
+			},
+			exp: []Mount{
+				{
+					Path:    "/Users/kevin/kelda.io",
+					SyncAll: true,
+					Ignore:  nil,
+				},
+			},
+		},
+		{
+			name: "Sync nested directory with parent mask above child",
+			volumes: []BindVolume{
+				{
+					LocalPath: "/Users/kevin/kelda.io",
+					Masks:     []string{"subdir"},
+				},
+				{
+					LocalPath: "/Users/kevin/kelda.io/subdir/file",
+				},
+			},
+			dirs: []string{
+				"/Users/kevin/kelda.io",
+				"/Users/kevin/kelda.io/subdir",
+			},
+			exp: []Mount{
+				{
+					Path:    "/Users/kevin/kelda.io",
+					SyncAll: true,
+					Ignore:  nil,
+				},
+			},
+		},
+		{
+			name: "Nested masks",
+			volumes: []BindVolume{
+				{
+					LocalPath: "/Users/kevin/kelda.io",
+					Masks: []string{
+						"masked",
+						"masked/subdir",
+					},
+				},
+			},
+			dirs: []string{
+				"/Users/kevin/kelda.io",
+				"/Users/kevin/kelda.io/masked",
+			},
+			exp: []Mount{
+				{
+					Path:    "/Users/kevin/kelda.io",
+					SyncAll: true,
+					Ignore:  []string{"masked"},
 				},
 			},
 		},

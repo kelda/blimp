@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -396,17 +397,49 @@ func startTunnel(ncc node.ControllerClient, token, name, hostIP string,
 }
 
 func (cmd *up) makeSyncthingClient(dcCfg composeTypes.Config) syncthing.Client {
-	var bindVolumes []string
+	var allVolumes []syncthing.BindVolume
 	for _, svc := range dcCfg.Services {
+		// bindVolumes maps target paths (the paths to be mounted in the
+		// container) to syncthing.BindVolume structs that represent the
+		// necessary syncing information.
+		bindVolumes := map[string]syncthing.BindVolume{}
+		// First, collect all the synced bindVolumes.
 		for _, v := range svc.Volumes {
-			if v.Type != "bind" {
+			if v.Type != composeTypes.VolumeTypeBind {
+				continue
+			}
+			bindVolumes[v.Target] = syncthing.BindVolume{
+				LocalPath: v.Source,
+			}
+		}
+
+		// Now, mask off any native volumes that fall under these mounts.
+		for _, v := range svc.Volumes {
+			// Theoretically this could match other types of volumes like tmpfs,
+			// although we don't support these yet.
+			if v.Type == composeTypes.VolumeTypeBind {
 				continue
 			}
 
-			bindVolumes = append(bindVolumes, v.Source)
+			// Search through existing mounts for this service to see which need
+			// Masks.
+			for bindTarget, volume := range bindVolumes {
+				relPath, err := filepath.Rel(bindTarget, v.Target)
+				if err != nil || strings.HasPrefix(relPath, "..") {
+					// This native volume does not fall under the bind volume.
+					continue
+				}
+
+				volume.Masks = append(volume.Masks, relPath)
+				bindVolumes[bindTarget] = volume
+			}
+		}
+
+		for _, volume := range bindVolumes {
+			allVolumes = append(allVolumes, volume)
 		}
 	}
-	return syncthing.NewClient(bindVolumes)
+	return syncthing.NewClient(allVolumes)
 }
 
 func registryCredentialsToProtobuf(creds map[string]types.AuthConfig) map[string]*cluster.RegistryCredential {
