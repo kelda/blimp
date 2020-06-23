@@ -271,14 +271,8 @@ func (sf *statusFetcher) getServiceStatus(pod *corev1.Pod) cluster.ServiceStatus
 
 	// If we are pending because the pod is unschedulable, report this
 	// specifically.
-	if pod.Status.Phase == corev1.PodPending {
-		for _, condition := range pod.Status.Conditions {
-			if condition.Type == corev1.PodScheduled &&
-				condition.Status == corev1.ConditionFalse &&
-				condition.Reason == corev1.PodReasonUnschedulable {
-				return cluster.ServiceStatus{Phase: cluster.ServicePhase_UNSCHEDULABLE}
-			}
-		}
+	if isUnschedulable(pod) {
+		return cluster.ServiceStatus{Phase: cluster.ServicePhase_UNSCHEDULABLE}
 	}
 
 	// Fallback to the pod's phase.
@@ -292,6 +286,21 @@ func (sf *statusFetcher) getServiceStatus(pod *corev1.Pod) cluster.ServiceStatus
 	default:
 		return cluster.ServiceStatus{Phase: cluster.ServicePhase_UNKNOWN}
 	}
+}
+
+func isUnschedulable(pod *corev1.Pod) bool {
+	if pod.Status.Phase != corev1.PodPending {
+		return false
+	}
+
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type == corev1.PodScheduled &&
+			condition.Status == corev1.ConditionFalse &&
+			condition.Reason == corev1.PodReasonUnschedulable {
+			return true
+		}
+	}
+	return false
 }
 
 func isImagePullFailure(cs corev1.ContainerStatus) bool {

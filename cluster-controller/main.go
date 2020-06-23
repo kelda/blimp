@@ -264,15 +264,9 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		if err != nil {
 			pod, getErr := s.kubeClient.CoreV1().Pods(namespace).Get("reservation", metav1.GetOptions{})
 			// Specifically handle unscheduled case with a nice error message.
-			if getErr == nil && pod.Status.Phase == corev1.PodPending {
-				for _, condition := range pod.Status.Conditions {
-					if condition.Type == corev1.PodScheduled &&
-						condition.Status == corev1.ConditionFalse &&
-						condition.Reason == corev1.PodReasonUnschedulable {
-						return &cluster.CreateSandboxResponse{}, errors.NewFriendlyError(
-							"Failed to schedule your sandbox. The blimp servers may be overloaded.")
-					}
-				}
+			if getErr == nil && isUnschedulable(pod) {
+				return &cluster.CreateSandboxResponse{}, errors.NewFriendlyError(
+					"Failed to schedule your sandbox. The blimp servers may be overloaded.")
 			}
 			return &cluster.CreateSandboxResponse{}, errors.WithContext("get reservation pod", err)
 		}
