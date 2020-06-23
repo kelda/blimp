@@ -30,20 +30,24 @@ require (
 	github.com/google/go-containerregistry v0.1.0
 	github.com/googleapis/gnostic v0.4.0 // indirect
 	github.com/gorilla/mux v1.7.4 // indirect
-	github.com/kelda/blimp v0.0.0-20200617010626-0360aa4b0f76
+	github.com/kelda/blimp v0.0.0-20200623015958-fae79261cf56
 	github.com/kelda/compose-go v0.0.0-20200514165240-955c80c756a9
 	github.com/lithammer/dedent v1.1.0
 	github.com/miekg/dns v1.1.28
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
 	github.com/sirupsen/logrus v1.6.0
+	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/afero v1.2.2
 	github.com/spf13/cobra v1.0.0
 	github.com/stretchr/testify v1.5.1
-	github.com/syncthing/syncthing v1.4.2
+	github.com/syncthing/syncthing v1.6.1
+	github.com/willf/bitset v1.1.10 // indirect
+	github.com/willf/bloom v2.0.3+incompatible // indirect
 	golang.org/x/crypto v0.0.0-20200604202706-70a84ac30bf9
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	google.golang.org/grpc v1.29.1
+	gopkg.in/ldap.v2 v2.5.1 // indirect
 	gopkg.in/square/go-jose.v2 v2.4.1
 	k8s.io/api v0.17.4
 	k8s.io/apimachinery v0.17.4
