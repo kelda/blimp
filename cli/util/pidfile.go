@@ -16,14 +16,14 @@ func UpRunning() bool {
 	pidBytes, err := ioutil.ReadFile(getPidfilePath())
 	if err != nil {
 		if !os.IsNotExist(err) {
-			log.WithError(err).Warn("Unable to read pidfile")
+			log.WithError(err).Debug("Unable to read pidfile")
 		}
 		return false
 	}
 
 	pid, err := strconv.Atoi(string(pidBytes))
 	if err != nil {
-		log.WithError(err).Warn("Corrupt pidfile.")
+		log.WithError(err).Debug("Corrupt pidfile.")
 		return false
 	}
 
@@ -51,7 +51,7 @@ func TakeUpLock() error {
 func ReleaseUpLock() {
 	err := os.Remove(getPidfilePath())
 	if err != nil {
-		log.WithError(err).Warn("Failed to remove pidfile.")
+		log.WithError(err).Debug("Failed to remove pidfile.")
 	}
 }
 

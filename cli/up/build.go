@@ -124,7 +124,7 @@ loop:
 				err = cmd.pushBaseTag(base.imageName, base.service)
 				if err != nil {
 					// Don't die.
-					log.WithError(err).WithField("service", base.service).Warn("Push base image tag failed")
+					log.WithError(err).WithField("service", base.service).Debug("Push base image tag failed")
 				}
 			}
 
@@ -212,7 +212,7 @@ func (cmd *up) prePushBaseImages(services composeTypes.Services) (<-chan baseIma
 
 		baseImageName, err := cmd.getBaseImage(dockerfilePath)
 		if err != nil {
-			log.WithError(err).WithField("service", svc.Name).Warn("Failed to get base image from Dockerfile")
+			log.WithError(err).WithField("service", svc.Name).Debug("Failed to get base image from Dockerfile")
 			ready(svc.Name, "")
 			continue
 		}
@@ -260,7 +260,7 @@ func (cmd *up) prePushBaseImages(services composeTypes.Services) (<-chan baseIma
 			msg, err := tagStream.Recv()
 			if err != nil {
 				if status.Code(err) != codes.Canceled {
-					log.WithError(err).Warn("Failed to watch for tagged image responses")
+					log.WithError(err).Debug("Failed to watch for tagged image responses")
 				}
 				// Give up on any remaining images.
 				for service := range needToSend {
@@ -271,7 +271,7 @@ func (cmd *up) prePushBaseImages(services composeTypes.Services) (<-chan baseIma
 
 			if msg.Error != nil {
 				err = errors.Unmarshal(nil, msg.Error)
-				log.WithError(err).WithField("service", msg.Service).Warn("Tag image failed")
+				log.WithError(err).WithField("service", msg.Service).Debug("Tag image failed")
 			}
 
 			// Whether we were successful or not, this image is ready to be
