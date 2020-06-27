@@ -85,6 +85,7 @@ message KubeCredentials {
 
 message DeleteSandboxRequest {
   string token = 1;
+  bool delete_volumes = 2;
 }
 
 message DeleteSandboxResponse {
