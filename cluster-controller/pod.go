@@ -193,15 +193,11 @@ func (p *podSpec) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig) {
 
 	p.addInitContainers(
 		corev1.Container{
-			Name:         kube.ContainerNameCopyBusybox,
-			Image:        version.InitImage,
-			Command:      []string{"/bin/cp", "/bin/busybox.static", "/vcpbin/cp"},
-			VolumeMounts: vcpBinMount,
-		},
-		corev1.Container{
-			Name:         kube.ContainerNameCopyVCP,
-			Image:        version.InitImage,
-			Command:      []string{"/bin/cp", "/bin/blimp-vcp", "/vcpbin/blimp-cp"},
+			Name:  kube.ContainerNameCopyVCP,
+			Image: version.InitImage,
+			Command: []string{"sh", "-c",
+				"/bin/cp /bin/busybox.static /vcpbin/cp && " +
+					"/bin/cp /bin/blimp-vcp /vcpbin/blimp-cp"},
 			VolumeMounts: vcpBinMount,
 		},
 	)

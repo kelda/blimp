@@ -5,7 +5,6 @@ import (
 )
 
 const (
-	ContainerNameCopyBusybox               = "copy-busybox"
 	ContainerNameCopyVCP                   = "copy-vcp"
 	ContainerNameInitializeVolumeFromImage = "vcp"
 	ContainerNameWaitDependsOn             = "wait-depends-on"

@@ -177,8 +177,8 @@ func (sf *statusFetcher) getServiceStatus(pod *corev1.Pod) cluster.ServiceStatus
 	for _, c := range pod.Status.InitContainerStatuses {
 		var phase cluster.ServicePhase
 		switch c.Name {
-		case kube.ContainerNameCopyBusybox, kube.ContainerNameCopyVCP,
-			kube.ContainerNameInitializeVolumeFromImage, kube.ContainerNameWaitInitializedVolumes:
+		case kube.ContainerNameCopyVCP, kube.ContainerNameInitializeVolumeFromImage,
+			kube.ContainerNameWaitInitializedVolumes:
 			phase = cluster.ServicePhase_INITIALIZING_VOLUMES
 		case kube.ContainerNameWaitDependsOn:
 			phase = cluster.ServicePhase_WAIT_DEPENDS_ON
