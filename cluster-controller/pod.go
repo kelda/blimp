@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -14,11 +15,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/kelda-inc/blimp/cluster-controller/volume"
 	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/metadata"
 	"github.com/kelda-inc/blimp/pkg/proto/wait"
 	"github.com/kelda-inc/blimp/pkg/version"
-	"github.com/kelda-inc/blimp/pkg/volume"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/hash"
 	"github.com/kelda/blimp/pkg/names"
@@ -203,24 +204,14 @@ func (p *podSpec) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig) {
 	)
 
 	// Mount all the volumes for the namespace so that vcp can copy into them.
-	hostPathType := corev1.HostPathDirectoryOrCreate
-	namespaceVolume := corev1.Volume{
-		Name: "vcp-blimp-volumes",
-		VolumeSource: corev1.VolumeSource{
-			HostPath: &corev1.HostPathVolumeSource{
-				Path: volume.NamespaceRoot(p.namespace),
-				Type: &hostPathType,
-			},
-		},
-	}
-	p.addVolume(namespaceVolume)
+	p.addVolume(volume.PersistentVolume)
 
 	// Configure the container that executes the copy from the image filesystem
 	// into the volume.
 	var vcpArgs []string
 	for _, v := range volumes {
-		vcpTarget := volume.GetVolume(p.namespace, v.Source)
-		vcpArgs = append(vcpArgs, fmt.Sprintf("%s:%s", v.Target, vcpTarget.VolumeSource.HostPath.Path))
+		vcpTarget := filepath.Join("/pv", volume.NamedVolumeDir(v.Source))
+		vcpArgs = append(vcpArgs, fmt.Sprintf("%s:%s", v.Target, vcpTarget))
 	}
 
 	// In GKE, host path volumes are created as root.
@@ -238,8 +229,8 @@ func (p *podSpec) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig) {
 				RunAsUser: &hostPathOwner,
 			},
 			VolumeMounts: append(vcpBinMount, corev1.VolumeMount{
-				Name:      namespaceVolume.Name,
-				MountPath: namespaceVolume.VolumeSource.HostPath.Path,
+				Name:      volume.PersistentVolume.Name,
+				MountPath: "/pv",
 			}),
 			Env: []corev1.EnvVar{
 				{
@@ -266,26 +257,26 @@ func (p *podSpec) addRuntimeContainer(svc composeTypes.ServiceConfig, dnsIP stri
 		"blimp.customer":    p.namespace,
 	}
 
-	bindVolumeRoot := volume.BindVolumeRoot(p.namespace)
-	p.addVolume(bindVolumeRoot)
-
 	var volumeMounts []corev1.VolumeMount
 	for _, v := range svc.Volumes {
 		switch v.Type {
 		case composeTypes.VolumeTypeVolume:
-			kubeVol := volume.GetVolume(p.namespace, v.Source)
-			p.addVolume(kubeVol)
 			volumeMounts = append(volumeMounts, corev1.VolumeMount{
-				Name:      kubeVol.Name,
+				Name:      volume.PersistentVolume.Name,
+				SubPath:   volume.NamedVolumeDir(v.Source),
 				MountPath: v.Target,
 			})
 		case composeTypes.VolumeTypeBind:
 			volumeMounts = append(volumeMounts, corev1.VolumeMount{
-				Name:      bindVolumeRoot.Name,
+				Name:      volume.PersistentVolume.Name,
 				MountPath: v.Target,
-				SubPath:   strings.TrimPrefix(v.Source, "/"),
+				SubPath:   volume.BindVolumeDir(v.Source),
 			})
 		}
+	}
+
+	if len(volumeMounts) != 0 {
+		p.addVolume(volume.PersistentVolume)
 	}
 
 	var securityContext *corev1.SecurityContext

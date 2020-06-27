@@ -15,6 +15,7 @@ import (
 	"github.com/kelda-inc/blimp/ci/examples"
 	"github.com/kelda-inc/blimp/ci/file"
 	"github.com/kelda-inc/blimp/ci/tests/volume"
+	"github.com/kelda-inc/blimp/ci/util"
 )
 
 func TestBlimp(t *testing.T) {
@@ -75,6 +76,13 @@ func TestBlimp(t *testing.T) {
 			oldWd, err := os.Getwd()
 			require.NoError(t, err)
 			defer os.Chdir(oldWd)
+
+			// Clean up the namespace before each test.
+			// We delete volumes so that the state is completely fresh for each
+			// test.
+			// XXX: Make `blimp down` not error if the namespace doesn't
+			// exist, and check the returned error.
+			util.Run(context.Background(), "down", "-v")
 
 			test.Run(context.Background(), t)
 		})

@@ -28,13 +28,12 @@ import (
 	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/ports"
 	"github.com/kelda-inc/blimp/pkg/version"
-	"github.com/kelda-inc/blimp/pkg/volume"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/kubewait"
 )
 
 const (
-	NodeControllerNamespace = "blimp-system"
+	NodeControllerNamespace = kube.BlimpNamespace
 
 	// maxRetries is the maximum number of times to retry deploying a node
 	// controller before giving up.
@@ -192,7 +191,6 @@ func (booter *booter) deployNodeController(node string) error {
 		},
 	}
 
-	hostPathType := corev1.HostPathDirectoryOrCreate
 	volumes := []corev1.Volume{
 		{
 			Name: "cert",
@@ -202,24 +200,11 @@ func (booter *booter) deployNodeController(node string) error {
 				},
 			},
 		},
-		{
-			Name: "blimp-volumes",
-			VolumeSource: corev1.VolumeSource{
-				HostPath: &corev1.HostPathVolumeSource{
-					Path: volume.VolumeRoot,
-					Type: &hostPathType,
-				},
-			},
-		},
 	}
 	volumeMounts := []corev1.VolumeMount{
 		{
 			Name:      "cert",
 			MountPath: "/etc/blimp/certs",
-		},
-		{
-			Name:      "blimp-volumes",
-			MountPath: volume.VolumeRoot,
 		},
 	}
 

@@ -28,15 +28,14 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/retry"
 
 	"github.com/kelda-inc/blimp/cluster-controller/node"
+	"github.com/kelda-inc/blimp/cluster-controller/volume"
 	"github.com/kelda-inc/blimp/pkg/analytics"
 	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/metadata"
 	"github.com/kelda-inc/blimp/pkg/ports"
 	"github.com/kelda-inc/blimp/pkg/version"
-	"github.com/kelda-inc/blimp/pkg/volume"
 	"github.com/kelda/blimp/pkg/auth"
 	"github.com/kelda/blimp/pkg/dockercompose"
 	"github.com/kelda/blimp/pkg/errors"
@@ -288,10 +287,6 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, errors.WithContext("get dns pod", err)
 	}
 
-	if err := s.addVolumeFinalizer(namespace, dnsPod.Spec.NodeName); err != nil {
-		return &cluster.CreateSandboxResponse{}, errors.WithContext("add volume finalizer", err)
-	}
-
 	nodeAddress, nodeCert, err := node.GetConnectionInfo(ctx, s.kubeClient, dnsPod.Spec.NodeName)
 	if err != nil {
 		return &cluster.CreateSandboxResponse{}, errors.WithContext("get node controller", err)
@@ -464,6 +459,10 @@ func (s *server) createNamespace(ctx context.Context, namespace string) error {
 		return errors.WithContext("get network policy", err)
 	}
 
+	if err := volume.CreatePVC(ctx, s.kubeClient, namespace); err != nil {
+		return errors.WithContext("create persistent volume claim", err)
+	}
+
 	// Wait for the default service account to exist before returning.
 	// Pods will fail to deploy to the namespace until the account exists.
 	ctx, _ = context.WithTimeout(ctx, 3*time.Minute)
@@ -477,29 +476,6 @@ func (s *server) createNamespace(ctx context.Context, namespace string) error {
 		return errors.WithContext("wait for default service account", err)
 	}
 	return nil
-}
-
-// addVolumeFinalizer adds a finalizer to the given namespace signaling that
-// the given namespace shouldn't be considered terminated until the specified
-// node has cleaned up the volumes.
-func (s *server) addVolumeFinalizer(namespace, node string) error {
-	namespaceClient := s.kubeClient.CoreV1().Namespaces()
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		curr, err := namespaceClient.Get(namespace, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-
-		finalizer := kube.VolumeFinalizer(node)
-		if contains(curr.Finalizers, finalizer) {
-			return nil
-		}
-
-		curr.Finalizers = append(curr.Finalizers, finalizer)
-		_, err = namespaceClient.Finalize(curr)
-		return err
-	})
-	return err
 }
 
 func (s *server) getPod(ctx context.Context, namespace, name string, cond podCondition) (pod *corev1.Pod, err error) {
@@ -558,15 +534,14 @@ func (s *server) createReservation(namespace string, numServices int) error {
 }
 
 func (s *server) createSyncthing(namespace string, syncedFolders map[string]string) error {
-	volume := volume.BindVolumeRoot(namespace)
 	mount := corev1.VolumeMount{
-		Name:      volume.Name,
-		MountPath: "/bind",
+		Name:      volume.PersistentVolume.Name,
+		MountPath: "/pv",
 	}
 
 	idPathMap := map[string]string{}
 	for id, src := range syncedFolders {
-		idPathMap[id] = filepath.Join("/bind", src)
+		idPathMap[id] = filepath.Join(mount.MountPath, volume.BindVolumeDir(src))
 	}
 
 	pod := corev1.Pod{
@@ -595,7 +570,7 @@ func (s *server) createSyncthing(namespace string, syncedFolders map[string]stri
 					},
 				},
 			}},
-			Volumes:  []corev1.Volume{volume},
+			Volumes:  []corev1.Volume{volume.PersistentVolume},
 			Affinity: sameNodeAffinity(namespace),
 		},
 	}
@@ -855,6 +830,12 @@ func (s *server) DeleteSandbox(ctx context.Context, req *cluster.DeleteSandboxRe
 		return &cluster.DeleteSandboxResponse{}, err
 	}
 
+	if req.DeleteVolumes {
+		if err := volume.PermanentlyDeletePVC(s.kubeClient, user.Namespace); err != nil {
+			return &cluster.DeleteSandboxResponse{}, errors.WithContext("delete persistent volume", err)
+		}
+	}
+
 	// Give the pods 10 seconds to shut down (rather than the default of 30
 	// seconds). This gives applications a chance to flush their state to disk
 	// to avoid data loss/corruption in volumes.
@@ -877,6 +858,7 @@ func (s *server) DeleteSandbox(ctx context.Context, req *cluster.DeleteSandboxRe
 	if err := s.kubeClient.CoreV1().Namespaces().Delete(user.Namespace, nil); err != nil {
 		return &cluster.DeleteSandboxResponse{}, err
 	}
+
 	return &cluster.DeleteSandboxResponse{}, nil
 }
 

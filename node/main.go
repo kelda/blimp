@@ -17,7 +17,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/kelda-inc/blimp/node/finalizer"
 	"github.com/kelda-inc/blimp/node/wait"
 	"github.com/kelda-inc/blimp/pkg/analytics"
 	"github.com/kelda-inc/blimp/pkg/ports"
@@ -62,7 +61,6 @@ func main() {
 
 	syncTracker := wait.NewSyncTracker()
 	go wait.Run(kubeClient, syncTracker)
-	finalizer.Start(kubeClient, myNodeName)
 
 	podInformer := informers.NewSharedInformerFactoryWithOptions(
 		kubeClient, 30*time.Second).
