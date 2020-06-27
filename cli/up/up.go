@@ -283,7 +283,7 @@ func (cmd *up) run(services []string) error {
 
 			downFinished := make(chan error)
 			go func() {
-				downFinished <- down.Run(cmd.auth.AuthToken)
+				downFinished <- down.Run(cmd.auth.AuthToken, false)
 			}()
 
 			select {

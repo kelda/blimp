@@ -17,12 +17,15 @@ import (
 )
 
 func New() *cobra.Command {
-	return &cobra.Command{
+	var deleteVolumes bool
+	cobraCmd := &cobra.Command{
 		Use:   "down",
 		Short: "Delete your cloud sandbox",
 		Long: `Delete your cloud sandbox.
 
-All containers and volumes are removed.`,
+All containers are removed.
+Volumes aren't removed unless the -v flag is used.
+`,
 		Run: func(_ *cobra.Command, args []string) {
 			auth, err := authstore.New()
 			if err != nil {
@@ -47,16 +50,20 @@ All containers and volumes are removed.`,
 				}
 			}
 
-			if err := Run(auth.AuthToken); err != nil {
+			if err := Run(auth.AuthToken, deleteVolumes); err != nil {
 				errors.HandleFatalError(err)
 			}
 		},
 	}
+	cobraCmd.Flags().BoolVarP(&deleteVolumes, "volumes", "v", false,
+		"Remove named volumes declared in the `volumes` section of the Compose file.")
+	return cobraCmd
 }
 
-func Run(authToken string) error {
+func Run(authToken string, deleteVolumes bool) error {
 	_, err := manager.C.DeleteSandbox(context.Background(), &cluster.DeleteSandboxRequest{
-		Token: authToken,
+		Token:         authToken,
+		DeleteVolumes: deleteVolumes,
 	})
 	if err != nil {
 		return errors.WithContext("start sandbox deletion", err)
