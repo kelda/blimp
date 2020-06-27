@@ -22,6 +22,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
@@ -435,36 +436,38 @@ func (s *server) createNamespace(ctx context.Context, namespace string) error {
 		},
 	}
 
-	// No need to re-create the namespace if it already exists.
 	namespaceClient := s.kubeClient.CoreV1().Namespaces()
-	if existingNs, err := namespaceClient.Get(ns.Name, metav1.GetOptions{}); err == nil {
+	existingNs, err := namespaceClient.Get(ns.Name, metav1.GetOptions{})
+	switch {
+	case err == nil:
 		if existingNs.Status.Phase == corev1.NamespaceTerminating {
 			return errors.NewFriendlyError(
 				"Aborting deployment because sandbox is terminating.\n" +
 					"This is a transient error caused by `blimp down` not completing yet.\n" +
 					"Try again in 30 seconds.")
 		}
-
-		return nil
-	}
-
-	if _, err := namespaceClient.Create(ns); err != nil {
-		return err
+	case !kerrors.IsNotFound(err):
+		return errors.WithContext("get namespace", err)
+	default:
+		// We only create the namespace if it doesn't already exist.
+		if _, err := namespaceClient.Create(ns); err != nil {
+			return errors.WithContext("create namespace", err)
+		}
 	}
 
 	networkingClient := s.kubeClient.NetworkingV1().NetworkPolicies(ns.Name)
-	if _, err := networkingClient.Get(policy.Name, metav1.GetOptions{}); err == nil {
-		return nil
-	}
-
-	if _, err := networkingClient.Create(policy); err != nil {
-		return errors.WithContext("create network policy", err)
+	if _, err := networkingClient.Get(policy.Name, metav1.GetOptions{}); kerrors.IsNotFound(err) {
+		if _, err := networkingClient.Create(policy); err != nil {
+			return errors.WithContext("create network policy", err)
+		}
+	} else if err != nil {
+		return errors.WithContext("get network policy", err)
 	}
 
 	// Wait for the default service account to exist before returning.
 	// Pods will fail to deploy to the namespace until the account exists.
 	ctx, _ = context.WithTimeout(ctx, 3*time.Minute)
-	err := kubewait.WaitForObject(ctx,
+	err = kubewait.WaitForObject(ctx,
 		kubewait.ServiceAccountGetter(s.kubeClient, namespace, "default"),
 		s.kubeClient.CoreV1().ServiceAccounts(namespace).Watch,
 		func(saIntf interface{}) bool {
