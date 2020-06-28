@@ -24,6 +24,9 @@ const (
 	imagePullFailureMsg = "Failed to pull image. Make sure that the image exists, " +
 		"and that Blimp has access to it."
 	imagePullingMsg = "Pulling image"
+
+	createContainerErrorTemplate = "Encountered blimp system error (%s: %s). " +
+		"If this error persists, redeploy your sandbox with `blimp down && blimp up`"
 )
 
 // statusFetcher provides an API for getting the status of namespaces, and
@@ -218,6 +221,10 @@ func (sf *statusFetcher) getServiceStatus(pod *corev1.Pod) cluster.ServiceStatus
 			}
 		}
 
+		if status, ok := checkClusterError(c); ok {
+			return status
+		}
+
 		// For all other states, we just tell the user that we're still working on the
 		// system task.
 		return cluster.ServiceStatus{Phase: phase}
@@ -226,6 +233,10 @@ func (sf *statusFetcher) getServiceStatus(pod *corev1.Pod) cluster.ServiceStatus
 	// Inspect the container's status to give more detailed information.
 	if len(pod.Status.ContainerStatuses) == 1 {
 		cs := pod.Status.ContainerStatuses[0]
+		if status, ok := checkClusterError(cs); ok {
+			return status
+		}
+
 		switch {
 		case cs.State.Running != nil:
 			if !cs.Ready {
@@ -306,4 +317,17 @@ func isUnschedulable(pod *corev1.Pod) bool {
 func isImagePullFailure(cs corev1.ContainerStatus) bool {
 	return cs.State.Waiting != nil &&
 		(cs.State.Waiting.Reason == "ErrImagePull" || cs.State.Waiting.Reason == "ImagePullBackOff")
+}
+
+func checkClusterError(cs corev1.ContainerStatus) (cluster.ServiceStatus, bool) {
+	if cs.State.Waiting != nil &&
+		cs.State.Waiting.Reason == "CreateContainerError" &&
+		cs.State.Waiting.Message == "context deadline exceeded" {
+		return cluster.ServiceStatus{
+			Phase: cluster.ServicePhase_PENDING,
+			Msg: fmt.Sprintf(createContainerErrorTemplate,
+				cs.State.Waiting.Reason, cs.State.Waiting.Message),
+		}, true
+	}
+	return cluster.ServiceStatus{}, false
 }

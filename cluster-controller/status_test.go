@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -57,7 +58,8 @@ func TestGetStatus(t *testing.T) {
 				Services: map[string]*cluster.ServiceStatus{
 					"web": {
 						Phase: cluster.ServicePhase_PENDING,
-						Msg:   "context deadline exceeded",
+						Msg: fmt.Sprintf(createContainerErrorTemplate,
+							"CreateContainerError", "context deadline exceeded"),
 					},
 				},
 			},
@@ -99,7 +101,9 @@ func TestGetStatus(t *testing.T) {
 				Phase: cluster.SandboxStatus_RUNNING,
 				Services: map[string]*cluster.ServiceStatus{
 					"web": {
-						Phase: cluster.ServicePhase_WAIT_DEPENDS_ON,
+						Phase: cluster.ServicePhase_PENDING,
+						Msg: fmt.Sprintf(createContainerErrorTemplate,
+							"CreateContainerError", "context deadline exceeded"),
 					},
 				},
 			},
