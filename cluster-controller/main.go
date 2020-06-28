@@ -107,7 +107,7 @@ func main() {
 		keyPath:       *keyPath,
 		maxSandboxes:  maxSandboxes,
 	}
-	s.statusFetcher.Start()
+	s.statusFetcher.Start(nil)
 
 	node.StartControllerBooter(kubeClient)
 

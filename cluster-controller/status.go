@@ -59,13 +59,13 @@ func newStatusFetcher(kubeClient kubernetes.Interface) *statusFetcher {
 	}
 }
 
-func (sf *statusFetcher) Start() {
-	go sf.podInformer.Run(nil)
-	go sf.eventsInformer.Run(nil)
-	go sf.namespaceInformer.Run(nil)
-	cache.WaitForCacheSync(nil, sf.podInformer.HasSynced)
-	cache.WaitForCacheSync(nil, sf.eventsInformer.HasSynced)
-	cache.WaitForCacheSync(nil, sf.namespaceInformer.HasSynced)
+func (sf *statusFetcher) Start(stop chan struct{}) {
+	go sf.podInformer.Run(stop)
+	go sf.eventsInformer.Run(stop)
+	go sf.namespaceInformer.Run(stop)
+	cache.WaitForCacheSync(stop, sf.podInformer.HasSynced)
+	cache.WaitForCacheSync(stop, sf.eventsInformer.HasSynced)
+	cache.WaitForCacheSync(stop, sf.namespaceInformer.HasSynced)
 }
 
 func (sf *statusFetcher) Watch(ctx context.Context, namespace string) chan struct{} {
