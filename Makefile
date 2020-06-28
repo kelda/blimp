@@ -52,6 +52,9 @@ run-cluster-controller: certs
 build-circle-image:
 	docker build -f .circleci/Dockerfile . -t keldaio/circleci-blimp
 
+test:
+	go test ./...
+
 NODE_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-node-controller:${VERSION}
 DNS_IMAGE = ${DOCKER_REPO}/blimp-dns:${VERSION}
 CLUSTER_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-cluster-controller:${VERSION}
