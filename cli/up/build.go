@@ -85,7 +85,7 @@ func (cmd *up) buildImages(composeFile composeTypes.Config) (map[string]string, 
 				Debug("Skipping build and using cached version")
 		} else {
 			imageID, err = docker.Build(cmd.dockerClient, cmd.composePath, svc.Name,
-				*svc.Build, cmd.regCreds, cmd.dockerConfig)
+				*svc.Build, cmd.regCreds, cmd.dockerConfig, false)
 			if err != nil {
 				return nil, errors.WithContext(fmt.Sprintf("build %s", svc.Name), err)
 			}

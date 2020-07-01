@@ -11,6 +11,7 @@ import (
 
 	"github.com/kelda/blimp/cli/authstore"
 	"github.com/kelda/blimp/cli/bugtool"
+	"github.com/kelda/blimp/cli/build"
 	"github.com/kelda/blimp/cli/cp"
 	"github.com/kelda/blimp/cli/down"
 	"github.com/kelda/blimp/cli/exec"
@@ -58,6 +59,7 @@ func main() {
 	}
 	rootCmd.AddCommand(
 		bugtool.New(),
+		build.New(),
 		cp.New(),
 		down.New(),
 		exec.New(),

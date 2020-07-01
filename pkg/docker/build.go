@@ -32,7 +32,7 @@ func CachedImageName(absComposePath, svc string) string {
 }
 
 func Build(dockerClient *client.Client, absComposePath, svc string, spec composeTypes.BuildConfig,
-	regCreds map[string]types.AuthConfig, dockerConfig *configfile.ConfigFile) (string, error) {
+	regCreds map[string]types.AuthConfig, dockerConfig *configfile.ConfigFile, pullParent bool) (string, error) {
 	opts := types.ImageBuildOptions{
 		Dockerfile:  spec.Dockerfile,
 		Tags:        []string{CachedImageName(absComposePath, svc)},
@@ -41,6 +41,7 @@ func Build(dockerClient *client.Client, absComposePath, svc string, spec compose
 		Target:      spec.Target,
 		Labels:      spec.Labels,
 		CacheFrom:   spec.CacheFrom,
+		PullParent:  pullParent,
 	}
 	if opts.Dockerfile == "" {
 		opts.Dockerfile = "Dockerfile"
