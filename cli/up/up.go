@@ -1,21 +1,16 @@
 package up
 
 import (
-	"archive/tar"
-	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 
 	"github.com/docker/cli/cli/config"
 	"github.com/docker/cli/cli/config/configfile"
-	clitypes "github.com/docker/cli/cli/config/types"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	composeTypes "github.com/kelda/compose-go/types"
@@ -29,6 +24,7 @@ import (
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/cli/util"
 	"github.com/kelda/blimp/pkg/analytics"
+	"github.com/kelda/blimp/pkg/docker"
 	"github.com/kelda/blimp/pkg/dockercompose"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/proto/cluster"
@@ -76,7 +72,7 @@ func New() *cobra.Command {
 			// Convert the compose path to an absolute path so that the code
 			// that makes identifiers for bind volumes are unique for relative
 			// paths.
-			composePath, overridePaths, err := getComposePaths(composePaths)
+			composePath, overridePaths, err := dockercompose.GetPaths(composePaths)
 			if err != nil {
 				if os.IsNotExist(err) {
 					log.Fatal("Docker Compose file not found.\n" +
@@ -160,7 +156,7 @@ func (cmd *up) run(services []string) error {
 	stClient := cmd.makeSyncthingClient(parsedCompose)
 	idPathMap := stClient.GetIDPathMap()
 
-	regCreds, err := getLocalRegistryCredentials(cmd.dockerConfig)
+	regCreds, err := docker.GetLocalRegistryCredentials(cmd.dockerConfig)
 	if err != nil {
 		log.WithError(err).Debug("Failed to get local registry credentials. Private images will fail to pull.")
 		regCreds = map[string]types.AuthConfig{}
@@ -411,150 +407,6 @@ func (cmd *up) makeSyncthingClient(dcCfg composeTypes.Config) syncthing.Client {
 		}
 	}
 	return syncthing.NewClient(bindVolumes)
-}
-
-func getComposePaths(composePaths []string) (string, []string, error) {
-	getYamlFile := func(prefix string) (string, error) {
-		paths := []string{
-			prefix + ".yaml",
-			prefix + ".yml",
-		}
-
-		var err error
-		for _, path := range paths {
-			if _, err = os.Stat(path); err == nil {
-				return filepath.Abs(path)
-			}
-		}
-
-		// Return the error from the last path we tried to stat.
-		return "", err
-	}
-
-	// If the user doesn't explicitly specify any files, try to get the
-	// default files.
-	if len(composePaths) == 0 {
-		composePath, err := getYamlFile("docker-compose")
-		if err != nil {
-			return "", nil, err
-		}
-
-		var overridePaths []string
-		if overridePath, err := getYamlFile("docker-compose.override"); err == nil {
-			overridePaths = []string{overridePath}
-		}
-		return composePath, overridePaths, nil
-	}
-
-	var absPaths []string
-	for _, composePath := range composePaths {
-		p, err := filepath.Abs(composePath)
-		if err != nil {
-			return "", nil, err
-		}
-		absPaths = append(absPaths, p)
-	}
-
-	return absPaths[0], absPaths[1:], nil
-}
-
-func getHeader(fi os.FileInfo, path string) (*tar.Header, error) {
-	var link string
-	if fi.Mode()&os.ModeSymlink != 0 {
-		var err error
-		link, err = os.Readlink(path)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return tar.FileInfoHeader(fi, link)
-}
-
-func makeTar(dir string) (io.Reader, error) {
-	var out bytes.Buffer
-	tw := tar.NewWriter(&out)
-	defer tw.Close()
-
-	err := filepath.Walk(dir, func(path string, fi os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		header, err := getHeader(fi, path)
-		if err != nil {
-			return errors.WithContext("get header", err)
-		}
-
-		// Set the file's path within the archive to be relative to the build
-		// context.
-		relPath, err := filepath.Rel(dir, path)
-		if err != nil {
-			return errors.WithContext(fmt.Sprintf("get normalized path %q", path), err)
-		}
-		header.Name = relPath
-
-		if err := tw.WriteHeader(header); err != nil {
-			return errors.WithContext(fmt.Sprintf("write header %q", header.Name), err)
-		}
-
-		fileMode := fi.Mode()
-		if !fileMode.IsRegular() {
-			return nil
-		}
-
-		f, err := os.Open(path)
-		if err != nil {
-			return errors.WithContext(fmt.Sprintf("open file %q", header.Name), err)
-		}
-		defer f.Close()
-
-		if _, err := io.Copy(tw, f); err != nil {
-			return errors.WithContext(fmt.Sprintf("write file %q", header.Name), err)
-		}
-		return nil
-	})
-	return &out, err
-}
-
-// getLocalRegistryCredentials reads the user's registry credentials from their
-// local machine.
-func getLocalRegistryCredentials(dockerConfig *configfile.ConfigFile) (map[string]types.AuthConfig, error) {
-	// Get the insecure credentials that were saved directly to
-	// the auths section of ~/.docker/config.json.
-	creds := map[string]types.AuthConfig{}
-	addCredentials := func(authConfigs map[string]clitypes.AuthConfig) {
-		for host, cred := range authConfigs {
-			// Don't add empty config sections.
-			if cred.Username != "" ||
-				cred.Password != "" ||
-				cred.Auth != "" ||
-				cred.Email != "" ||
-				cred.IdentityToken != "" ||
-				cred.RegistryToken != "" {
-				creds[host] = types.AuthConfig{
-					Username:      cred.Username,
-					Password:      cred.Password,
-					Auth:          cred.Auth,
-					Email:         cred.Email,
-					ServerAddress: cred.ServerAddress,
-					IdentityToken: cred.IdentityToken,
-					RegistryToken: cred.RegistryToken,
-				}
-			}
-		}
-	}
-	addCredentials(dockerConfig.GetAuthConfigs())
-
-	// Get the secure credentials that are set via credHelpers and credsStore.
-	// These credentials take preference over any insecure credentials.
-	credHelpers, err := dockerConfig.GetAllCredentials()
-	if err != nil {
-		return nil, err
-	}
-	addCredentials(credHelpers)
-
-	return creds, nil
 }
 
 func registryCredentialsToProtobuf(creds map[string]types.AuthConfig) map[string]*cluster.RegistryCredential {
