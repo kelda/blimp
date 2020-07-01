@@ -2,7 +2,6 @@ package up
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -29,14 +28,10 @@ import (
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/cli/util"
 	"github.com/kelda/blimp/pkg/auth"
+	"github.com/kelda/blimp/pkg/docker"
 	"github.com/kelda/blimp/pkg/errors"
-	"github.com/kelda/blimp/pkg/hash"
 	"github.com/kelda/blimp/pkg/proto/cluster"
 )
-
-// imageCacheRepo is the local image name used to tag built versions of images.
-// Each cached image is identified by a tag appended to the imageCacheRepo.
-const imageCacheRepo = "blimp-cache"
 
 type baseImage struct {
 	// imageName is the reference to push as the base image for a given service,
@@ -81,9 +76,19 @@ func (cmd *up) buildImages(composeFile composeTypes.Config) (map[string]string, 
 	images := map[string]image{}
 	svcToImageName := map[string]string{}
 	for _, svc := range buildServices {
-		imageID, err := cmd.buildImage(*svc.Build, svc.Name)
-		if err != nil {
-			return nil, errors.WithContext(fmt.Sprintf("build %s", svc.Name), err)
+		// If we've built the image already on a previous run, just use the cached
+		// version.
+		imageID, ok := cmd.getCachedImage(svc.Name)
+		if ok {
+			log.WithField("service", svc).
+				WithField("id", imageID).
+				Debug("Skipping build and using cached version")
+		} else {
+			imageID, err = docker.Build(cmd.dockerClient, cmd.composePath, svc.Name,
+				*svc.Build, cmd.regCreds, cmd.dockerConfig)
+			if err != nil {
+				return nil, errors.WithContext(fmt.Sprintf("build %s", svc.Name), err)
+			}
 		}
 
 		imageName := getImageName(cmd.imageNamespace, svc.Name, imageID)
@@ -341,72 +346,6 @@ func (cmd *up) getBaseImage(dockerfilePath string) (string, error) {
 	return baseImageName, nil
 }
 
-func (cmd *up) buildImage(spec composeTypes.BuildConfig, svc string) (string, error) {
-	// If we've built the image already on a previous run, just use the cached
-	// version.
-	id, ok := cmd.getCachedImage(svc)
-	if ok {
-		log.WithField("service", svc).
-			WithField("id", id).
-			Debug("Skipping build and using cached version")
-		return id, nil
-	}
-
-	// Do a full image build.
-	opts := types.ImageBuildOptions{
-		Dockerfile:  spec.Dockerfile,
-		Tags:        []string{cmd.getCachedImageName(svc)},
-		AuthConfigs: cmd.regCreds,
-		BuildArgs:   cmd.dockerConfig.ParseProxyConfig(cmd.dockerClient.DaemonHost(), spec.Args),
-		Target:      spec.Target,
-		Labels:      spec.Labels,
-		CacheFrom:   spec.CacheFrom,
-	}
-	if opts.Dockerfile == "" {
-		opts.Dockerfile = "Dockerfile"
-	}
-
-	contextPath := filepath.Join(
-		filepath.Dir(cmd.composePath),
-		spec.Context)
-	buildContextTar, err := makeTar(contextPath)
-	if err != nil {
-		return "", errors.WithContext("tar context", err)
-	}
-
-	buildResp, err := cmd.dockerClient.ImageBuild(context.TODO(), buildContextTar, opts)
-	if err != nil {
-		return "", errors.WithContext("start build", err)
-	}
-	defer buildResp.Body.Close()
-
-	// Block until the build completes, and return any errors that happen
-	// during the build.
-	var imageID string
-	callback := func(msg jsonmessage.JSONMessage) {
-		var id struct{ ID string }
-		if err := json.Unmarshal(*msg.Aux, &id); err != nil {
-			log.WithError(err).Warn("Failed to parse build ID")
-			return
-		}
-
-		if id.ID != "" {
-			imageID = id.ID
-		}
-	}
-
-	isTerminal := terminal.IsTerminal(int(os.Stderr.Fd()))
-	err = jsonmessage.DisplayJSONMessagesStream(buildResp.Body, os.Stderr, os.Stderr.Fd(), isTerminal, callback)
-	if err != nil {
-		return "", errors.NewFriendlyError(
-			"Image build for %q failed. This is likely an error with the Dockerfile, rather than Blimp.\n"+
-				"Make sure that the image successfully builds with `docker build`.\n\n"+
-				"The full error was:\n%s", svc, err)
-	}
-
-	return imageID, nil
-}
-
 func (cmd *up) pushBaseTag(localImage, service string) error {
 	remoteTag := remoteBaseTag(cmd.imageNamespace, service)
 	if err := cmd.dockerClient.ImageTag(context.TODO(), localImage, remoteTag); err != nil {
@@ -457,7 +396,7 @@ func (cmd *up) getCachedImages() ([]types.ImageSummary, error) {
 		Filters: filters.NewArgs(filters.KeyValuePair{
 			Key: "reference",
 			// This will match images built by Blimp.
-			Value: fmt.Sprintf("%s:*", imageCacheRepo),
+			Value: fmt.Sprintf("%s:*", docker.ImageCacheRepo),
 		}, filters.KeyValuePair{
 			Key: "reference",
 			// This will match images built by Docker Compose.
@@ -475,14 +414,9 @@ func (cmd *up) getComposeImagePrefix() string {
 	return badChar.ReplaceAllString(strings.ToLower(project), "")
 }
 
-func (cmd *up) getCachedImageName(svc string) string {
-	tag := hash.DNSCompliant(fmt.Sprintf("%s-%s", cmd.composePath, svc))
-	return fmt.Sprintf("%s:%s", imageCacheRepo, tag)
-}
-
 func (cmd *up) getCachedImage(svc string) (string, bool) {
 	// Look for an image built by Blimp.
-	imageName := cmd.getCachedImageName(svc)
+	imageName := docker.CachedImageName(cmd.composePath, svc)
 	image, ok := getImage(cmd.cachedImages, imageName)
 	if ok {
 		return image, ok
