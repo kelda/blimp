@@ -4,7 +4,7 @@ package main
 
 import (
 	"context"
-	"go/build"
+	goBuild "go/build"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,13 +14,14 @@ import (
 	blimpAssert "github.com/kelda-inc/blimp/ci/assert"
 	"github.com/kelda-inc/blimp/ci/examples"
 	"github.com/kelda-inc/blimp/ci/file"
+	"github.com/kelda-inc/blimp/ci/tests/build"
 	"github.com/kelda-inc/blimp/ci/tests/logs"
 	"github.com/kelda-inc/blimp/ci/tests/volume"
 	"github.com/kelda-inc/blimp/ci/util"
 )
 
 func TestBlimp(t *testing.T) {
-	reposRoot := filepath.Join(build.Default.GOPATH, "src")
+	reposRoot := filepath.Join(goBuild.Default.GOPATH, "src")
 
 	tests := []blimpAssert.Test{
 		examples.Test{
@@ -69,6 +70,7 @@ func TestBlimp(t *testing.T) {
 
 		volume.Test{},
 		logs.Test{},
+		build.Test{},
 	}
 
 	for _, test := range tests {
