@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -49,6 +50,12 @@ func main() {
 			continue
 		case len(toContents) != 0:
 			log.Info("Volume not empty. Skipping.")
+			continue
+		}
+
+		// Make sure the parent directories exist.
+		if err := os.MkdirAll(filepath.Dir(to), 0755); err != nil {
+			log.WithError(err).Error("Failed to make parent directories for target. Skipping.")
 			continue
 		}
 
