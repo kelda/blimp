@@ -21,6 +21,7 @@ linters:
     - maligned
     - prealloc
     - staticcheck
+    - testpackage
     - vetshadow
     - whitespace
     - wsl
