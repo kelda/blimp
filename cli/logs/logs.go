@@ -335,13 +335,14 @@ func printLogs(ctx context.Context, rawLogs <-chan rawLogLine,
 		window = nil
 	}
 
+	defer flush()
+
 	for {
 		select {
 		case logLine, ok := <-rawLogs:
 			if !ok {
 				// There won't be any more messages, so we can exit after
 				// flushing any unprinted logs.
-				flush()
 				return nil
 			}
 
@@ -361,8 +362,20 @@ func printLogs(ctx context.Context, rawLogs <-chan rawLogLine,
 			flush()
 			flushTrigger = nil
 		case <-ctx.Done():
-			flush()
-			return nil
+			// Finish printing any logs that are still on the channel.
+			for {
+				select {
+				case logLine, ok := <-rawLogs:
+					if !ok {
+						return nil
+					}
+
+					// Since we are exiting anyway, ignore logLine.error.
+					window = append(window, logLine)
+				default:
+					return nil
+				}
+			}
 		}
 	}
 }
