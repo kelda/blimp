@@ -80,7 +80,7 @@ func (cmd *up) buildImages(composeFile composeTypes.Config) (map[string]string, 
 		// version.
 		imageID, ok := cmd.getCachedImage(svc.Name)
 		if ok {
-			log.WithField("service", svc).
+			log.WithField("service", svc.Name).
 				WithField("id", imageID).
 				Debug("Skipping build and using cached version")
 		} else {
