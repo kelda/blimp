@@ -191,6 +191,46 @@ func (s *server) ProxyAnalytics(ctx context.Context, req *cluster.ProxyAnalytics
 	return &cluster.ProxyAnalyticsResponse{}, analytics.Post([]byte(req.GetBody()))
 }
 
+func (s *server) AttachToSandbox(ctx context.Context, req *cluster.AttachToSandboxRequest) (
+	*cluster.AttachToSandboxResponse, error) {
+	log.Info("Start AttachToSandbox")
+
+	// Validate that the user logged in, and get their information.
+	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
+	if err != nil {
+		return &cluster.AttachToSandboxResponse{}, err
+	}
+
+	_, err = s.kubeClient.CoreV1().Namespaces().Get(user.Namespace, metav1.GetOptions{})
+	if err != nil {
+		if kerrors.IsNotFound(err) {
+			return &cluster.AttachToSandboxResponse{}, errors.NewFriendlyError("Sandbox does not exist")
+		}
+		return &cluster.AttachToSandboxResponse{}, errors.WithContext("get sandbox", err)
+	}
+
+	dnsPod, err := s.getPod(ctx, user.Namespace, "dns", podIsScheduled)
+	if err != nil {
+		return &cluster.AttachToSandboxResponse{}, errors.WithContext("get sandbox node", err)
+	}
+
+	nodeAddress, nodeCert, err := node.GetConnectionInfo(ctx, s.kubeClient, dnsPod.Spec.NodeName)
+	if err != nil {
+		return &cluster.AttachToSandboxResponse{}, errors.WithContext("get node connection info", err)
+	}
+
+	cliCreds, err := s.createCLICreds(ctx, user.Namespace)
+	if err != nil {
+		return &cluster.AttachToSandboxResponse{}, errors.WithContext("get kube credentials", err)
+	}
+
+	return &cluster.AttachToSandboxResponse{
+		NodeAddress:     nodeAddress,
+		NodeCert:        nodeCert,
+		KubeCredentials: &cliCreds,
+	}, nil
+}
+
 func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRequest) (
 	*cluster.CreateSandboxResponse, error) {
 	log.Info("Start CreateSandbox")
