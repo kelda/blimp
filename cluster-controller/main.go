@@ -870,6 +870,14 @@ func (s *server) DeleteSandbox(ctx context.Context, req *cluster.DeleteSandboxRe
 		return &cluster.DeleteSandboxResponse{}, err
 	}
 
+	_, err = s.kubeClient.CoreV1().Namespaces().Get(user.Namespace, metav1.GetOptions{})
+	if err != nil {
+		if kerrors.IsNotFound(err) {
+			return &cluster.DeleteSandboxResponse{}, errors.NewFriendlyError("Sandbox does not exist")
+		}
+		return &cluster.DeleteSandboxResponse{}, errors.WithContext("get sandbox", err)
+	}
+
 	if req.DeleteVolumes {
 		if err := volume.PermanentlyDeletePVC(s.kubeClient, user.Namespace); err != nil {
 			return &cluster.DeleteSandboxResponse{}, errors.WithContext("delete persistent volume", err)
