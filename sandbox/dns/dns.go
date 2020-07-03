@@ -10,9 +10,12 @@ import (
 	"github.com/miekg/dns"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/kelda-inc/blimp/pkg/analytics"
 	"github.com/kelda-inc/blimp/pkg/metadata"
@@ -48,14 +51,23 @@ func main() {
 const dnsTTL = 60 // Seconds
 
 type dnsTable struct {
-	server dns.Server
+	namespace string
+	server    dns.Server
+	lister    listers.PodLister
 
 	recordLock sync.Mutex
 	records    map[string]net.IP
 }
 
 func run(kubeClient kubernetes.Interface, namespace string) {
-	table := makeTable()
+	factory := informers.NewSharedInformerFactoryWithOptions(
+		kubeClient, 30*time.Second, informers.WithNamespace(namespace)).
+		Core().V1().Pods()
+	informer := factory.Informer()
+	go informer.Run(nil)
+	cache.WaitForCacheSync(nil, informer.HasSynced)
+
+	table := makeTable(namespace, factory.Lister())
 
 	// There could be multiple messages depending on how listenAndServe is
 	// implemented.  We don't want anyone to block, so we make a bit of a buffer.
@@ -70,38 +82,48 @@ func run(kubeClient kubernetes.Interface, namespace string) {
 
 	log.Info("Started DNS Server")
 
-	podsClient := kubeClient.CoreV1().Pods(namespace)
-	watcher, err := podsClient.Watch(metav1.ListOptions{
-		LabelSelector: "blimp.customerPod=true",
+	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(_ interface{}) {
+			table.UpdateTable()
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			// Don't bother updating the table if the pod's IP didn't change.
+			if oldObj.(*corev1.Pod).Status.PodIP == newObj.(*corev1.Pod).Status.PodIP {
+				return
+			}
+			table.UpdateTable()
+		},
+		DeleteFunc: func(_ interface{}) {
+			table.UpdateTable()
+		},
 	})
+
+	// Also poll every 30 seconds just in case we missed an event from the
+	// informer.
+	for {
+		table.UpdateTable()
+		time.Sleep(30 * time.Second)
+	}
+}
+
+func (table *dnsTable) UpdateTable() {
+	table.recordLock.Lock()
+	defer table.recordLock.Unlock()
+
+	pods, err := table.lister.Pods(table.namespace).
+		List(labels.Set(
+			map[string]string{"blimp.customerPod": "true"},
+		).AsSelector())
 	if err != nil {
-		log.WithError(err).Error("Failed to watch pods")
+		// We won't retry updating the table if the list fails, but the list
+		// should never fail since the lister is backed by the local cache
+		// managed by the informer.
+		log.WithError(err).Error("Failed to list pods")
 		return
 	}
 
-	watcherChan := watcher.ResultChan()
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-	for {
-		pods, err := podsClient.List(metav1.ListOptions{
-			LabelSelector: "blimp.customerPod=true",
-		})
-		if err != nil {
-			log.WithError(err).Error("Failed to list pods")
-			time.Sleep(30 * time.Second)
-			continue
-		}
-
-		records := podsToDNS(pods.Items)
-		table.recordLock.Lock()
-		table.records = records
-		table.recordLock.Unlock()
-
-		select {
-		case <-watcherChan:
-		case <-ticker.C:
-		}
-	}
+	records := podsToDNS(pods)
+	table.records = records
 }
 
 func (table *dnsTable) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
@@ -197,18 +219,20 @@ func (table *dnsTable) lookupA(name string) []net.IP {
 	return ips
 }
 
-func makeTable() *dnsTable {
+func makeTable(namespace string, lister listers.PodLister) *dnsTable {
 	tbl := &dnsTable{
+		namespace: namespace,
 		server: dns.Server{
 			Addr: "0.0.0.0:53",
 			Net:  "udp",
 		},
+		lister: lister,
 	}
 	tbl.server.Handler = tbl
 	return tbl
 }
 
-func podsToDNS(pods []corev1.Pod) map[string]net.IP {
+func podsToDNS(pods []*corev1.Pod) map[string]net.IP {
 	records := map[string]net.IP{}
 	for _, pod := range pods {
 		ip := net.ParseIP(pod.Status.PodIP)
