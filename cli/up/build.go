@@ -84,6 +84,7 @@ func (cmd *up) buildImages(composeFile composeTypes.Config) (map[string]string, 
 				WithField("id", imageID).
 				Debug("Skipping build and using cached version")
 		} else {
+			fmt.Printf("Building image for %s:\n", svc.Name)
 			imageID, err = docker.Build(cmd.dockerClient, cmd.composePath, svc.Name,
 				*svc.Build, cmd.regCreds, cmd.dockerConfig, false)
 			if err != nil {
@@ -117,6 +118,8 @@ loop:
 				break loop
 			}
 
+			fmt.Printf("Pushing image for %s:\n", base.service)
+
 			// If the imageName is empty, it means the base image pre-push
 			// failed. Just fall back to pushing the full image.
 			if base.imageName != "" {
@@ -134,7 +137,6 @@ loop:
 			}
 
 			img := images[base.service]
-			fmt.Printf("Pushing image for %s:\n", base.service)
 			err := cmd.pushServiceImage(img.id, img.name)
 			if err != nil {
 				return nil, errors.WithContext(fmt.Sprintf("push %s", img.name), err)
@@ -316,7 +318,8 @@ func (cmd *up) getBaseImage(dockerfilePath string) (string, error) {
 	// TODO: If the image we are going to push is already built, check the
 	// digest actually used there. It could differ from the most recently pulled
 	// image for this tag.
-	localImages, err := cmd.dockerClient.ImageList(context.Background(), types.ImageListOptions{
+	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
+	localImages, err := cmd.dockerClient.ImageList(ctx, types.ImageListOptions{
 		Filters: filters.NewArgs(filters.KeyValuePair{
 			Key:   "reference",
 			Value: baseImageName,
@@ -325,7 +328,7 @@ func (cmd *up) getBaseImage(dockerfilePath string) (string, error) {
 	if err == nil && len(localImages) == 1 {
 		// When ImageList is filtered by reference, it does not give
 		// RepoDigests, so we have to use inspect to get them.
-		localImage, _, err := cmd.dockerClient.ImageInspectWithRaw(context.Background(), localImages[0].ID)
+		localImage, _, err := cmd.dockerClient.ImageInspectWithRaw(ctx, localImages[0].ID)
 		if err == nil {
 			baseImageNoTag := stripTagFromImageURL(baseImageName)
 
@@ -348,7 +351,8 @@ func (cmd *up) getBaseImage(dockerfilePath string) (string, error) {
 
 func (cmd *up) pushBaseTag(localImage, service string) error {
 	remoteTag := remoteBaseTag(cmd.imageNamespace, service)
-	if err := cmd.dockerClient.ImageTag(context.TODO(), localImage, remoteTag); err != nil {
+	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
+	if err := cmd.dockerClient.ImageTag(ctx, localImage, remoteTag); err != nil {
 		return errors.WithContext("tag base image", err)
 	}
 
@@ -356,7 +360,8 @@ func (cmd *up) pushBaseTag(localImage, service string) error {
 }
 
 func (cmd *up) pushServiceImage(imageID, remoteImageName string) error {
-	if err := cmd.dockerClient.ImageTag(context.TODO(), imageID, remoteImageName); err != nil {
+	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
+	if err := cmd.dockerClient.ImageTag(ctx, imageID, remoteImageName); err != nil {
 		return errors.WithContext("tag image", err)
 	}
 
@@ -369,7 +374,7 @@ func (cmd *up) pushImage(image string) error {
 		return errors.WithContext("make registry auth header", err)
 	}
 
-	pushResp, err := cmd.dockerClient.ImagePush(context.TODO(), image, types.ImagePushOptions{
+	pushResp, err := cmd.dockerClient.ImagePush(context.Background(), image, types.ImagePushOptions{
 		RegistryAuth: registryAuth,
 	})
 	if err != nil {
@@ -392,6 +397,7 @@ func (cmd *up) getCachedImages() ([]types.ImageSummary, error) {
 		return []types.ImageSummary{}, nil
 	}
 
+	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
 	opts := types.ImageListOptions{
 		Filters: filters.NewArgs(filters.KeyValuePair{
 			Key: "reference",
@@ -403,7 +409,7 @@ func (cmd *up) getCachedImages() ([]types.ImageSummary, error) {
 			Value: fmt.Sprintf("%s_*:latest", cmd.getComposeImagePrefix()),
 		}),
 	}
-	return cmd.dockerClient.ImageList(context.Background(), opts)
+	return cmd.dockerClient.ImageList(ctx, opts)
 }
 
 // See https://github.com/docker/compose/blob/854c14a5bcf566792ee8a972325c37590521656b/compose/service.py#L379
