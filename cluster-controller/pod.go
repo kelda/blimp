@@ -482,6 +482,21 @@ func toReadinessProbe(healthCheck *composeTypes.HealthCheckConfig) *corev1.Probe
 				Command: command,
 			},
 		},
+
+		// We use the Docker defaults for the healthcheck settings, rather than
+		// the Kubernetes defaults.
+		// By default, Kubernetes checks more aggressively (e.g. its default
+		// check interval is 10 seconds), which exacerbates Docker performance
+		// issues with exec probes.
+		//
+		// We don't know the root cause of the performance issues, but for some
+		// possible related issues see:
+		// * https://github.com/kubernetes/kubernetes/issues/82440
+		// * https://serverfault.com/questions/973817/google-cloud-kuberbetes-run-away-systemd-100-cpu-usage
+		TimeoutSeconds:      30,
+		PeriodSeconds:       30,
+		InitialDelaySeconds: 0,
+		FailureThreshold:    3,
 	}
 
 	if healthCheck.Timeout != nil {
