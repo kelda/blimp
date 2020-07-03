@@ -150,78 +150,99 @@ func PermanentlyDeletePVC(kubeClient kubernetes.Interface, namespace string) err
 func createPersistentVolume(ctx context.Context, kubeClient kubernetes.Interface,
 	namespace string, spec corev1.PersistentVolumeClaimSpec) (string, error) {
 
-	// Create a new PersistentVolume by creating a PersistentVolumeClaim. The
-	// namespace that we create it in doesn't matter as long as it's
-	// consistent, since the resulting PV isn't namespaced.
-	pvc := &corev1.PersistentVolumeClaim{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: kube.BlimpNamespace,
-			Name:      namespace,
-		},
-		Spec: spec,
-	}
-	pvcClient := kubeClient.CoreV1().PersistentVolumeClaims(pvc.Namespace)
-	if _, err := pvcClient.Create(pvc); err != nil && !kerrors.IsAlreadyExists(err) {
-		return "", errors.WithContext("create seed pvc", err)
-	}
+	// Retry creating the PersistentVolume up to 8 times.
+	for i := 0; i < 8; i++ {
+		// Create a new PersistentVolume by creating a PersistentVolumeClaim. The
+		// namespace that we create it in doesn't matter as long as it's
+		// consistent, since the resulting PV isn't namespaced.
+		// If multiple PersistentVolume are created at the same time, it's
+		// possible for the PVC to bind to another namespace's PV. We can't
+		// control this when we create the PVC, but we abort claiming the PV at
+		// the end if we notice that the PV is already claimed.
+		pvc := &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: kube.BlimpNamespace,
+				Name:      namespace,
+			},
+			Spec: spec,
+		}
+		pvcClient := kubeClient.CoreV1().PersistentVolumeClaims(pvc.Namespace)
+		if _, err := pvcClient.Create(pvc); err != nil && !kerrors.IsAlreadyExists(err) {
+			return "", errors.WithContext("create seed pvc", err)
+		}
 
-	// Wait for the corresponding PV to be created.
-	var pvName string
-	err := kubewait.WaitForObject(ctx,
-		pvcGetter(kubeClient, pvc.Namespace, pvc.Name),
-		pvcClient.Watch,
-		func(pvcIntf interface{}) bool {
-			pvName = pvcIntf.(*corev1.PersistentVolumeClaim).Spec.VolumeName
-			return pvName != ""
-		})
-	if err != nil {
-		return "", errors.WithContext("wait for seed pvc to bind", err)
+		// Wait for the corresponding PV to be created.
+		var pvName string
+		err := kubewait.WaitForObject(ctx,
+			pvcGetter(kubeClient, pvc.Namespace, pvc.Name),
+			pvcClient.Watch,
+			func(pvcIntf interface{}) bool {
+				pvName = pvcIntf.(*corev1.PersistentVolumeClaim).Spec.VolumeName
+				return pvName != ""
+			})
+		if err != nil {
+			return "", errors.WithContext("wait for seed pvc to bind", err)
+		}
+
+		// Set the reclaim policy to Retain so that the volume isn't deleted when
+		// the PVC is deleted.
+		err = updatePersistentVolume(kubeClient, pvName,
+			func(pv corev1.PersistentVolume) (corev1.PersistentVolume, bool) {
+				pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimRetain
+				return pv, true
+			})
+		if err != nil {
+			return "", errors.WithContext("update pv reclaim policy", err)
+		}
+
+		// Delete the PVC used to generate the PV.
+		if err := pvcClient.Delete(pvc.Name, &metav1.DeleteOptions{}); err != nil {
+			return "", errors.WithContext("delete seed pvc", err)
+		}
+
+		err = kubewait.WaitForObject(ctx,
+			pvGetter(kubeClient, pvName),
+			kubeClient.CoreV1().PersistentVolumes().Watch,
+			func(pvIntf interface{}) bool {
+				return pvIntf.(*corev1.PersistentVolume).Status.Phase == corev1.VolumeReleased
+			})
+		if err != nil {
+			return "", errors.WithContext("wait for pvc to release claim", err)
+		}
+
+		// Claim the PV so that it's associated with the given namespace.
+		claimedVolume := false
+		err = updatePersistentVolume(kubeClient, pvName,
+			func(pv corev1.PersistentVolume) (corev1.PersistentVolume, bool) {
+				// It's possible for the PVC to attach to an existing volume rather
+				// than create a new one if booting another namespace causes the
+				// volume to be Available, so we only claimed the volume if it
+				// doesn't have an owner already.
+				if _, ok := pv.Labels[pvNamespaceLabel]; !ok {
+					// Label the PV so that getPersistentVolume will return it in the
+					// future.
+					if pv.Labels == nil {
+						pv.Labels = map[string]string{}
+					}
+					pv.Labels[pvNamespaceLabel] = namespace
+					claimedVolume = true
+				}
+
+				// Make the PV available for the namespace's PVC to mount (this is
+				// still necessary even if the PV was already claimed by another
+				// namespace).
+				return makeAvailable(pv)
+			})
+		if err != nil {
+			return "", errors.WithContext("claim pv", err)
+		}
+
+		if claimedVolume {
+			return pvName, nil
+		}
 	}
-
-	// Set the reclaim policy to Retain so that the volume isn't deleted when
-	// the PVC is deleted.
-	err = updatePersistentVolume(kubeClient, pvName,
-		func(pv corev1.PersistentVolume) (corev1.PersistentVolume, bool) {
-			pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimRetain
-			return pv, true
-		})
-	if err != nil {
-		return "", errors.WithContext("update pv reclaim policy", err)
-	}
-
-	// Delete the PVC used to generate the PV.
-	if err := pvcClient.Delete(pvc.Name, &metav1.DeleteOptions{}); err != nil {
-		return "", errors.WithContext("delete seed pvc", err)
-	}
-
-	err = kubewait.WaitForObject(ctx,
-		pvGetter(kubeClient, pvName),
-		kubeClient.CoreV1().PersistentVolumes().Watch,
-		func(pvIntf interface{}) bool {
-			return pvIntf.(*corev1.PersistentVolume).Status.Phase == corev1.VolumeReleased
-		})
-	if err != nil {
-		return "", errors.WithContext("wait for pvc to release claim", err)
-	}
-
-	// Claim the PV so that it's associated with the given namespace.
-	err = updatePersistentVolume(kubeClient, pvName,
-		func(pv corev1.PersistentVolume) (corev1.PersistentVolume, bool) {
-			// Label the PV so that getPersistentVolume will return it in the
-			// future.
-			if pv.Labels == nil {
-				pv.Labels = map[string]string{}
-			}
-			pv.Labels[pvNamespaceLabel] = namespace
-
-			// Make the PV available for the namespace's PVC to mount.
-			return makeAvailable(pv)
-		})
-	if err != nil {
-		return "", errors.WithContext("claim pv", err)
-	}
-
-	return pvName, nil
+	return "", errors.NewFriendlyError("Unable to create volumes. " +
+		"This is a sign that that the Blimp servers are overloaded. Please try again later.")
 }
 
 // makeAvailable transforms the given PersistentVolume such that it can be
