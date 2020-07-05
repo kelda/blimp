@@ -29,7 +29,7 @@ import (
 const (
 	cpuRequest         = 20
 	cpuRequestUnits    = "m"
-	memoryRequest      = 100
+	memoryRequest      = 50
 	memoryRequestUnits = "Mi"
 )
 
