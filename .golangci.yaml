@@ -8,6 +8,7 @@ linters:
   enable-all: true
   disable:
     - dogsled
+    - exhaustive
     - funlen
     - gochecknoglobals
     - gochecknoinits
@@ -15,10 +16,12 @@ linters:
     - gocyclo
     - godox
     - goerr113
+    - gofumpt
     - gomnd
     - gosec
     - interfacer
     - maligned
+    - noctx
     - prealloc
     - staticcheck
     - testpackage
