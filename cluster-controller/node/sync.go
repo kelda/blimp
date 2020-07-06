@@ -285,7 +285,9 @@ func (booter *booter) deployNodeController(node string) error {
 		}
 	}
 
-	var publicIP string
+	var certIPs []net.IP
+	var certHostnames []string
+	var host string
 	ctx, _ := context.WithTimeout(context.Background(), 3*time.Minute)
 	err := kubewait.WaitForObject(ctx,
 		kubewait.ServiceGetter(booter.kubeClient, NodeControllerNamespace, service.Name),
@@ -294,9 +296,17 @@ func (booter *booter) deployNodeController(node string) error {
 			svc := svcIntf.(*corev1.Service)
 
 			ingress := svc.Status.LoadBalancer.Ingress
-			if len(ingress) == 1 && ingress[0].IP != "" {
-				publicIP = ingress[0].IP
-				return true
+			if len(ingress) == 1 {
+				if ingress[0].IP != "" {
+					certIPs = []net.IP{net.ParseIP(ingress[0].IP)}
+					host = ingress[0].IP
+					return true
+				}
+				if ingress[0].Hostname != "" {
+					certHostnames = []string{ingress[0].Hostname}
+					host = ingress[0].Hostname
+					return true
+				}
 			}
 			return false
 		})
@@ -309,7 +319,7 @@ func (booter *booter) deployNodeController(node string) error {
 	secretsClient := booter.kubeClient.CoreV1().Secrets(NodeControllerNamespace)
 	_, err = secretsClient.Get(certSecretName(node), metav1.GetOptions{})
 	if err != nil {
-		cert, key, err := newSelfSignedCert(publicIP)
+		cert, key, err := newSelfSignedCert(certIPs, certHostnames)
 		if err != nil {
 			return errors.WithContext("generate cert", err)
 		}
@@ -319,7 +329,7 @@ func (booter *booter) deployNodeController(node string) error {
 				Name:      certSecretName(node),
 				Namespace: NodeControllerNamespace,
 				Annotations: map[string]string{
-					"host": fmt.Sprintf("%s:%d", publicIP, ports.NodeControllerPublicPort),
+					"host": fmt.Sprintf("%s:%d", host, ports.NodeControllerPublicPort),
 				},
 			},
 			Data: map[string][]byte{
@@ -343,7 +353,7 @@ func (booter *booter) deployNodeController(node string) error {
 	return nil
 }
 
-func newSelfSignedCert(ip string) (pemCert, pemKey []byte, err error) {
+func newSelfSignedCert(ips []net.IP, dnsNames []string) (pemCert, pemKey []byte, err error) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, nil, errors.WithContext("create private key", err)
@@ -367,7 +377,8 @@ func newSelfSignedCert(ip string) (pemCert, pemKey []byte, err error) {
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
-		IPAddresses:           []net.IP{net.ParseIP(ip)},
+		IPAddresses:           ips,
+		DNSNames:              dnsNames,
 	}
 
 	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
