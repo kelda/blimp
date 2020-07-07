@@ -288,7 +288,8 @@ func (booter *booter) deployNodeController(node string) error {
 	var certIPs []net.IP
 	var certHostnames []string
 	var host string
-	ctx, _ := context.WithTimeout(context.Background(), 3*time.Minute)
+	// EKS can take ~3 minutes in some cases.
+	ctx, _ := context.WithTimeout(context.Background(), 5*time.Minute)
 	err := kubewait.WaitForObject(ctx,
 		kubewait.ServiceGetter(booter.kubeClient, NodeControllerNamespace, service.Name),
 		booter.kubeClient.CoreV1().Services(NodeControllerNamespace).Watch,
