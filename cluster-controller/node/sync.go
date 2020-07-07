@@ -347,7 +347,7 @@ func (booter *booter) deployNodeController(node string) error {
 		return err
 	}
 
-	if err := kube.DeployPod(booter.kubeClient, pod, false); err != nil {
+	if err := kube.DeployPod(booter.kubeClient, pod, kube.DeployPodOptions{}); err != nil {
 		return errors.WithContext("deploy", err)
 	}
 

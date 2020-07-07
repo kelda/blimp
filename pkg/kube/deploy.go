@@ -62,7 +62,44 @@ func DeployClusterRoleBinding(kubeClient kubernetes.Interface, binding rbacv1.Cl
 	return err
 }
 
-func DeployPod(kubeClient kubernetes.Interface, pod corev1.Pod, forceRestart bool) error {
+type DeployPodOptions struct {
+	ForceRestart bool
+	Sanitize     func(desired, curr *corev1.Pod) *corev1.Pod
+}
+
+func DeployPod(kubeClient kubernetes.Interface, pod corev1.Pod, opts DeployPodOptions) error {
+	if opts.Sanitize == nil {
+		opts.Sanitize = func(desired, _ *corev1.Pod) *corev1.Pod { return desired }
+	}
+
+	// Get the current pod, if it exists.
+	podClient := kubeClient.CoreV1().Pods(pod.Namespace)
+	curr, err := podClient.Get(pod.Name, metav1.GetOptions{})
+	if err != nil && !kerrors.IsNotFound(err) {
+		return errors.WithContext("get pod", err)
+	}
+
+	// If the pod already exists.
+	if err == nil {
+		// If the currently deployed pod is already up to date, we don't have
+		// to do anything.
+		if !opts.ForceRestart {
+			annot, err := runtime.Encode(unstructured.UnstructuredJSONScheme, opts.Sanitize(&pod, curr))
+			if err != nil {
+				return errors.WithContext("make apply annotation", err)
+			}
+
+			if string(annot) == curr.Annotations["blimp.appliedObject"] {
+				return nil
+			}
+		}
+
+		// Delete the existing pod before we recreate it.
+		if err := DeletePod(kubeClient, pod.Namespace, pod.Name); err != nil {
+			return errors.WithContext("delete pod", err)
+		}
+	}
+
 	// Add an annotation to track the spec that was used to deploy the pod.
 	// This way, we can avoid recreating pods when the underlying spec hasn't
 	// changed.
@@ -77,28 +114,6 @@ func DeployPod(kubeClient kubernetes.Interface, pod corev1.Pod, forceRestart boo
 		pod.Annotations = map[string]string{}
 	}
 	pod.Annotations["blimp.appliedObject"] = string(applyAnnotation)
-
-	// Get the current pod, if it exists.
-	podClient := kubeClient.CoreV1().Pods(pod.Namespace)
-	curr, err := podClient.Get(pod.Name, metav1.GetOptions{})
-	if err != nil && !kerrors.IsNotFound(err) {
-		return errors.WithContext("get pod", err)
-	}
-
-	// If the pod already exists.
-	if err == nil {
-		// If the currently deployed pod is already up to date, we don't have
-		// to do anything.
-		if !forceRestart && curr.Annotations["blimp.appliedObject"] ==
-			pod.Annotations["blimp.appliedObject"] {
-			return nil
-		}
-
-		// Delete the existing pod before we recreate it.
-		if err := DeletePod(kubeClient, pod.Namespace, pod.Name); err != nil {
-			return errors.WithContext("delete pod", err)
-		}
-	}
 
 	if _, err := podClient.Create(&pod); err != nil {
 		return errors.WithContext("create pod", err)
@@ -202,4 +217,21 @@ func DeployConfigMap(kubeClient kubernetes.Interface, configMap corev1.ConfigMap
 		return errors.WithContext("create configMap", err)
 	}
 	return nil
+}
+
+func SanitizeIgnoreInitContainerImages(desired, curr *corev1.Pod) *corev1.Pod {
+	// Make a copy to avoid modifying the desired pod, since that pod is used
+	// to deploy.
+	sanitized := desired.DeepCopy()
+
+	currImages := map[string]string{}
+	for _, c := range curr.Spec.InitContainers {
+		currImages[c.Name] = c.Image
+	}
+
+	for i, c := range desired.Spec.InitContainers {
+		sanitized.Spec.InitContainers[i].Image = currImages[c.Name]
+	}
+
+	return sanitized
 }

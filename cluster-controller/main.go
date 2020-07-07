@@ -581,7 +581,7 @@ func (s *server) createReservation(namespace string, numServices int) error {
 		},
 	}
 
-	if err := kube.DeployPod(s.kubeClient, pod, false); err != nil {
+	if err := kube.DeployPod(s.kubeClient, pod, kube.DeployPodOptions{}); err != nil {
 		return errors.WithContext("deploy pod", err)
 	}
 	return nil
@@ -629,7 +629,7 @@ func (s *server) createSyncthing(namespace string, syncedFolders map[string]stri
 		},
 	}
 
-	if err := kube.DeployPod(s.kubeClient, pod, false); err != nil {
+	if err := kube.DeployPod(s.kubeClient, pod, kube.DeployPodOptions{}); err != nil {
 		return errors.WithContext("deploy pod", err)
 	}
 	return nil
@@ -700,7 +700,7 @@ func (s *server) deployDNS(namespace string) error {
 		},
 	}
 
-	if err := kube.DeployPod(s.kubeClient, pod, false); err != nil {
+	if err := kube.DeployPod(s.kubeClient, pod, kube.DeployPodOptions{}); err != nil {
 		return errors.WithContext("deploy pod", err)
 	}
 	return nil
@@ -860,7 +860,10 @@ func (s *server) deployCustomerPods(namespace string, desired []corev1.Pod) erro
 	// TODO: Parallelize
 	desiredNames := map[string]struct{}{}
 	for _, pod := range desired {
-		if err := kube.DeployPod(s.kubeClient, pod, false); err != nil {
+		opts := kube.DeployPodOptions{
+			Sanitize: kube.SanitizeIgnoreInitContainerImages,
+		}
+		if err := kube.DeployPod(s.kubeClient, pod, opts); err != nil {
 			return errors.WithContext("create", err)
 		}
 		desiredNames[pod.Name] = struct{}{}
@@ -992,7 +995,7 @@ func (s *server) Restart(ctx context.Context, req *cluster.RestartRequest) (*clu
 		}
 	}
 
-	err = kube.DeployPod(s.kubeClient, newPod, true)
+	err = kube.DeployPod(s.kubeClient, newPod, kube.DeployPodOptions{ForceRestart: true})
 	if err != nil {
 		return &cluster.RestartResponse{}, errors.WithContext("deploy new pod", err)
 	}
