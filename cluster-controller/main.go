@@ -276,6 +276,20 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 				"Please try again later.")
 	}
 
+	composeFileIssues := ValidateComposeFile(dcCfg)
+	if len(composeFileIssues) > 0 {
+		prettyIssues := ""
+		for _, issue := range composeFileIssues {
+			prettyIssues += fmt.Sprintf("- %s\n", issue)
+		}
+
+		err := errors.NewFriendlyError(
+			"We found the following issues with your Docker Compose file:\n" +
+				prettyIssues +
+				"Please fix these and try blimp up again!")
+		return &cluster.CreateSandboxResponse{}, err
+	}
+
 	namespace := user.Namespace
 	if err := s.createNamespace(ctx, namespace); err != nil {
 		return &cluster.CreateSandboxResponse{}, errors.WithContext("create namespace", err)
