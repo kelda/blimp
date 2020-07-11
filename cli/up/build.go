@@ -33,14 +33,6 @@ import (
 	"github.com/kelda/blimp/pkg/proto/cluster"
 )
 
-type baseImage struct {
-	// imageName is the reference to push as the base image for a given service,
-	// if the base image was able to be prepushed. It is "" if the base image
-	// pre-push failed server-side.
-	imageName string
-	service   string
-}
-
 type image struct {
 	// The ImageID of the image.
 	id string
@@ -106,7 +98,7 @@ loop:
 		timer := time.NewTimer(2 * time.Second)
 
 		select {
-		case base, ok := <-readyToPush:
+		case service, ok := <-readyToPush:
 			if progressPrinting {
 				pp.Stop()
 				progressPrinting = false
@@ -118,25 +110,8 @@ loop:
 				break loop
 			}
 
-			fmt.Printf("Pushing image for %s:\n", base.service)
-
-			// If the imageName is empty, it means the base image pre-push
-			// failed. Just fall back to pushing the full image.
-			if base.imageName != "" {
-				// Even though the base image has already been pushed by the
-				// cluster manager, we need to locally push it to the same tag.
-				// This is a no-op (in that no layers will actually be pushed)
-				// but it lets the local docker daemon know that these layers
-				// are already present on the registry, so that they won't be
-				// pushed when we push the main image.
-				err = cmd.pushBaseTag(base.imageName, base.service)
-				if err != nil {
-					// Don't die.
-					log.WithError(err).WithField("service", base.service).Debug("Push base image tag failed")
-				}
-			}
-
-			img := images[base.service]
+			fmt.Printf("Pushing image for %s:\n", service)
+			img := images[service]
 			err := cmd.pushServiceImage(img.id, img.name)
 			if err != nil {
 				return nil, errors.WithContext(fmt.Sprintf("push %s", img.name), err)
@@ -185,9 +160,9 @@ func (cmd *up) getServicesToPush(services composeTypes.Services) (toPush compose
 // prePushBaseImages initiates the pre-push requests for the given services. It
 // returns a channel which sends the names of services as their prepush finishes
 // or fails.
-func (cmd *up) prePushBaseImages(services composeTypes.Services) (<-chan baseImage, error) {
+func (cmd *up) prePushBaseImages(services composeTypes.Services) (<-chan string, error) {
 	// We should send each service on this channel exactly once, then exit.
-	readyToPush := make(chan baseImage, len(services))
+	readyToPush := make(chan string, len(services))
 
 	// Keep track of which services still need to be sent over the channel, to
 	// make sure they are all eventually sent. We will delete from this map as
@@ -197,16 +172,15 @@ func (cmd *up) prePushBaseImages(services composeTypes.Services) (<-chan baseIma
 	for _, svc := range services {
 		needToSend[svc.Name] = struct{}{}
 	}
-	ready := func(service, baseImageName string) {
+	ready := func(service string) {
 		if _, ok := needToSend[service]; !ok {
 			panic("tried to send same service over the channel twice")
 		}
 		delete(needToSend, service)
-		readyToPush <- baseImage{imageName: baseImageName, service: service}
+		readyToPush <- service
 	}
 
 	tagRequests := []*cluster.TagImageRequest{}
-	baseImages := map[string]string{}
 
 	for _, svc := range services {
 		dockerfile := svc.Build.Dockerfile
@@ -220,18 +194,17 @@ func (cmd *up) prePushBaseImages(services composeTypes.Services) (<-chan baseIma
 		baseImageName, err := cmd.getBaseImage(dockerfilePath)
 		if err != nil {
 			log.WithError(err).WithField("service", svc.Name).Debug("Failed to get base image from Dockerfile")
-			ready(svc.Name, "")
+			ready(svc.Name)
 			continue
 		}
 
 		if baseImageName == "scratch" {
 			// "scratch" is not an actual image, it just indicates that this is
 			// a base image and there is no parent image to push.
-			ready(svc.Name, "")
+			ready(svc.Name)
 			continue
 		}
 
-		baseImages[svc.Name] = baseImageName
 		tagRequests = append(tagRequests, &cluster.TagImageRequest{
 			Service: svc.Name,
 			Image:   baseImageName,
@@ -271,7 +244,7 @@ func (cmd *up) prePushBaseImages(services composeTypes.Services) (<-chan baseIma
 				}
 				// Give up on any remaining images.
 				for service := range needToSend {
-					ready(service, "")
+					ready(service)
 				}
 				return
 			}
@@ -283,7 +256,7 @@ func (cmd *up) prePushBaseImages(services composeTypes.Services) (<-chan baseIma
 
 			// Whether we were successful or not, this image is ready to be
 			// pushed.
-			ready(msg.Service, baseImages[msg.Service])
+			ready(msg.Service)
 		}
 	}()
 
@@ -347,16 +320,6 @@ func (cmd *up) getBaseImage(dockerfilePath string) (string, error) {
 	}
 
 	return baseImageName, nil
-}
-
-func (cmd *up) pushBaseTag(localImage, service string) error {
-	remoteTag := remoteBaseTag(cmd.imageNamespace, service)
-	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
-	if err := cmd.dockerClient.ImageTag(ctx, localImage, remoteTag); err != nil {
-		return errors.WithContext("tag base image", err)
-	}
-
-	return cmd.pushImage(remoteTag)
 }
 
 func (cmd *up) pushServiceImage(imageID, remoteImageName string) error {
