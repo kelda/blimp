@@ -126,20 +126,28 @@ type readResult struct {
 
 // There's no good way to cancel a stream read when the other end of the
 // connection closes, so we need to roll our own.
-func asyncReadStream(stream io.Reader, bufChan <-chan []byte,
-	resultChan chan<- readResult) {
+func asyncReadStream(ctx context.Context, stream io.Reader,
+	bufChan <-chan []byte, resultChan chan<- readResult) {
+	defer close(resultChan)
 
 	for {
 		buf := <-bufChan
 		if buf == nil {
-			close(resultChan)
 			return
 		}
 
 		n, err := stream.Read(buf)
-		resultChan <- readResult{
+		result := readResult{
 			err: err,
 			buf: buf[:n],
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case resultChan <- result:
+		}
+		if err != nil {
+			return
 		}
 	}
 }
@@ -150,8 +158,10 @@ func streamToTunnel(stream io.Reader, tnl tunnel, done <-chan struct{}) {
 	bufChan := make(chan []byte)
 	defer close(bufChan)
 
+	asyncReadCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	resultChan := make(chan readResult)
-	go asyncReadStream(stream, bufChan, resultChan)
+	go asyncReadStream(asyncReadCtx, stream, bufChan, resultChan)
 
 loop:
 	for {
