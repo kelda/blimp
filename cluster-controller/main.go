@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Masterminds/semver"
@@ -308,7 +309,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		// will ultimately be deployed, to make sure that the namespace is
 		// scheduled on a node that ultimately will be able to handle the
 		// workload.
-		if err := s.createReservation(namespace, len(dcCfg.Services)); err != nil {
+		if err := s.createReservation(user, len(dcCfg.Services)); err != nil {
 			return &cluster.CreateSandboxResponse{}, errors.WithContext("deploy reservation", err)
 		}
 
@@ -326,11 +327,11 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		}
 	}
 
-	if err := s.createSyncthing(namespace, req.GetSyncedFolders()); err != nil {
+	if err := s.createSyncthing(user, req.GetSyncedFolders()); err != nil {
 		return &cluster.CreateSandboxResponse{}, errors.WithContext("deploy syncthing", err)
 	}
 
-	if err := s.deployDNS(namespace); err != nil {
+	if err := s.deployDNS(user); err != nil {
 		return &cluster.CreateSandboxResponse{}, errors.WithContext("deploy dns", err)
 	}
 
@@ -411,7 +412,7 @@ func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest
 		return &cluster.DeployResponse{}, errors.WithContext("get node controller's IP", err)
 	}
 
-	customerPods, configMaps, err := toPods(namespace, dnsPod.Status.PodIP, nodeControllerIP, dcCfg, req.BuiltImages)
+	customerPods, configMaps, err := toPods(user, dnsPod.Status.PodIP, nodeControllerIP, dcCfg, req.BuiltImages)
 	if err != nil {
 		return &cluster.DeployResponse{}, errors.WithContext("make pod specs", err)
 	}
@@ -423,7 +424,7 @@ func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest
 		}
 	}
 
-	log.WithField("namespace", user.Namespace).
+	log.WithField("namespace", namespace).
 		WithField("numPods", len(customerPods)).
 		Info("Deploying customer pods")
 	if err := s.deployCustomerPods(namespace, customerPods); err != nil {
@@ -548,19 +549,24 @@ func (s *server) getPod(ctx context.Context, namespace, name string, cond podCon
 	return pod, nil
 }
 
-func (s *server) createReservation(namespace string, numServices int) error {
+func (s *server) createReservation(user auth.User, numServices int) error {
 	cpu := resource.MustParse(
 		fmt.Sprintf("%d%s", cpuRequest*numServices, cpuRequestUnits))
 	memory := resource.MustParse(
 		fmt.Sprintf("%d%s", memoryRequest*numServices, memoryRequestUnits))
 
+	affinity, err := affinityForUser(user)
+	if err != nil {
+		return err
+	}
+
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
+			Namespace: user.Namespace,
 			Name:      "reservation",
 			Labels: map[string]string{
 				"service":        "reservation",
-				"blimp.customer": namespace,
+				"blimp.customer": user.Namespace,
 				// We set blimp.customerPod=true so that the pod will get
 				// cleaned up when the actual sandbox is deployed.
 				"blimp.customerPod": "true",
@@ -577,7 +583,7 @@ func (s *server) createReservation(namespace string, numServices int) error {
 					},
 				},
 			}},
-			Affinity: sameNodeAffinity(namespace),
+			Affinity: affinity,
 		},
 	}
 
@@ -587,7 +593,12 @@ func (s *server) createReservation(namespace string, numServices int) error {
 	return nil
 }
 
-func (s *server) createSyncthing(namespace string, syncedFolders map[string]string) error {
+func (s *server) createSyncthing(user auth.User, syncedFolders map[string]string) error {
+	affinity, err := affinityForUser(user)
+	if err != nil {
+		return err
+	}
+
 	mount := corev1.VolumeMount{
 		Name:      volume.PersistentVolume.Name,
 		MountPath: "/pv",
@@ -600,11 +611,11 @@ func (s *server) createSyncthing(namespace string, syncedFolders map[string]stri
 
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
+			Namespace: user.Namespace,
 			Name:      "syncthing",
 			Labels: map[string]string{
 				"service":        "syncthing",
-				"blimp.customer": namespace,
+				"blimp.customer": user.Namespace,
 			},
 		},
 		Spec: corev1.PodSpec{
@@ -625,17 +636,26 @@ func (s *server) createSyncthing(namespace string, syncedFolders map[string]stri
 				},
 			}},
 			Volumes:  []corev1.Volume{volume.PersistentVolume},
-			Affinity: sameNodeAffinity(namespace),
+			Affinity: affinity,
 		},
 	}
 
-	if err := kube.DeployPod(s.kubeClient, pod, kube.DeployPodOptions{}); err != nil {
+	opts := kube.DeployPodOptions{
+		Sanitizers: []kube.Sanitizer{kube.SanitizeIgnoreNodeAffinity},
+	}
+	if err := kube.DeployPod(s.kubeClient, pod, opts); err != nil {
 		return errors.WithContext("deploy pod", err)
 	}
 	return nil
 }
 
-func (s *server) deployDNS(namespace string) error {
+func (s *server) deployDNS(user auth.User) error {
+	namespace := user.Namespace
+	affinity, err := affinityForUser(user)
+	if err != nil {
+		return err
+	}
+
 	serviceAccount := corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "dns",
@@ -695,12 +715,15 @@ func (s *server) deployDNS(namespace string) error {
 					},
 				},
 			}},
-			Affinity:           sameNodeAffinity(namespace),
+			Affinity:           affinity,
 			ServiceAccountName: serviceAccount.Name,
 		},
 	}
 
-	if err := kube.DeployPod(s.kubeClient, pod, kube.DeployPodOptions{}); err != nil {
+	opts := kube.DeployPodOptions{
+		Sanitizers: []kube.Sanitizer{kube.SanitizeIgnoreNodeAffinity},
+	}
+	if err := kube.DeployPod(s.kubeClient, pod, opts); err != nil {
 		return errors.WithContext("deploy pod", err)
 	}
 	return nil
@@ -861,7 +884,10 @@ func (s *server) deployCustomerPods(namespace string, desired []corev1.Pod) erro
 	desiredNames := map[string]struct{}{}
 	for _, pod := range desired {
 		opts := kube.DeployPodOptions{
-			Sanitize: kube.SanitizeIgnoreInitContainerImages,
+			Sanitizers: []kube.Sanitizer{
+				kube.SanitizeIgnoreInitContainerImages,
+				kube.SanitizeIgnoreNodeAffinity,
+			},
 		}
 		if err := kube.DeployPod(s.kubeClient, pod, opts); err != nil {
 			return errors.WithContext("create", err)
@@ -995,6 +1021,7 @@ func (s *server) Restart(ctx context.Context, req *cluster.RestartRequest) (*clu
 		}
 	}
 
+	// Since we are setting ForceRestart, we don't both adding any Sanitizers here.
 	err = kube.DeployPod(s.kubeClient, newPod, kube.DeployPodOptions{ForceRestart: true})
 	if err != nil {
 		return &cluster.RestartResponse{}, errors.WithContext("deploy new pod", err)
@@ -1131,7 +1158,7 @@ func (s *server) pushImage(oldName, newName, token string,
 }
 
 func toPods(
-	namespace,
+	user auth.User,
 	dnsIP,
 	nodeControllerIP string,
 	cfg composeTypes.Config,
@@ -1147,7 +1174,7 @@ func toPods(
 			MaxServices, len(cfg.Services))
 	}
 
-	b, err := newPodBuilder(namespace, dnsIP, nodeControllerIP, builtImages, cfg.Services)
+	b, err := newPodBuilder(user, dnsIP, nodeControllerIP, builtImages, cfg.Services)
 	if err != nil {
 		return nil, nil, errors.WithContext("make pod builder", err)
 	}
@@ -1165,21 +1192,58 @@ func toPods(
 	return pods, configMaps, nil
 }
 
-func sameNodeAffinity(namespace string) *corev1.Affinity {
+func affinityForUser(user auth.User) (*corev1.Affinity, error) {
+	var nodeSelector corev1.NodeSelector
+
+	if strings.HasSuffix(user.Email, "@kustomer.com") {
+		if !user.EmailVerified {
+			return nil, errors.NewFriendlyError(
+				"Hi Kustomer employee! Please verify your email and then run `blimp login` again.\n")
+		}
+		nodeSelector = corev1.NodeSelector{
+			NodeSelectorTerms: []corev1.NodeSelectorTerm{
+				{
+					MatchExpressions: []corev1.NodeSelectorRequirement{
+						{
+							Key:      "blimp.kustomer",
+							Operator: corev1.NodeSelectorOpExists,
+						},
+					},
+				},
+			},
+		}
+	} else {
+		nodeSelector = corev1.NodeSelector{
+			NodeSelectorTerms: []corev1.NodeSelectorTerm{
+				{
+					MatchExpressions: []corev1.NodeSelectorRequirement{
+						{
+							Key:      "blimp.kustomer",
+							Operator: corev1.NodeSelectorOpDoesNotExist,
+						},
+					},
+				},
+			},
+		}
+	}
+
 	return &corev1.Affinity{
 		PodAffinity: &corev1.PodAffinity{
 			RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
 				{
 					LabelSelector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{
-							"blimp.customer": namespace,
+							"blimp.customer": user.Namespace,
 						},
 					},
 					TopologyKey: corev1.LabelHostname,
 				},
 			},
 		},
-	}
+		NodeAffinity: &corev1.NodeAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: &nodeSelector,
+		},
+	}, nil
 }
 
 // getKubeClient gets a Kubernetes client connected to the cluster defined in

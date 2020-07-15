@@ -20,6 +20,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/metadata"
 	"github.com/kelda-inc/blimp/pkg/proto/wait"
 	"github.com/kelda-inc/blimp/pkg/version"
+	"github.com/kelda/blimp/pkg/auth"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/hash"
 	"github.com/kelda/blimp/pkg/names"
@@ -34,7 +35,7 @@ const (
 )
 
 type podBuilder struct {
-	namespace        string
+	user             auth.User
 	dnsIP            string
 	nodeControllerIP string
 	builtImages      map[string]string
@@ -54,7 +55,7 @@ type podSpec struct {
 	configMaps []corev1.ConfigMap
 }
 
-func newPodBuilder(namespace, dnsIP, nodeControllerIP string, builtImages map[string]string,
+func newPodBuilder(user auth.User, dnsIP, nodeControllerIP string, builtImages map[string]string,
 	services []composeTypes.ServiceConfig) (podBuilder, error) {
 
 	serviceToAliases := make(map[string][]string)
@@ -104,7 +105,7 @@ func newPodBuilder(namespace, dnsIP, nodeControllerIP string, builtImages map[st
 	}
 
 	return podBuilder{
-		namespace:         namespace,
+		user:              user,
 		dnsIP:             dnsIP,
 		nodeControllerIP:  nodeControllerIP,
 		builtImages:       builtImages,
@@ -115,7 +116,11 @@ func newPodBuilder(namespace, dnsIP, nodeControllerIP string, builtImages map[st
 }
 
 func (b podBuilder) ToPod(svc composeTypes.ServiceConfig) (corev1.Pod, []corev1.ConfigMap, error) {
-	spec := podSpec{namespace: b.namespace}
+	spec, err := podSpecForUser(b.user)
+	if err != nil {
+		return corev1.Pod{}, nil, err
+	}
+
 	if svc.Build != nil {
 		spec.image = b.builtImages[svc.Name]
 		// TODO: Error if image DNE.
@@ -175,6 +180,18 @@ func (b podBuilder) ToPod(svc composeTypes.ServiceConfig) (corev1.Pod, []corev1.
 	}
 	spec.sanitize()
 	return spec.pod, spec.configMaps, nil
+}
+
+func podSpecForUser(user auth.User) (*podSpec, error) {
+	podSpec := podSpec{namespace: user.Namespace}
+
+	affinity, err := affinityForUser(user)
+	if err != nil {
+		return nil, err
+	}
+	podSpec.pod.Spec.Affinity = affinity
+
+	return &podSpec, nil
 }
 
 func (p *podSpec) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig) {
@@ -420,7 +437,6 @@ func (p *podSpec) addRuntimeContainer(svc composeTypes.ServiceConfig, dnsIP stri
 		{Name: "registry-auth"},
 	}
 	p.pod.Spec.ServiceAccountName = "pod-runner"
-	p.pod.Spec.Affinity = sameNodeAffinity(p.namespace)
 
 	// Disable the environment variables that are automatically
 	// added by Kubernetes (e.g. SANDBOX_SERVICE_PORT).

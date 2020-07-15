@@ -85,7 +85,7 @@ func TestDeployPod(t *testing.T) {
 				pod,
 			},
 			opts: DeployPodOptions{
-				Sanitize: SanitizeIgnoreInitContainerImages,
+				Sanitizers: []Sanitizer{SanitizeIgnoreInitContainerImages},
 			},
 			expActions: []kubeTesting.Action{
 				kubeTesting.NewGetAction(resource, namespace, pod.Name),
@@ -112,7 +112,7 @@ func TestDeployPod(t *testing.T) {
 				pod,
 			},
 			opts: DeployPodOptions{
-				Sanitize: SanitizeIgnoreInitContainerImages,
+				Sanitizers: []Sanitizer{SanitizeIgnoreInitContainerImages},
 			},
 			expActions: []kubeTesting.Action{
 				kubeTesting.NewGetAction(resource, namespace, pod.Name),

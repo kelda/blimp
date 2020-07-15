@@ -62,16 +62,14 @@ func DeployClusterRoleBinding(kubeClient kubernetes.Interface, binding rbacv1.Cl
 	return err
 }
 
+type Sanitizer func(desired, curr *corev1.Pod) *corev1.Pod
+
 type DeployPodOptions struct {
 	ForceRestart bool
-	Sanitize     func(desired, curr *corev1.Pod) *corev1.Pod
+	Sanitizers   []Sanitizer
 }
 
 func DeployPod(kubeClient kubernetes.Interface, pod corev1.Pod, opts DeployPodOptions) error {
-	if opts.Sanitize == nil {
-		opts.Sanitize = func(desired, _ *corev1.Pod) *corev1.Pod { return desired }
-	}
-
 	// Get the current pod, if it exists.
 	podClient := kubeClient.CoreV1().Pods(pod.Namespace)
 	curr, err := podClient.Get(pod.Name, metav1.GetOptions{})
@@ -84,7 +82,13 @@ func DeployPod(kubeClient kubernetes.Interface, pod corev1.Pod, opts DeployPodOp
 		// If the currently deployed pod is already up to date, we don't have
 		// to do anything.
 		if !opts.ForceRestart {
-			annot, err := runtime.Encode(unstructured.UnstructuredJSONScheme, opts.Sanitize(&pod, curr))
+			// Make a copy to avoid modifying the desired pod, since that pod is used
+			// to deploy.
+			sanitized := (&pod).DeepCopy()
+			for _, sanitize := range opts.Sanitizers {
+				sanitized = sanitize(sanitized, curr)
+			}
+			annot, err := runtime.Encode(unstructured.UnstructuredJSONScheme, sanitized)
 			if err != nil {
 				return errors.WithContext("make apply annotation", err)
 			}
@@ -220,18 +224,31 @@ func DeployConfigMap(kubeClient kubernetes.Interface, configMap corev1.ConfigMap
 }
 
 func SanitizeIgnoreInitContainerImages(desired, curr *corev1.Pod) *corev1.Pod {
-	// Make a copy to avoid modifying the desired pod, since that pod is used
-	// to deploy.
-	sanitized := desired.DeepCopy()
-
 	currImages := map[string]string{}
 	for _, c := range curr.Spec.InitContainers {
 		currImages[c.Name] = c.Image
 	}
 
 	for i, c := range desired.Spec.InitContainers {
-		sanitized.Spec.InitContainers[i].Image = currImages[c.Name]
+		desired.Spec.InitContainers[i].Image = currImages[c.Name]
 	}
 
-	return sanitized
+	return desired
+}
+
+func SanitizeIgnoreNodeAffinity(desired, curr *corev1.Pod) *corev1.Pod {
+	if curr.Spec.Affinity == nil || curr.Spec.Affinity.NodeAffinity == nil {
+		// Remove NodeAffinity from desired.
+		if desired.Spec.Affinity != nil {
+			desired.Spec.Affinity.NodeAffinity = nil
+		}
+		return desired
+	}
+
+	if desired.Spec.Affinity == nil {
+		desired.Spec.Affinity = &corev1.Affinity{}
+	}
+	desired.Spec.Affinity.NodeAffinity = curr.Spec.Affinity.NodeAffinity.DeepCopy()
+
+	return desired
 }
