@@ -21,6 +21,7 @@ linters:
     - gosec
     - interfacer
     - maligned
+    - nestif
     - noctx
     - prealloc
     - staticcheck
