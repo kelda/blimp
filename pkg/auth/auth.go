@@ -15,8 +15,10 @@ import (
 )
 
 type User struct {
-	ID        string `json:"sub"`
-	Namespace string
+	ID            string `json:"sub"`
+	Email         string `json:"email"`
+	EmailVerified bool   `json:"email_verified"`
+	Namespace     string
 }
 
 const (
@@ -58,6 +60,7 @@ func GetOAuthConfig(clientSecret string) oauth2.Config {
 		Endpoint:     Endpoint,
 		Scopes: []string{
 			"openid",
+			"email",
 		},
 	}
 }
@@ -76,6 +79,11 @@ func ParseIDToken(token string, verifier *oidc.IDTokenVerifier) (User, error) {
 	var user User
 	if err := idToken.Claims(&user); err != nil {
 		return User{}, errors.WithContext("parse claims", err)
+	}
+
+	if user.Email == "" {
+		return User{}, errors.NewFriendlyError("Blimp has updated and needs new authorization.\n" +
+			"Please run `blimp login` again.")
 	}
 
 	user.Namespace = hash.DNSCompliant(user.ID)
