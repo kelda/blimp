@@ -40,7 +40,7 @@ func waitUntil(ctx context.Context, maxRetries int, fn progressFunction) error {
 		var canceled bool
 		select {
 		case <-ctx.Done():
-			if err := ctx.Err(); err != context.Canceled {
+			if err := ctx.Err(); err != context.Canceled && err != context.DeadlineExceeded {
 				return err
 			}
 			canceled = true
