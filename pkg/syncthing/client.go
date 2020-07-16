@@ -340,7 +340,7 @@ func (c Client) Run(ctx context.Context, ncc node.ControllerClient, remoteAPIAdd
 }
 
 func (c Client) performInitialSync(ctx context.Context, remoteAPIAddr string, idPathMap map[string]string) error {
-	localAPI := APIClient{fmt.Sprintf("localhost:%d", APIPort)}
+	localAPI := APIClient{fmt.Sprintf("127.0.0.1:%d", APIPort)}
 	remoteAPI := APIClient{remoteAPIAddr}
 
 	var folders []string

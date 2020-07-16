@@ -105,7 +105,7 @@ func makeConfig(server bool, folders map[string]string, folderType string) strin
 		address = fmt.Sprintf("tcp://127.0.0.1:%d", Port)
 	}
 
-	guiAddress := fmt.Sprintf("localhost:%d", APIPort)
+	guiAddress := fmt.Sprintf("127.0.0.1:%d", APIPort)
 	if server {
 		guiAddress = fmt.Sprintf(":%d", APIPort)
 	}
