@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/kelda/blimp/pkg/errors"
 )
 
@@ -35,6 +37,7 @@ func waitUntil(ctx context.Context, maxRetries int, fn progressFunction) error {
 		case ProgressError:
 			retries++
 			err = status.err
+			log.WithError(err).Debug("Encountered syncthing wait error.. Retrying")
 		}
 
 		var canceled bool
