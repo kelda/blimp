@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/kelda-inc/blimp/pkg/kube"
@@ -42,6 +43,12 @@ const (
 	// numWorkers is the max number of node controllers to deploy in parallel.
 	numWorkers = 4
 )
+
+var dnsTaint = corev1.Taint{
+	Key:    "blimp.nodeDNSPending",
+	Value:  "true",
+	Effect: corev1.TaintEffectNoSchedule,
+}
 
 type booter struct {
 	nodeInformer cache.SharedIndexInformer
@@ -255,6 +262,13 @@ func (booter *booter) deployNodeController(node string) error {
 			Volumes:            volumes,
 			ServiceAccountName: serviceAccount.Name,
 			NodeName:           node,
+			Tolerations: []corev1.Toleration{
+				{
+					Key:      dnsTaint.Key,
+					Operator: corev1.TolerationOpExists,
+					Effect:   dnsTaint.Effect,
+				},
+			},
 		},
 	}
 
@@ -277,8 +291,10 @@ func (booter *booter) deployNodeController(node string) error {
 
 	// Create the Service first so that we can generate a certificate for the
 	// Node Controller's public IP.
+	newService := false
 	servicesClient := booter.kubeClient.CoreV1().Services(NodeControllerNamespace)
 	if _, err := servicesClient.Get(service.Name, metav1.GetOptions{}); err != nil {
+		newService = true
 		_, err := servicesClient.Create(service)
 		if err != nil {
 			return errors.WithContext("create service", err)
@@ -313,6 +329,28 @@ func (booter *booter) deployNodeController(node string) error {
 		})
 	if err != nil {
 		return errors.WithContext("wait for public IP", err)
+	}
+
+	// Add a taint to the node if the service is hostname-based. We will remove
+	// the taint once DNS records for the service are available. This will keep
+	// sandboxes from being scheduled to the node without being able to connect
+	// to the node controller.
+	if newService && certHostnames != nil {
+		hasTaint, err := nodeHasTaint(booter.kubeClient, node, dnsTaint)
+		if err != nil {
+			return err
+		}
+
+		if !hasTaint {
+			err := updateNode(booter.kubeClient, node,
+				func(node corev1.Node) corev1.Node {
+					node.Spec.Taints = append(node.Spec.Taints, dnsTaint)
+					return node
+				})
+			if err != nil {
+				return errors.WithContext("add DNS taint", err)
+			}
+		}
 	}
 
 	// Generate new certificates for the Node Controller if it's the first
@@ -351,7 +389,77 @@ func (booter *booter) deployNodeController(node string) error {
 		return errors.WithContext("deploy", err)
 	}
 
+	if certHostnames != nil {
+		// Watch for DNS to become available, and then remove the corresponding
+		// taint. We do this in a goroutine because it can take several minutes,
+		// and it's mostly just waiting around.
+		go booter.watchDNSTaint(node, host)
+	}
+
 	return nil
+}
+
+func (booter *booter) watchDNSTaint(node, hostname string) {
+	// Wait until we see a DNS record for the hostname.
+	for {
+		// Check to see if we still have the taint. If not, we can be done.
+		hasTaint, err := nodeHasTaint(booter.kubeClient, node, dnsTaint)
+		if err != nil {
+			log.WithField("node", node).WithError(err).Error(
+				"Failed to check taint.")
+			return
+		}
+		if !hasTaint {
+			return
+		}
+
+		_, err = net.LookupIP(hostname)
+		if err == nil {
+			// We have DNS!
+			log.WithField("node", node).WithField("hostname", hostname).Debug(
+				"Found a DNS record for node controller LB.")
+			break
+		}
+
+		// We only really expect to get a temporary error, or NXDOMAIN. If we
+		// see something else, that's not a good sign.
+		dnsErr, ok := err.(*net.DNSError)
+		if !ok {
+			log.WithField("node", node).WithField("hostname", hostname).WithError(err).Error(
+				"Unknown error type while resolving DNS.")
+			return
+		}
+		if !dnsErr.IsNotFound && !dnsErr.Temporary() {
+			log.WithField("node", node).WithField("hostname", hostname).WithError(err).Error(
+				"Unexpected error while resolving DNS.")
+			return
+		}
+
+		time.Sleep(30 * time.Second)
+	}
+
+	// AWS ELB DNS has 60s negative TTL, so we wait a little longer than that to
+	// make sure negative caches should be gone.
+	time.Sleep(90 * time.Second)
+
+	log.WithField("node", node).Info("Removing DNS taint.")
+
+	// Remove the taint.
+	err := updateNode(booter.kubeClient, node,
+		func(node corev1.Node) corev1.Node {
+			var newTaints []corev1.Taint
+			for _, taint := range node.Spec.Taints {
+				if taint.Key != dnsTaint.Key {
+					newTaints = append(newTaints, taint)
+				}
+			}
+			node.Spec.Taints = newTaints
+			return node
+		})
+	if err != nil {
+		log.WithField("node", node).WithField("hostname", hostname).WithError(err).Warn(
+			"Failed to remove node DNS taint.")
+	}
 }
 
 func newSelfSignedCert(ips []net.IP, dnsNames []string) (pemCert, pemKey []byte, err error) {
@@ -402,4 +510,36 @@ func newSelfSignedCert(ips []net.IP, dnsNames []string) (pemCert, pemKey []byte,
 	}
 
 	return certOut.Bytes(), keyOut.Bytes(), nil
+}
+
+func nodeHasTaint(kubeClient kubernetes.Interface, name string,
+	taint corev1.Taint) (bool, error) {
+
+	node, err := kubeClient.CoreV1().Nodes().Get(name, metav1.GetOptions{})
+	if err != nil {
+		return false, errors.WithContext("get node to check taint", err)
+	}
+
+	for _, nodeTaint := range node.Spec.Taints {
+		if nodeTaint == taint {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func updateNode(kubeClient kubernetes.Interface, name string,
+	update func(corev1.Node) corev1.Node) error {
+
+	nodesClient := kubeClient.CoreV1().Nodes()
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		node, err := nodesClient.Get(name, metav1.GetOptions{})
+		if err != nil {
+			return errors.WithContext("update get", err)
+		}
+
+		newNode := update(*node)
+		_, err = nodesClient.Update(&newNode)
+		return err
+	})
 }
