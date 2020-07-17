@@ -2,10 +2,12 @@ package util
 
 import (
 	"crypto/x509"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/encoding/gzip"
+	"google.golang.org/grpc/keepalive"
 
 	"github.com/kelda/blimp/pkg/errors"
 )
@@ -18,6 +20,9 @@ func Dial(addr, certPEM string) (*grpc.ClientConn, error) {
 
 	return grpc.Dial(addr,
 		grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(cp, "")),
+		// AWS ELBs close connections that are inactive for 60s, so we set a
+		// keepalive interval lower than this.
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{Time: 30 * time.Second}),
 		grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)),
 		grpc.WithUnaryInterceptor(errors.UnaryClientInterceptor))
 }
