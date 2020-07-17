@@ -64,7 +64,7 @@ func runSyncCompletionServer(ctx context.Context, ncc node.ControllerClient, tok
 		default:
 		}
 
-		log.WithError(err).Warn("Sync notifier server crashed")
+		log.WithError(err).Debug("Sync notifier server crashed")
 		time.Sleep(10 * time.Second)
 	}
 }
