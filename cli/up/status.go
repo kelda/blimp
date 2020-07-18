@@ -38,20 +38,27 @@ func newStatusPrinter(services []string) *statusPrinter {
 	return sp
 }
 
-func (sp *statusPrinter) Run(clusterManager manager.Client, authToken string) {
+func (sp *statusPrinter) Run(ctx context.Context,
+	clusterManager manager.Client, authToken string) bool {
 	// Stop watching the status after we're done printing the status.
-	ctx, cancelFn := context.WithCancel(context.Background())
+	syncCtx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
 
-	go sp.syncStatus(ctx, clusterManager, authToken)
+	go sp.syncStatus(syncCtx, clusterManager, authToken)
 
 	for {
 		if sp.printStatus() {
 			break
 		}
-		time.Sleep(1 * time.Second)
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(1 * time.Second):
+			// Continue.
+		}
 	}
 	fmt.Println(goterm.Color("All containers successfully started", goterm.GREEN))
+	return true
 }
 
 func (sp *statusPrinter) syncStatus(ctx context.Context,

@@ -243,9 +243,10 @@ func (cmd *up) run(services []string) error {
 		}()
 	}
 
+	guiCtx, cancelGui := context.WithCancel(context.Background())
 	guiError := make(chan error, 1)
 	go func() {
-		guiError <- cmd.runGUI(parsedCompose)
+		guiError <- cmd.runGUI(guiCtx, parsedCompose)
 	}()
 
 	exit := make(chan os.Signal, 1)
@@ -263,6 +264,8 @@ func (cmd *up) run(services []string) error {
 		return nil
 
 	case <-exit:
+		cancelGui()
+
 		if cmd.detach {
 			fmt.Println("Cleaning up local processes. The remote containers will continue running.")
 			fmt.Println("Use `blimp down` to clean up your remote sandbox.")
@@ -341,17 +344,19 @@ func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) err
 	return nil
 }
 
-func (cmd *up) runGUI(parsedCompose composeTypes.Config) error {
+func (cmd *up) runGUI(ctx context.Context, parsedCompose composeTypes.Config) error {
 	services := parsedCompose.ServiceNames()
 	statusPrinter := newStatusPrinter(services)
-	statusPrinter.Run(manager.C, cmd.auth.AuthToken)
+	if !statusPrinter.Run(ctx, manager.C, cmd.auth.AuthToken) {
+		return nil
+	}
 	analytics.Log.Info("Containers booted")
 
 	return logs.Command{
 		Services: services,
 		Opts:     corev1.PodLogOptions{Follow: true},
 		Auth:     cmd.auth,
-	}.Run()
+	}.Run(ctx)
 }
 
 func startTunnel(ncc node.ControllerClient, token, name, hostIP string,

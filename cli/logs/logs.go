@@ -93,7 +93,7 @@ func New() *cobra.Command {
 
 			cmd.Auth = auth
 			cmd.Services = args
-			if err := cmd.Run(); err != nil {
+			if err := cmd.Run(context.Background()); err != nil {
 				errors.HandleFatalError(err)
 			}
 		},
@@ -107,7 +107,7 @@ func New() *cobra.Command {
 	return cobraCmd
 }
 
-func (cmd Command) Run() error {
+func (cmd Command) Run(ctx context.Context) error {
 	kubeClient, _, err := cmd.Auth.KubeClient()
 	if err != nil {
 		return errors.WithContext("connect to cluster", err)
@@ -127,7 +127,7 @@ func (cmd Command) Run() error {
 	// which allows functions defered in this method to run.
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	go func() {
 		<-signalChan
 		cancel()
@@ -194,7 +194,7 @@ func (cmd Command) Run() error {
 // forwardLogs forwards each log line from `logsReq` to the `combinedLogs`
 // channel. If we are following logs, this function should only return if the
 // container exits.
-func (cmd *Command) forwardLogs(combinedLogs chan<- rawLogLine,
+func (cmd *Command) forwardLogs(ctx context.Context, combinedLogs chan<- rawLogLine,
 	service string, kubeClient kubernetes.Interface) error {
 	var lastMessageTime, sinceTime time.Time
 
