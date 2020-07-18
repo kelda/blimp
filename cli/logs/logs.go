@@ -147,13 +147,17 @@ func (cmd Command) Run() error {
 		wg.Add(1)
 		go func(service string) {
 			for {
-				err := cmd.forwardLogs(combinedLogs, service, kubeClient)
-				if err != nil && errors.RootCause(err) != io.EOF {
+				err := cmd.forwardLogs(ctx, combinedLogs, service, kubeClient)
+				if err != nil && errors.RootCause(err) != io.EOF && err != context.Canceled {
 					log.WithError(err).Debug("Dirty logs termination")
 				}
 
 				// Indicate that we don't have more logs to send.
 				wg.Done()
+
+				if err == context.Canceled {
+					return
+				}
 
 				// If we aren't following logs, we are done for good.
 				if !cmd.Opts.Follow {
@@ -248,6 +252,8 @@ func (cmd *Command) forwardLogs(combinedLogs chan<- rawLogLine,
 			}
 
 			select {
+			case <-ctx.Done():
+				return context.Canceled
 			case <-time.After(5 * time.Second):
 				// We might not have a network connection. Try again in a few
 				// seconds.
@@ -287,6 +293,8 @@ func (cmd *Command) forwardLogs(combinedLogs chan<- rawLogLine,
 				}
 
 				select {
+				case <-ctx.Done():
+					return context.Canceled
 				case <-time.After(500 * time.Millisecond):
 					// This might have been a transport issue, so if the pod
 					// hasn't exited within 500ms, try reconnecting to the logs.
