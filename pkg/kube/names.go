@@ -8,4 +8,6 @@ const (
 	ContainerNameWaitInitializedVolumes    = "wait-initialized-volumes"
 
 	BlimpNamespace = "blimp-system"
+
+	ExposeAnnotation = "blimp.exposed-service"
 )

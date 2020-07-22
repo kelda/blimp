@@ -601,6 +601,8 @@ github.com/kelda/blimp v0.0.0-20200715062404-5e6b0d823c1a h1:G4AynyAxDrIaRF6L3gP
 github.com/kelda/blimp v0.0.0-20200715062404-5e6b0d823c1a/go.mod h1:bRQ9Lj/C0i32GpQMzMGZr6NbKbTMfxHDhEztY6SL7v0=
 github.com/kelda/blimp v0.0.0-20200730042406-d4cf23fe6288 h1:BXYiI2VfM6DSk76J30VexhBMQGTimdXFGRkBwDdpSSc=
 github.com/kelda/blimp v0.0.0-20200730042406-d4cf23fe6288/go.mod h1:bRQ9Lj/C0i32GpQMzMGZr6NbKbTMfxHDhEztY6SL7v0=
+github.com/kelda/blimp v0.0.0-20200801002052-54afcfdd1d27 h1:wGabNihaaDW8a5NZQJXhaC9g00DE8xDmRYHfWZJVKuE=
+github.com/kelda/blimp v0.0.0-20200801002052-54afcfdd1d27/go.mod h1:bRQ9Lj/C0i32GpQMzMGZr6NbKbTMfxHDhEztY6SL7v0=
 github.com/kelda/compose-go v0.0.0-20200514165240-955c80c756a9 h1:64CGtLZ6ZToAUIkA4lliV3QOprGhPJHN3R+nfAJIz0M=
 github.com/kelda/compose-go v0.0.0-20200514165240-955c80c756a9/go.mod h1:BDCq3E2N2/KHw13nw/ugq/fmdWrmld5JZS0Fn02mvqw=
 github.com/kisielk/errcheck v1.1.0/go.mod h1:EZBBE59ingxPouuu3KfxchcWSUPOHkagtvWXihfKN4Q=

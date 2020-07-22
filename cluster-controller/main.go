@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/retry"
 
 	"github.com/kelda-inc/blimp/cluster-controller/node"
 	"github.com/kelda-inc/blimp/cluster-controller/volume"
@@ -1154,6 +1155,85 @@ func (s *server) pushImage(oldName, newName, token string,
 	}
 
 	return nil
+}
+
+func (s *server) Expose(ctx context.Context, req *cluster.ExposeRequest) (
+	*cluster.ExposeResponse, error) {
+	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
+	if err != nil {
+		return &cluster.ExposeResponse{}, err
+	}
+
+	namespacesClient := s.kubeClient.CoreV1().Namespaces()
+	_, err = namespacesClient.Get(user.Namespace, metav1.GetOptions{})
+	if err != nil {
+		if kerrors.IsNotFound(err) {
+			return &cluster.ExposeResponse{}, errors.NewFriendlyError("Sandbox does not exist")
+		}
+		return &cluster.ExposeResponse{}, errors.WithContext("get sandbox", err)
+	}
+
+	// TODO: Validate service/port (e.g. pod exists for service, 0 <= port < 65536).
+
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		namespace, err := namespacesClient.Get(user.Namespace, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if namespace.Annotations == nil {
+			namespace.Annotations = map[string]string{}
+		}
+
+		namespace.Annotations[kube.ExposeAnnotation] = fmt.Sprintf("%s:%d", req.Service, req.Port)
+
+		_, err = namespacesClient.Update(namespace)
+		return err
+	})
+	if err != nil {
+		return &cluster.ExposeResponse{}, errors.WithContext("update sandbox", err)
+	}
+
+	return &cluster.ExposeResponse{
+		Link: fmt.Sprintf("https://%s.blimp.dev/", user.Namespace),
+	}, nil
+}
+
+func (s *server) Unexpose(ctx context.Context, req *cluster.UnexposeRequest) (
+	*cluster.UnexposeResponse, error) {
+	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
+	if err != nil {
+		return &cluster.UnexposeResponse{}, err
+	}
+
+	namespacesClient := s.kubeClient.CoreV1().Namespaces()
+	_, err = namespacesClient.Get(user.Namespace, metav1.GetOptions{})
+	if err != nil {
+		if kerrors.IsNotFound(err) {
+			return &cluster.UnexposeResponse{}, errors.NewFriendlyError("Sandbox does not exist")
+		}
+		return &cluster.UnexposeResponse{}, errors.WithContext("get sandbox", err)
+	}
+
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		namespace, err := namespacesClient.Get(user.Namespace, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		if namespace.Annotations == nil {
+			return nil
+		}
+
+		delete(namespace.Annotations, kube.ExposeAnnotation)
+
+		_, err = namespacesClient.Update(namespace)
+		return err
+	})
+	if err != nil {
+		return &cluster.UnexposeResponse{}, errors.WithContext("update sandbox", err)
+	}
+
+	return &cluster.UnexposeResponse{}, nil
 }
 
 func toPods(
