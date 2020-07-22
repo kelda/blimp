@@ -28,7 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/kelda-inc/blimp/cluster-controller/node"
 	"github.com/kelda-inc/blimp/cluster-controller/volume"
@@ -74,7 +73,7 @@ func main() {
 		Source: "manager",
 	})
 
-	kubeClient, restConfig, err := getKubeClient()
+	kubeClient, restConfig, err := kube.GetClient()
 	if err != nil {
 		log.WithError(err).Error("Failed to connect to customer cluster")
 		os.Exit(1)
@@ -1244,32 +1243,6 @@ func affinityForUser(user auth.User) (*corev1.Affinity, error) {
 			RequiredDuringSchedulingIgnoredDuringExecution: &nodeSelector,
 		},
 	}, nil
-}
-
-// getKubeClient gets a Kubernetes client connected to the cluster defined in
-// the local kubeconfig.
-func getKubeClient() (kubernetes.Interface, *rest.Config, error) {
-	rules := clientcmd.NewDefaultClientConfigLoadingRules()
-	kubeConfig := clientcmd.
-		NewNonInteractiveDeferredLoadingClientConfig(rules, &clientcmd.ConfigOverrides{})
-
-	restConfig, err := kubeConfig.ClientConfig()
-	if err != nil {
-		return nil, nil, errors.WithContext("get rest config", err)
-	}
-
-	// Increase the default throttling configuration from 5 queries per second
-	// to 100 queries per second. This speeds up concurrent boots, since we
-	// make so many requests to check and deploy objects.
-	restConfig.QPS = 100
-	restConfig.Burst = 100
-
-	kubeClient, err := kubernetes.NewForConfig(restConfig)
-	if err != nil {
-		return nil, nil, errors.WithContext("new kube client", err)
-	}
-
-	return kubeClient, restConfig, nil
 }
 
 type podCondition func(*corev1.Pod) bool
