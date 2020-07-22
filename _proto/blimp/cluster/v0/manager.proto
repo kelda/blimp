@@ -17,6 +17,8 @@ service Manager {
   rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}
   rpc Restart(RestartRequest) returns (RestartResponse) {}
   rpc TagImages(TagImagesRequest) returns (stream TagImagesResponse) {}
+  rpc Expose(ExposeRequest) returns (ExposeResponse) {}
+  rpc Unexpose(UnexposeRequest) returns (UnexposeResponse) {}
 }
 
 message ProxyAnalyticsRequest {
@@ -168,4 +170,23 @@ message TagImagesRequest {
 message TagImagesResponse {
   string service = 1;
   blimp.errors.v0.Error error = 2;
+}
+
+message ExposeRequest {
+  string token = 1;
+  string service = 2;
+  uint32 port = 3;
+}
+
+message ExposeResponse {
+  blimp.errors.v0.Error error = 1;
+  string link = 2;
+}
+
+message UnexposeRequest {
+  string token = 1;
+}
+
+message UnexposeResponse {
+  blimp.errors.v0.Error error = 1;
 }
