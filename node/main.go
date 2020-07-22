@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -19,6 +21,7 @@ import (
 
 	"github.com/kelda-inc/blimp/node/wait"
 	"github.com/kelda-inc/blimp/pkg/analytics"
+	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/ports"
 	"github.com/kelda/blimp/pkg/auth"
 	"github.com/kelda/blimp/pkg/errors"
@@ -68,9 +71,16 @@ func main() {
 	go podInformer.Informer().Run(nil)
 	cache.WaitForCacheSync(nil, podInformer.Informer().HasSynced)
 
+	nsInformer := informers.NewSharedInformerFactoryWithOptions(
+		kubeClient, 30*time.Second).
+		Core().V1().Namespaces()
+	go nsInformer.Informer().Run(nil)
+	cache.WaitForCacheSync(nil, nsInformer.Informer().HasSynced)
+
 	s := &server{
 		syncTracker: syncTracker,
 		podLister:   podInformer.Lister(),
+		nsLister:    nsInformer.Lister(),
 	}
 	addr := fmt.Sprintf("0.0.0.0:%d", ports.NodeControllerInternalPort)
 	if err := s.listenAndServe(addr); err != nil {
@@ -82,6 +92,7 @@ func main() {
 type server struct {
 	syncTracker *wait.SyncTracker
 	podLister   listers.PodLister
+	nsLister    listers.NamespaceLister
 }
 
 func (s *server) listenAndServe(address string) error {
@@ -118,6 +129,54 @@ func (s *server) Tunnel(nsrv node.Controller_TunnelServer) error {
 	}
 
 	dstPod, err := s.podLister.Pods(namespace).Get(podName)
+	if err != nil {
+		return status.New(codes.OutOfRange, "unknown destination").Err()
+	}
+
+	dialAddr := fmt.Sprintf("%s:%d", dstPod.Status.PodIP, port)
+	stream, err := net.Dial("tcp", dialAddr)
+	if err != nil {
+		return status.New(codes.Internal, err.Error()).Err()
+	}
+
+	tunnel.ServerStream(nsrv, stream)
+	return nil
+}
+
+func (s *server) ExposedTunnel(nsrv node.Controller_ExposedTunnelServer) error {
+	msg, err := nsrv.Recv()
+	if err != nil {
+		return status.New(codes.Internal, err.Error()).Err()
+	}
+
+	header := msg.GetHeader()
+	if header == nil {
+		return status.New(codes.Internal, "first message must be a header").Err()
+	}
+
+	namespace, err := s.nsLister.Get(header.Namespace)
+	if err != nil {
+		return status.New(codes.OutOfRange, "unknown destination").Err()
+	}
+
+	servicePort, ok := namespace.Annotations[kube.ExposeAnnotation]
+	if !ok {
+		return status.New(codes.PermissionDenied, "no service exposed").Err()
+	}
+
+	split := strings.SplitN(servicePort, ":", 2)
+	if len(split) != 2 {
+		return status.New(codes.Internal, "failed to parse expose annotation").Err()
+	}
+	serviceName := split[0]
+	port, err := strconv.Atoi(split[1])
+	if err != nil {
+		return status.New(codes.Internal, "failed to parse expose annotation").Err()
+	}
+
+	podName := names.PodName(serviceName)
+
+	dstPod, err := s.podLister.Pods(header.Namespace).Get(podName)
 	if err != nil {
 		return status.New(codes.OutOfRange, "unknown destination").Err()
 	}

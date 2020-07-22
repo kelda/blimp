@@ -203,7 +203,7 @@ func (booter *booter) deployNodeController(node string) error {
 			Name: "cert",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: certSecretName(node),
+					SecretName: CertSecretName(node),
 				},
 			},
 		},
@@ -363,7 +363,7 @@ func (booter *booter) deployNodeController(node string) error {
 	// Generate new certificates for the Node Controller if it's the first
 	// time deploying the controller.
 	secretsClient := booter.kubeClient.CoreV1().Secrets(NodeControllerNamespace)
-	_, err = secretsClient.Get(certSecretName(node), metav1.GetOptions{})
+	_, err = secretsClient.Get(CertSecretName(node), metav1.GetOptions{})
 	if err != nil {
 		cert, key, err := newSelfSignedCert(certIPs, certHostnames)
 		if err != nil {
@@ -372,7 +372,7 @@ func (booter *booter) deployNodeController(node string) error {
 
 		certSecret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      certSecretName(node),
+				Name:      CertSecretName(node),
 				Namespace: NodeControllerNamespace,
 				Annotations: map[string]string{
 					"host": fmt.Sprintf("%s:%d", host, ports.NodeControllerPublicPort),

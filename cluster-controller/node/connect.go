@@ -40,7 +40,7 @@ func GetConnectionInfo(ctx context.Context, kubeClient kubernetes.Interface, nod
 	}
 
 	certSecret, err := kubeClient.CoreV1().Secrets(NodeControllerNamespace).Get(
-		certSecretName(node), metav1.GetOptions{})
+		CertSecretName(node), metav1.GetOptions{})
 	if err != nil {
 		return "", "", errors.WithContext("get TLS certificate", err)
 	}

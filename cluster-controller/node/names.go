@@ -12,6 +12,6 @@ func nodeControllerName(node string) string {
 	return fmt.Sprintf("node-controller-%s", sanitized)
 }
 
-func certSecretName(node string) string {
+func CertSecretName(node string) string {
 	return fmt.Sprintf("%s-cert", node)
 }
