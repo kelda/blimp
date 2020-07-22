@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: link-proxy
+  namespace: link-proxy
+spec:
+  selector:
+    matchLabels:
+      service: link-proxy
+  template:
+    metadata:
+      labels:
+        service: link-proxy
+    spec:
+      containers:
+      # Gets an SSL certificate from LetsEncrypt, which is used in from the
+      # link-proxy container. Theoretically, this could be in another pod, but
+      # this is simpler.
+      - name: letsencrypt
+        image: linuxserver/letsencrypt
+        # https://github.com/linuxserver/docker-letsencrypt/blob/master/README.md#parameters
+        env:
+          - name: URL
+            value: <LINK_PROXY_BASE_HOSTNAME>
+          - name: SUBDOMAINS
+            value: wildcard
+          - name: ONLY_SUBDOMAINS
+            value: "true"
+          - name: VALIDATION
+            value: dns
+          - name: DNSPLUGIN
+            value: google
+        volumeMounts:
+        - mountPath: /config
+          name: lets-encrypt-state
+        - mountPath: /config/dns-conf
+          name: gcp-dns-conf
+        - mountPath: /config/nginx/site-confs
+          name: nginx-conf
+
+      - name: link-proxy
+        image: <LINK_PROXY_IMAGE>
+        imagePullPolicy: Always
+        volumeMounts:
+        - name: kubeconfig
+          mountPath: "/root/.kube"
+          readOnly: true
+
+      volumes:
+      - name: lets-encrypt-state
+        persistentVolumeClaim:
+          claimName: lets-encrypt-pvc
+      - name: gcp-dns-conf
+        secret:
+          secretName: gcp-dns-secret
+          defaultMode: 0400
+      - name: nginx-conf
+        configMap:
+          name: nginx-conf
+      - name: kubeconfig
+        secret:
+          secretName: customer-cluster-kubeconfig
+
+  strategy:
+    type: Recreate

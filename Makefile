@@ -1,6 +1,7 @@
 DOCKER_REPO = ${BLIMP_DOCKER_REPO}
 REGISTRY_HOSTNAME ?= blimp-registry.kelda.io
 LOGIN_PROXY_HOSTNAME ?= blimp-login.kelda.io
+LINK_PROXY_BASE_HOSTNAME ?= blimp.dev
 # Only needs to be set during local development if the manager is being
 # deployed to a remote cluster.
 CLUSTER_MANAGER_IP ?= 8.8.8.8
@@ -19,6 +20,7 @@ LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
 	   -X github.com/kelda-inc/blimp/pkg/version.ReservationImage=${RESERVATION_IMAGE} \
 	   -X main.LoginProxyHost=${LOGIN_PROXY_HOSTNAME} \
 	   -X main.RegistryHostname=${REGISTRY_HOSTNAME} \
+	   -X main.LinkProxyBaseHostname=${LINK_PROXY_BASE_HOSTNAME} \
 	   -s -w"
 
 # Include override variables. The production Makefile takes precendence if it exists.
@@ -63,6 +65,7 @@ SYNCTHING_IMAGE = ${DOCKER_REPO}/sandbox-syncthing:${VERSION}
 DOCKER_AUTH_IMAGE = ${DOCKER_REPO}/blimp-docker-auth:${VERSION}
 LOGIN_PROXY_IMAGE = ${DOCKER_REPO}/login-proxy:${VERSION}
 RESERVATION_IMAGE = ${DOCKER_REPO}/sandbox-reservation:${VERSION}
+LINK_PROXY_IMAGE = ${DOCKER_REPO}/link-proxy:${VERSION}
 
 build-docker: certs
 	# Exit if the base container fails to build.
@@ -76,6 +79,7 @@ build-docker: certs
 	docker build -t blimp-docker-auth -t ${DOCKER_AUTH_IMAGE} - < ./registry/Dockerfile & \
 	docker build -t login-proxy -t ${LOGIN_PROXY_IMAGE} - < ./login-proxy/Dockerfile & \
 	docker build -t sandbox-reservation -t ${RESERVATION_IMAGE} - < ./sandbox/reservation/Dockerfile & \
+	docker build -t link-proxy -t ${LINK_PROXY_IMAGE} - < ./link-proxy/Dockerfile & \
 	wait # Wait for all background jobs to exit before continuing so that we can guarantee the images are built.
 
 push-docker: build-docker
@@ -87,6 +91,7 @@ push-docker: build-docker
 	docker push ${DOCKER_AUTH_IMAGE} & \
 	docker push ${LOGIN_PROXY_IMAGE} & \
 	docker push ${RESERVATION_IMAGE} & \
+	docker push ${LINK_PROXY_IMAGE} & \
 	wait # Wait for all background jobs to exit before continuing so that we can guarantee the images are pushed.
 
 deploy-registry:
@@ -106,6 +111,12 @@ deploy-login-proxy:
 	sed -i.bak 's|<LOGIN_PROXY_HOSTNAME>|${LOGIN_PROXY_HOSTNAME}|' ./login-proxy/kube/login-deployment.yaml
 	sed -i.bak 's|<LOGIN_PROXY_IP>|${LOGIN_PROXY_IP}|' ./login-proxy/kube/login-service.yaml
 	kubectl apply -f ./login-proxy/kube
+
+deploy-link-proxy:
+	sed -i.bak 's|<LINK_PROXY_IMAGE>|${LINK_PROXY_IMAGE}|' ./link-proxy/kube/link-proxy-deployment.yaml
+	sed -i.bak 's|<LINK_PROXY_BASE_HOSTNAME>|${LINK_PROXY_BASE_HOSTNAME}|' ./link-proxy/kube/link-proxy-deployment.yaml
+	sed -i.bak 's|<LINK_PROXY_IP>|${LINK_PROXY_IP}|' ./link-proxy/kube/link-proxy-service.yaml
+	kubectl apply -f ./link-proxy/kube
 
 lint:
 	golangci-lint run

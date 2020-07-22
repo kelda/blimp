@@ -28,6 +28,9 @@ RUN CGO_ENABLED=0 go install -i -ldflags "${COMPILE_FLAGS}" ./sandbox/...
 ADD ./cluster-controller ./cluster-controller
 RUN CGO_ENABLED=0 go install -i -ldflags "${COMPILE_FLAGS}" ./cluster-controller/...
 
+ADD ./link-proxy ./link-proxy
+RUN CGO_ENABLED=0 go install -i -ldflags "${COMPILE_FLAGS}" ./link-proxy/...
+
 RUN mkdir /gobin
 RUN cp /go/bin/cluster-controller /gobin/blimp-cluster-controller
 RUN cp /go/bin/syncthing /gobin/blimp-syncthing
@@ -37,6 +40,7 @@ RUN cp /go/bin/registry /gobin/blimp-auth
 RUN cp /go/bin/vcp /gobin/blimp-vcp
 RUN cp /go/bin/login-proxy /gobin/login-proxy
 RUN cp /go/bin/dns /gobin/blimp-dns
+RUN cp /go/bin/link-proxy /gobin/link-proxy
 
 FROM alpine
 
