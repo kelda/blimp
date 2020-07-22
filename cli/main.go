@@ -15,6 +15,7 @@ import (
 	"github.com/kelda/blimp/cli/cp"
 	"github.com/kelda/blimp/cli/down"
 	"github.com/kelda/blimp/cli/exec"
+	"github.com/kelda/blimp/cli/expose"
 	"github.com/kelda/blimp/cli/login"
 	"github.com/kelda/blimp/cli/loginpw"
 	"github.com/kelda/blimp/cli/logs"
@@ -63,6 +64,7 @@ func main() {
 		cp.New(),
 		down.New(),
 		exec.New(),
+		expose.New(),
 		login.New(),
 		loginpw.New(),
 		logs.New(),
