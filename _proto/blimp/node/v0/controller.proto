@@ -8,6 +8,7 @@ option go_package = "github.com/kelda/blimp/pkg/proto/node";
 
 service Controller {
   rpc Tunnel(stream TunnelMsg) returns (stream TunnelMsg) {}
+  rpc ExposedTunnel(stream TunnelMsg) returns (stream TunnelMsg) {}
 
   // The request and responses are flipped because the node controller is
   // querying the CLI for status updates, but the CLI is initiating the
@@ -15,10 +16,12 @@ service Controller {
   rpc SyncNotifications(stream SyncStatusResponse) returns (stream GetSyncStatusRequest) {}
 }
 
+// In a Tunnel, name, port, and token are used. In an ExposedTunnel, namespace is used.
 message TunnelHeader{
     string name = 1;
     uint32 port = 2;
     string token = 3;
+    string namespace = 4;
 }
 
 message EOF {}
