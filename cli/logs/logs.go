@@ -139,12 +139,23 @@ func (cmd Command) Run(ctx context.Context) error {
 		}
 	}
 
-	// The count on the WaitGroup should equal the number of containers we are
-	// currently tailing.
-	var wg sync.WaitGroup
+	// runningCount should equal the number of containers we are currently
+	// tailing.
+	// Using a WaitGroup for this counter would be the obvious choice, but it is
+	// only safe to Add to a WaitGroup when
+	// - the count is >0, or
+	// - there is no active Wait().
+	// Since we want to be able to reconnect to logs and increment the counter
+	// when this happens, we won't be in the second condition and we can't
+	// guarantee the first. Even though it would be ok with us for the Add to
+	// simply fail in this case, this can cause a panic, which is
+	// unacceptable. So, we do not use a WaitGroup.
+	runningCount := len(cmd.Services)
+	// runningCountCond should be Signaled every time runningCount is
+	// decremented, so that we can Wait to watch for when it reaches 0.
+	runningCountCond := sync.NewCond(&sync.Mutex{})
 	combinedLogs := make(chan rawLogLine, len(cmd.Services)*32)
 	for _, service := range cmd.Services {
-		wg.Add(1)
 		go func(service string) {
 			for {
 				err := cmd.forwardLogs(ctx, combinedLogs, service, kubeClient)
@@ -153,7 +164,10 @@ func (cmd Command) Run(ctx context.Context) error {
 				}
 
 				// Indicate that we don't have more logs to send.
-				wg.Done()
+				runningCountCond.L.Lock()
+				runningCount--
+				runningCountCond.Signal()
+				runningCountCond.L.Unlock()
 
 				if err == context.Canceled {
 					return
@@ -173,7 +187,9 @@ func (cmd Command) Run(ctx context.Context) error {
 				}
 
 				// If the container has restarted, start tailing logs again.
-				wg.Add(1)
+				runningCountCond.L.Lock()
+				runningCount++
+				runningCountCond.L.Unlock()
 			}
 		}(service)
 	}
@@ -183,7 +199,11 @@ func (cmd Command) Run(ctx context.Context) error {
 	// exit because this is indistinguishable from all the containers exiting
 	// normally.
 	go func() {
-		wg.Wait()
+		runningCountCond.L.Lock()
+		for runningCount > 0 {
+			runningCountCond.Wait()
+		}
+		runningCountCond.L.Unlock()
 		cancel()
 	}()
 
