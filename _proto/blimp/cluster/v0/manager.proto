@@ -122,6 +122,7 @@ message SandboxStatus {
     RUNNING = 1;
     TERMINATING = 2;
     DOES_NOT_EXIST = 3;
+    PREPARING = 4;
   }
 }
 
