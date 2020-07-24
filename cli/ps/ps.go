@@ -7,6 +7,7 @@ import (
 	"sort"
 	"text/tabwriter"
 
+	"github.com/buger/goterm"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -52,6 +53,14 @@ func run(authToken string) error {
 }
 
 func printStatus(status cluster.SandboxStatus) {
+	sandboxStr, sandboxColor := GetSandboxStatusString(status.Phase)
+	fmt.Printf("Sandbox: %s\n", goterm.Color(sandboxStr, sandboxColor))
+
+	if len(status.Services) == 0 {
+		fmt.Println("No services found.")
+		return
+	}
+
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 4, ' ', 0)
 	defer w.Flush()
 	fmt.Fprintln(w, "SERVICE\tSTATUS")
@@ -63,7 +72,7 @@ func printStatus(status cluster.SandboxStatus) {
 	sort.Strings(serviceNames)
 
 	for _, name := range serviceNames {
-		statusStr, _, _ := GetStatusString(status.Services[name])
-		fmt.Fprintf(w, "%s\t%s\n", name, statusStr)
+		statusStr, statusColor, _ := GetStatusString(status.Services[name])
+		fmt.Fprintf(w, "%s\t%s\n", name, goterm.Color(statusStr, statusColor))
 	}
 }

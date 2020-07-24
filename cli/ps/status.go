@@ -9,6 +9,25 @@ import (
 	"github.com/kelda/blimp/pkg/syncthing"
 )
 
+func GetSandboxStatusString(sandboxStatus cluster.SandboxStatus_SandboxPhase) (msg string, color int) {
+	switch sandboxStatus {
+	case cluster.SandboxStatus_RUNNING:
+		msg = "Running"
+		color = goterm.GREEN
+	case cluster.SandboxStatus_TERMINATING:
+		msg = "Terminating"
+		color = goterm.YELLOW
+	case cluster.SandboxStatus_DOES_NOT_EXIST:
+		msg = "Not found"
+		color = goterm.RED
+	default:
+		msg = "Unknown"
+		color = goterm.YELLOW
+	}
+
+	return msg, color
+}
+
 func GetStatusString(svcStatus *cluster.ServiceStatus) (msg string, color int, booted bool) {
 	color = goterm.YELLOW
 	msg = "Unknown"
