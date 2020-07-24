@@ -15,7 +15,7 @@ LD_FLAGS = "-X github.com/kelda/blimp/pkg/version.Version=${VERSION} \
 # Default target for local development.  Just builds binaries for now assumes
 # OSX
 install: certs build-cli-osx
-	mv blimp-osx $(GOPATH)/bin/cli
+	mv blimp-osx $(shell go env GOPATH)/bin/cli
 	CGO_ENABLED=0 go install -ldflags $(LD_FLAGS) ./...
 
 syncthing-macos:
@@ -35,10 +35,10 @@ go-get:
 	go get -u github.com/GeertJohan/go.rice/rice
 
 generate:
-	protoc -I _proto _proto/blimp/node/v0/controller.proto --go_out=plugins=grpc:$$GOPATH/src
-	protoc -I _proto _proto/blimp/cluster/v0/manager.proto --go_out=plugins=grpc:$$GOPATH/src
-	protoc -I _proto _proto/blimp/login/v0/login.proto --go_out=plugins=grpc:$$GOPATH/src
-	protoc _proto/blimp/errors/v0/errors.proto --go_out=plugins=grpc:$$GOPATH/src
+	protoc -I _proto _proto/blimp/node/v0/controller.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
+	protoc -I _proto _proto/blimp/cluster/v0/manager.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
+	protoc -I _proto _proto/blimp/login/v0/login.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
+	protoc _proto/blimp/errors/v0/errors.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
 
 certs:
 	./scripts/setup-manager-cert.sh ${MANAGER_CERT_PATH}
