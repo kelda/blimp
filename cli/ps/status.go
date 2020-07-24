@@ -20,6 +20,9 @@ func GetSandboxStatusString(sandboxStatus cluster.SandboxStatus_SandboxPhase) (m
 	case cluster.SandboxStatus_DOES_NOT_EXIST:
 		msg = "Not found"
 		color = goterm.RED
+	case cluster.SandboxStatus_PREPARING:
+		msg = "Preparing to deploy"
+		color = goterm.YELLOW
 	default:
 		msg = "Unknown"
 		color = goterm.YELLOW
