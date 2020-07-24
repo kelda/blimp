@@ -122,14 +122,23 @@ func (sf *statusFetcher) Get(namespace string) (cluster.SandboxStatus, error) {
 		return cluster.SandboxStatus{}, errors.WithContext("get services", err)
 	}
 
+	sandboxPhase := cluster.SandboxStatus_RUNNING
+
 	services := map[string]*cluster.ServiceStatus{}
 	for _, pod := range pods {
+		if pod.GetName() == "reservation" {
+			// Don't include its status, and also mark the sandbox as preparing.
+			// The reservation pod should be deleted once we start running
+			// normally.
+			sandboxPhase = cluster.SandboxStatus_PREPARING
+			continue
+		}
 		svcName := pod.GetLabels()["blimp.service"]
 		serviceStatus := sf.getServiceStatus(pod)
 		services[svcName] = &serviceStatus
 	}
 	return cluster.SandboxStatus{
-		Phase:    cluster.SandboxStatus_RUNNING,
+		Phase:    sandboxPhase,
 		Services: services,
 	}, nil
 }
