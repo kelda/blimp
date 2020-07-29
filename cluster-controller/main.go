@@ -1174,7 +1174,7 @@ func toPods(
 			MaxServices, len(cfg.Services))
 	}
 
-	b, err := newPodBuilder(user, dnsIP, nodeControllerIP, builtImages, cfg.Services)
+	b, err := newPodBuilder(user, dnsIP, nodeControllerIP, builtImages, cfg.Services, cfg.Volumes)
 	if err != nil {
 		return nil, nil, errors.WithContext("make pod builder", err)
 	}

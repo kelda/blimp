@@ -102,6 +102,58 @@ func TestValidateFeatures(t *testing.T) {
 			},
 			exp: []string{"Volume.Driver"},
 		},
+
+		// Using a supported bind volume via local driver.
+		{
+			cfg: types.Config{
+				Volumes: map[string]types.VolumeConfig{
+					"volume": {
+						Name:   "volume",
+						Driver: "local",
+						DriverOpts: map[string]string{
+							"type":   "none",
+							"device": "/home/user/volume",
+							"o":      "bind",
+						},
+					},
+				},
+			},
+			exp: nil,
+		},
+
+		// Using a mostly-supported bind volume via local driver.
+		{
+			cfg: types.Config{
+				Volumes: map[string]types.VolumeConfig{
+					"volume": {
+						Name: "volume",
+						DriverOpts: map[string]string{
+							"device":  "/home/user/volume",
+							"options": "bind,ro",
+						},
+					},
+				},
+			},
+			exp: []string{"Volume.DriverOpts.options.ro"},
+		},
+
+		// Using unsupported local driver options.
+		{
+			cfg: types.Config{
+				Volumes: map[string]types.VolumeConfig{
+					"volume": {
+						Name:   "volume",
+						Driver: "local",
+						DriverOpts: map[string]string{
+							"type":   "nfs",
+							"device": "server:/mount",
+							"o":      "remount",
+						},
+					},
+				},
+			},
+			exp: []string{"Volume.DriverOpts"},
+		},
 	}
 
 	for _, test := range tests {

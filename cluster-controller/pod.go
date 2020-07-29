@@ -21,6 +21,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/proto/wait"
 	"github.com/kelda-inc/blimp/pkg/version"
 	"github.com/kelda/blimp/pkg/auth"
+	"github.com/kelda/blimp/pkg/dockercompose"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/hash"
 	"github.com/kelda/blimp/pkg/names"
@@ -46,6 +47,10 @@ type podBuilder struct {
 	builtTags         map[string]string
 	svcAliasesMapping map[string][]string
 	volumeToServices  map[string][]string
+	// namedBindVolumes accounts for named volumes that are specified as bind
+	// volumes using DriverOpts. It maps from volume names to source
+	// directories.
+	namedBindVolumes map[string]string
 }
 
 type podSpec struct {
@@ -56,7 +61,8 @@ type podSpec struct {
 }
 
 func newPodBuilder(user auth.User, dnsIP, nodeControllerIP string, builtImages map[string]string,
-	services []composeTypes.ServiceConfig) (podBuilder, error) {
+	services []composeTypes.ServiceConfig, volumes map[string]composeTypes.VolumeConfig) (
+	podBuilder, error) {
 
 	serviceToAliases := make(map[string][]string)
 	aliasToService := make(map[string]string)
@@ -94,6 +100,15 @@ func newPodBuilder(user auth.User, dnsIP, nodeControllerIP string, builtImages m
 		}
 	}
 
+	namedBindVolumes := map[string]string{}
+	for name, vol := range volumes {
+		source, ok := dockercompose.ParseNamedBindVolume(vol)
+
+		if ok {
+			namedBindVolumes[name] = source
+		}
+	}
+
 	volumeToServices := map[string][]string{}
 	for _, svc := range services {
 		for _, v := range svc.Volumes {
@@ -112,6 +127,7 @@ func newPodBuilder(user auth.User, dnsIP, nodeControllerIP string, builtImages m
 		builtTags:         builtTags,
 		svcAliasesMapping: serviceToAliases,
 		volumeToServices:  volumeToServices,
+		namedBindVolumes:  namedBindVolumes,
 	}, nil
 }
 
@@ -136,7 +152,12 @@ func (b podBuilder) ToPod(svc composeTypes.ServiceConfig) (corev1.Pod, []corev1.
 	for _, v := range svc.Volumes {
 		switch v.Type {
 		case composeTypes.VolumeTypeVolume:
-			nativeVolumes = append(nativeVolumes, v)
+			source, ok := b.namedBindVolumes[v.Source]
+			if ok {
+				bindVolumes = append(bindVolumes, source)
+			} else {
+				nativeVolumes = append(nativeVolumes, v)
+			}
 		case composeTypes.VolumeTypeBind:
 			bindVolumes = append(bindVolumes, v.Source)
 		}
@@ -175,7 +196,7 @@ func (b podBuilder) ToPod(svc composeTypes.ServiceConfig) (corev1.Pod, []corev1.
 		}
 	}
 
-	if err := spec.addRuntimeContainer(svc, b.dnsIP, b.svcAliasesMapping); err != nil {
+	if err := spec.addRuntimeContainer(svc, b.dnsIP, b.svcAliasesMapping, b.namedBindVolumes); err != nil {
 		return corev1.Pod{}, nil, err
 	}
 	spec.sanitize()
@@ -264,7 +285,7 @@ func (p *podSpec) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig) {
 }
 
 func (p *podSpec) addRuntimeContainer(svc composeTypes.ServiceConfig, dnsIP string,
-	svcAliasesMapping map[string][]string) error {
+	svcAliasesMapping map[string][]string, namedBindVolumes map[string]string) error {
 
 	p.pod.Namespace = p.namespace
 	p.pod.Name = names.PodName(svc.Name)
@@ -276,20 +297,23 @@ func (p *podSpec) addRuntimeContainer(svc composeTypes.ServiceConfig, dnsIP stri
 
 	var volumeMounts []corev1.VolumeMount
 	for _, v := range svc.Volumes {
+		var subPath string
 		switch v.Type {
 		case composeTypes.VolumeTypeVolume:
-			volumeMounts = append(volumeMounts, corev1.VolumeMount{
-				Name:      volume.PersistentVolume.Name,
-				SubPath:   volume.NamedVolumeDir(v.Source),
-				MountPath: v.Target,
-			})
+			source, ok := namedBindVolumes[v.Source]
+			if ok {
+				subPath = volume.BindVolumeDir(source)
+			} else {
+				subPath = volume.NamedVolumeDir(v.Source)
+			}
 		case composeTypes.VolumeTypeBind:
-			volumeMounts = append(volumeMounts, corev1.VolumeMount{
-				Name:      volume.PersistentVolume.Name,
-				MountPath: v.Target,
-				SubPath:   volume.BindVolumeDir(v.Source),
-			})
+			subPath = volume.BindVolumeDir(v.Source)
 		}
+		volumeMounts = append(volumeMounts, corev1.VolumeMount{
+			Name:      volume.PersistentVolume.Name,
+			SubPath:   subPath,
+			MountPath: v.Target,
+		})
 	}
 
 	if len(volumeMounts) != 0 {

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/kelda/compose-go/types"
 
@@ -80,12 +81,79 @@ func validateServices(services types.Services) []string {
 }
 
 func validateVolumes(volumes map[string]types.VolumeConfig) []string {
-	return addPrefix("Volume", validator{[]field{
+	messages := addPrefix("Volume", validator{[]field{
 		{ID: ".Name"},
 		{ID: ".Labels"},
 		{ID: ".Extras"},
 		{ID: ".Driver", AllowedValues: []interface{}{"local"}},
+		{ID: ".DriverOpts"},
 	}}.GetUnsupportedFields(volumes))
+
+	for _, volume := range volumes {
+		if volume.Driver == "" || volume.Driver == "local" {
+			messages = append(addPrefix("Volume.DriverOpts",
+				validateLocalVolumeOpts(volume.DriverOpts)))
+		}
+	}
+
+	return messages
+}
+
+func validateLocalVolumeOpts(driverOpts map[string]string) []string {
+	if len(driverOpts) == 0 {
+		return nil
+	}
+
+	// The only kind of "local" volume options we support are specifying a bind
+	// mount, which we will treat like a normal bind volume.
+	// See https://github.com/docker/compose/issues/2957 for why people do this.
+	isBind := func() bool {
+		// Look for -o bind.
+		mountOpts, ok := driverOpts["o"]
+		if !ok {
+			mountOpts, ok = driverOpts["options"]
+			if !ok {
+				return false
+			}
+		}
+		for _, option := range strings.Split(mountOpts, ",") {
+			if option == "bind" {
+				return true
+			}
+		}
+
+		// No -o bind found.
+		return false
+	}
+
+	if !isBind() {
+		// Everything is unsupported.
+		return []string{""}
+	}
+
+	// See manpage mount(8) for details on which options are available for
+	// "local" driver (although for some reason this doesn't match up
+	// perfectly). Most options are unsupported.
+	var messages []string
+	for opt, value := range driverOpts {
+		switch {
+		case opt == "t" || opt == "type":
+			// For bind mounts, type is ignored.
+		case opt == "o" || opt == "options":
+			for _, option := range strings.Split(value, ",") {
+				if option != "bind" {
+					messages = append(messages, "."+opt+"."+option)
+				}
+			}
+		case opt == "device":
+			// For bind mounts, device is the bind mount dir on the host. We
+			// should have this.
+		default:
+			// We don't support anything else.
+			messages = append(messages, "."+opt)
+		}
+	}
+	return messages
 }
 
 // field is a reference to a field within a struct.
