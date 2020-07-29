@@ -444,6 +444,15 @@ func (cmd *up) makeSyncthingClient(dcCfg composeTypes.Config) syncthing.Client {
 			allVolumes = append(allVolumes, volume)
 		}
 	}
+
+	for _, namedVol := range dcCfg.Volumes {
+		source, ok := dockercompose.ParseNamedBindVolume(namedVol)
+
+		if ok {
+			allVolumes = append(allVolumes, syncthing.BindVolume{LocalPath: source})
+		}
+	}
+
 	return syncthing.NewClient(allVolumes)
 }
 

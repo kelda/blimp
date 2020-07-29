@@ -290,3 +290,22 @@ func load(det types.ConfigDetails, opts ...func(opts *loader.Options)) (cfg *typ
 	cfg, err = loader.Load(det, opts...)
 	return
 }
+
+func ParseNamedBindVolume(vol types.VolumeConfig) (source string, ok bool) {
+	if vol.Driver != "" && vol.Driver != "local" {
+		return "", false
+	}
+
+	// Look for -o bind.
+	mountOpts, ok := vol.DriverOpts["o"]
+	if !ok {
+		mountOpts = vol.DriverOpts["options"]
+	}
+	for _, opt := range strings.Split(mountOpts, ",") {
+		if opt == "bind" {
+			return vol.DriverOpts["device"], true
+		}
+	}
+
+	return "", false
+}
