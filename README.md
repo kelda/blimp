@@ -60,13 +60,11 @@ curl localhost:8080
 
 ## Documentation
 
-* [Other examples](https://kelda.io/blimp/docs/examples) of developing
-  with Blimp.
-* [Design principles](https://kelda.io/blimp/docs/#design-principles) (be
+* [Design principles](https://kelda.io/blimp/docs/#/home?id=design-principles) (be
   light, require zero setup, and require zero workflow changes)
 * [Release notes](https://kelda.io/blimp/docs/release-notes/) for past Blimp versions.
-* [Basic usage analytics](https://kelda.io/blimp/docs/security/#what-analytics-does-the-blimp-cli-collect)
-  are collected by default ([you can opt out](https://kelda.io/blimp/docs/security/#what-analytics-does-the-blimp-cli-collect)).
+* [Basic usage analytics](https://kelda.io/blimp/docs/#/security?id=what-analytics-does-the-blimp-cli-collect)
+  are collected by default ([you can opt out](https://kelda.io/blimp/docs/#/security?id=what-analytics-does-the-blimp-cli-collect)).
 * [The Kelda Slack](https://slack.kelda.io) is the best way to reach the maintainers.
 
 ## Contributing
