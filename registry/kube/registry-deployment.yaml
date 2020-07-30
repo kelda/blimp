@@ -61,10 +61,6 @@ spec:
             value: "Blimp Docker Auth"
           - name: REGISTRY_AUTH_TOKEN_ROOTCERTBUNDLE
             value: /registry-https-cert/cert.pem
-          - name: REGISTRY_HTTP_TLS_CERTIFICATE
-            value: /registry-https-cert/cert.pem
-          - name: REGISTRY_HTTP_TLS_KEY
-            value: /registry-https-cert/key.pem
         volumeMounts:
         - mountPath: /registry-https-cert
           name: registry-https-cert
