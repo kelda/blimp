@@ -335,22 +335,29 @@ func (booter *booter) deployNodeController(node string) error {
 	// the taint once DNS records for the service are available. This will keep
 	// sandboxes from being scheduled to the node without being able to connect
 	// to the node controller.
-	if newService && certHostnames != nil {
-		hasTaint, err := nodeHasTaint(booter.kubeClient, node, dnsTaint)
-		if err != nil {
-			return err
-		}
-
-		if !hasTaint {
-			err := updateNode(booter.kubeClient, node,
-				func(node corev1.Node) corev1.Node {
-					node.Spec.Taints = append(node.Spec.Taints, dnsTaint)
-					return node
-				})
+	if len(certHostnames) > 0 {
+		if newService {
+			hasTaint, err := nodeHasTaint(booter.kubeClient, node, dnsTaint)
 			if err != nil {
-				return errors.WithContext("add DNS taint", err)
+				return err
+			}
+
+			if !hasTaint {
+				err := updateNode(booter.kubeClient, node,
+					func(node corev1.Node) corev1.Node {
+						node.Spec.Taints = append(node.Spec.Taints, dnsTaint)
+						return node
+					})
+				if err != nil {
+					return errors.WithContext("add DNS taint", err)
+				}
 			}
 		}
+
+		// Watch for DNS to become available, and then remove the corresponding
+		// taint. We do this in a goroutine because it can take several minutes,
+		// and it's mostly just waiting around.
+		go booter.watchDNSTaint(node, host)
 	}
 
 	// Generate new certificates for the Node Controller if it's the first
@@ -387,13 +394,6 @@ func (booter *booter) deployNodeController(node string) error {
 
 	if err := kube.DeployPod(booter.kubeClient, pod, kube.DeployPodOptions{}); err != nil {
 		return errors.WithContext("deploy", err)
-	}
-
-	if certHostnames != nil {
-		// Watch for DNS to become available, and then remove the corresponding
-		// taint. We do this in a goroutine because it can take several minutes,
-		// and it's mostly just waiting around.
-		go booter.watchDNSTaint(node, host)
 	}
 
 	return nil
