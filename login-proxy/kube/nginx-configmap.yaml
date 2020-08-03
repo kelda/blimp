@@ -6,7 +6,8 @@ metadata:
 data:
   default: |
     server {
-      listen 443 ssl;
+      listen 443 ssl default_server;
+      server_name <LOGIN_PROXY_HOSTNAME>;
 
       # SSL
       include /config/nginx/ssl.conf;
@@ -30,6 +31,23 @@ data:
 
     server {
       listen 444 http2 ssl;
+
+      # SSL
+      include /config/nginx/ssl.conf;
+
+      # Forward requests to the gRPC login coordinator.
+      location / {
+        grpc_pass grpc://localhost:8001;
+
+        # Give the user ample time (an hour) to login, and trigger the response
+        # to the client.
+        grpc_read_timeout 3600;
+      }
+    }
+
+    server {
+      listen 443 http2 ssl;
+      server_name <LOGIN_PROXY_GRPC_HOSTNAME>;
 
       # SSL
       include /config/nginx/ssl.conf;

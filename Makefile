@@ -1,6 +1,7 @@
 DOCKER_REPO = ${BLIMP_DOCKER_REPO}
 REGISTRY_HOSTNAME ?= blimp-registry.kelda.io
 LOGIN_PROXY_HOSTNAME ?= blimp-login.kelda.io
+LOGIN_PROXY_GRPC_HOSTNAME ?= blimp-login-grpc.kelda.io
 LINK_PROXY_BASE_HOSTNAME ?= blimp.dev
 # Only needs to be set during local development if the manager is being
 # deployed to a remote cluster.
@@ -109,6 +110,9 @@ deploy-manager:
 deploy-login-proxy:
 	sed -i.bak 's|<LOGIN_PROXY_IMAGE>|${LOGIN_PROXY_IMAGE}|' ./login-proxy/kube/login-deployment.yaml
 	sed -i.bak 's|<LOGIN_PROXY_HOSTNAME>|${LOGIN_PROXY_HOSTNAME}|' ./login-proxy/kube/login-deployment.yaml
+	sed -i.bak 's|<LOGIN_PROXY_GRPC_HOSTNAME>|${LOGIN_PROXY_GRPC_HOSTNAME}|' ./login-proxy/kube/login-deployment.yaml
+	sed -i.bak 's|<LOGIN_PROXY_HOSTNAME>|${LOGIN_PROXY_HOSTNAME}|' ./login-proxy/kube/nginx-configmap.yaml
+	sed -i.bak 's|<LOGIN_PROXY_GRPC_HOSTNAME>|${LOGIN_PROXY_GRPC_HOSTNAME}|' ./login-proxy/kube/nginx-configmap.yaml
 	sed -i.bak 's|<LOGIN_PROXY_IP>|${LOGIN_PROXY_IP}|' ./login-proxy/kube/login-service.yaml
 	kubectl apply -f ./login-proxy/kube
 

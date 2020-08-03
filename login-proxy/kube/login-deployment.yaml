@@ -20,6 +20,8 @@ spec:
         env:
           - name: URL
             value: <LOGIN_PROXY_HOSTNAME>
+          - name: EXTRA_DOMAINS
+            value: <LOGIN_PROXY_GRPC_HOSTNAME>
         volumeMounts:
         - mountPath: /config
           name: lets-encrypt-state
