@@ -27,7 +27,7 @@ const (
 	AuthURL            = AuthHost + "/authorize"
 	TokenURL           = AuthHost + "/oauth/token"
 	JWKSURL            = "https://blimp-testing.auth0.com/.well-known/jwks.json"
-	LoginProxyGRPCPort = 444
+	LoginProxyGRPCPort = 443
 )
 
 var Endpoint = oauth2.Endpoint{

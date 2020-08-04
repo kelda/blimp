@@ -18,8 +18,8 @@ import (
 	"github.com/kelda/blimp/pkg/proto/login"
 )
 
-// LoginProxyHost is set by make.
-var LoginProxyHost = ""
+// LoginProxyGRPCHost is set by make.
+var LoginProxyGRPCHost = ""
 
 func New() *cobra.Command {
 	return &cobra.Command{
@@ -52,7 +52,7 @@ Kelda Blimp only uses your login to identify you, and doesn't pull any other inf
 func getAuthToken() (string, error) {
 	// Use the system's default certificate pool.
 	tlsConfig := &tls.Config{}
-	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", LoginProxyHost, auth.LoginProxyGRPCPort),
+	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", LoginProxyGRPCHost, auth.LoginProxyGRPCPort),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		grpc.WithUnaryInterceptor(errors.UnaryClientInterceptor),
 	)
