@@ -3,26 +3,6 @@ run:
   concurrency: 2
 
 linters:
-  enable-all: true
   disable:
-    - dogsled
-    - exhaustive
-    - funlen
-    - gochecknoglobals
-    - gochecknoinits
-    - gocognit
-    - gocyclo
-    - godox
-    - goerr113
-    - gofumpt
-    - gomnd
-    - gosec
-    - interfacer
-    - maligned
-    - noctx
-    - prealloc
     - staticcheck
-    - testpackage
     - vetshadow
-    - whitespace
-    - wsl
