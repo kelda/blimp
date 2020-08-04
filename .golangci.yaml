@@ -5,27 +5,6 @@ run:
     - ci
 
 linters:
-  enable-all: true
   disable:
-    - dogsled
-    - exhaustive
-    - funlen
-    - gochecknoglobals
-    - gochecknoinits
-    - gocognit
-    - gocyclo
-    - godox
-    - goerr113
-    - gofumpt
-    - gomnd
-    - gosec
-    - interfacer
-    - maligned
-    - nestif
-    - noctx
-    - prealloc
     - staticcheck
-    - testpackage
     - vetshadow
-    - whitespace
-    - wsl
