@@ -151,8 +151,8 @@ func (cmd Command) Run(ctx context.Context) error {
 	// simply fail in this case, this can cause a panic, which is
 	// unacceptable. So, we do not use a WaitGroup.
 	runningCount := len(cmd.Services)
-	// runningCountCond should be Signaled every time runningCount is
-	// decremented, so that we can Wait to watch for when it reaches 0.
+	// runningCountCond should be Signaled when the runningCount is decremented
+	// to 0, so that we can Wait to watch for when it reaches 0.
 	runningCountCond := sync.NewCond(&sync.Mutex{})
 	combinedLogs := make(chan rawLogLine, len(cmd.Services)*32)
 	for _, service := range cmd.Services {
@@ -166,7 +166,9 @@ func (cmd Command) Run(ctx context.Context) error {
 				// Indicate that we don't have more logs to send.
 				runningCountCond.L.Lock()
 				runningCount--
-				runningCountCond.Signal()
+				if runningCount == 0 {
+					runningCountCond.Signal()
+				}
 				runningCountCond.L.Unlock()
 
 				if err == context.Canceled {
