@@ -78,7 +78,7 @@ func (cmd *up) buildImages(composeFile composeTypes.Config) (map[string]string, 
 		} else {
 			fmt.Printf("Building image for %s:\n", svc.Name)
 			imageID, err = docker.Build(cmd.dockerClient, cmd.composePath, svc.Name,
-				*svc.Build, cmd.regCreds, cmd.dockerConfig, false)
+				*svc.Build, cmd.regCreds, cmd.dockerConfig, false, false)
 			if err != nil {
 				return nil, errors.WithContext(fmt.Sprintf("build %s", svc.Name), err)
 			}

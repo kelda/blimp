@@ -16,6 +16,7 @@ import (
 func New() *cobra.Command {
 	var composePaths []string
 	var pull bool
+	var noCache bool
 	cobraCmd := &cobra.Command{
 		Use:   "build [OPTIONS] [SERVICE...]",
 		Short: "Build or rebuild services.",
@@ -67,7 +68,7 @@ func New() *cobra.Command {
 
 				log.Infof("Building %s\n", svc.Name)
 				_, err := docker.Build(dockerClient, composePath, svc.Name,
-					*svc.Build, regCreds, dockerConfig, pull)
+					*svc.Build, regCreds, dockerConfig, pull, noCache)
 				if err != nil {
 					log.WithError(err).WithField("service", svc.Name).Warn("Failed to build service")
 				}
@@ -78,5 +79,7 @@ func New() *cobra.Command {
 		"Specify an alternate compose file\nDefaults to docker-compose.yml and docker-compose.yaml")
 	cobraCmd.Flags().BoolVarP(&pull, "pull", "", false,
 		"Always attempt to pull a newer version of the image.")
+	cobraCmd.Flags().BoolVarP(&noCache, "no-cache", "", false,
+		"Do not use cache when building the image")
 	return cobraCmd
 }
