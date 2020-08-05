@@ -1,9 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# Create the clusterrole
-kubectl create clusterrole blimp-link-proxy --verb=get --resource=pods,namespaces
-
 # Create the user.
 kubectl create serviceaccount blimp-link-proxy >/dev/null
 
