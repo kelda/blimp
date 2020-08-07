@@ -5,10 +5,10 @@ import (
 
 	"github.com/docker/cli/cli/config"
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/client"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
+	"github.com/kelda/blimp/cli/util"
 	"github.com/kelda/blimp/pkg/docker"
 	"github.com/kelda/blimp/pkg/dockercompose"
 )
@@ -24,7 +24,7 @@ func New() *cobra.Command {
 			"If you change a service's `Dockerfile` or the contents of its build directory, " +
 			"you can run `blimp build` to rebuild it.",
 		Run: func(_ *cobra.Command, services []string) {
-			dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+			dockerClient, err := util.GetDockerClient()
 			if err != nil {
 				log.WithError(err).Fatal("Failed to connect to local Docker daemon, " +
 					"which is used for building images. Aborting")

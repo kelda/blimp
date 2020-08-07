@@ -62,7 +62,7 @@ func New() *cobra.Command {
 				detach:      detach,
 			}
 
-			dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+			dockerClient, err := util.GetDockerClient()
 			if err == nil {
 				cmd.dockerClient = dockerClient
 			} else {
