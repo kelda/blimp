@@ -441,11 +441,16 @@ func stbinPath() string {
 
 func ensureFileExists(path, contents string) {
 	for {
+		time.Sleep(30 * time.Second)
+		if f, err := os.Open(path); err == nil {
+			// File exists.
+			f.Close()
+			continue
+		}
 		err := ioutil.WriteFile(path, []byte(contents), 0644)
 		if err != nil {
 			log.WithField("path", path).WithError(err).Warn("Failed to write file")
 		}
-		time.Sleep(30 * time.Second)
 	}
 }
 
