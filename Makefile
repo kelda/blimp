@@ -7,6 +7,7 @@ LD_FLAGS = "-X github.com/kelda/blimp/pkg/version.Version=${VERSION} \
 	   -X github.com/kelda/blimp/cli/login.LoginProxyGRPCHost=${LOGIN_PROXY_GRPC_HOSTNAME} \
 	   -X github.com/kelda/blimp/cli/manager.DefaultManagerHost=${CLUSTER_MANAGER_HOST} \
 	   -s -w"
+SYNCTHING_VERSION=1.4.0
 
 # Include override variables. The production Makefile takes precendence if it exists.
 -include local.mk
@@ -19,15 +20,15 @@ install: certs build-cli-osx
 	CGO_ENABLED=0 go install -ldflags $(LD_FLAGS) ./...
 
 syncthing-macos:
-	curl -L -O https://github.com/syncthing/syncthing/releases/download/v1.4.0/syncthing-macos-amd64-v1.4.0.tar.gz
-	tar -xf syncthing*.tar.gz
-	mv syncthing-macos-amd64-v1.4.0/syncthing syncthing-macos
+	curl -L -O https://github.com/syncthing/syncthing/releases/download/v$(SYNCTHING_VERSION)/syncthing-macos-amd64-v$(SYNCTHING_VERSION).tar.gz
+	tar -xf syncthing-macos-amd64-v$(SYNCTHING_VERSION).tar.gz
+	mv syncthing-macos-amd64-v$(SYNCTHING_VERSION)/syncthing syncthing-macos
 	rm -rf syncthing-macos-amd64*
 
 syncthing-linux:
-	curl -L -O https://github.com/syncthing/syncthing/releases/download/v1.4.0/syncthing-linux-amd64-v1.4.0.tar.gz
-	tar -xf syncthing*.tar.gz
-	mv syncthing-linux-amd64-v1.4.0/syncthing syncthing-linux
+	curl -L -O https://github.com/syncthing/syncthing/releases/download/v$(SYNCTHING_VERSION)/syncthing-linux-amd64-v$(SYNCTHING_VERSION).tar.gz
+	tar -xf syncthing-linux-amd64-v$(SYNCTHING_VERSION).tar.gz
+	mv syncthing-linux-amd64-v$(SYNCTHING_VERSION)/syncthing syncthing-linux
 	rm -rf syncthing-linux-amd64*
 
 go-get:
@@ -43,17 +44,18 @@ generate:
 certs:
 	./scripts/setup-manager-cert.sh ${MANAGER_CERT_PATH}
 
+build-cli-osx: syncthing-macos certs
+	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LD_FLAGS) -o blimp-osx ./cli
+	cp syncthing-macos ./pkg/syncthing/stbin
+	rice append -i ./pkg/syncthing --exec blimp-osx
+	rm ./pkg/syncthing/stbin
+
 build-cli-linux: syncthing-linux certs
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LD_FLAGS) -o blimp-linux ./cli
 	cp syncthing-linux ./pkg/syncthing/stbin
 	rice append -i ./pkg/syncthing --exec blimp-linux
 	rm ./pkg/syncthing/stbin
 
-build-cli-osx: syncthing-macos certs
-	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LD_FLAGS) -o blimp-osx ./cli
-	cp syncthing-macos ./pkg/syncthing/stbin
-	rice append -i ./pkg/syncthing --exec blimp-osx
-	rm ./pkg/syncthing/stbin
 
 lint:
 	golangci-lint run
