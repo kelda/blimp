@@ -3,6 +3,7 @@ package cfgdir
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"github.com/ghodss/yaml"
 	homedir "github.com/mitchellh/go-homedir"
@@ -34,7 +35,7 @@ func Create() error {
 }
 
 func Expand(filename string) string {
-	return ConfigDir + "/" + filename
+	return filepath.Join(ConfigDir, filename)
 }
 
 func CLILogFile() string {
