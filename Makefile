@@ -31,6 +31,12 @@ syncthing-linux:
 	mv syncthing-linux-amd64-v$(SYNCTHING_VERSION)/syncthing syncthing-linux
 	rm -rf syncthing-linux-amd64*
 
+syncthing-windows.exe:
+	curl -L -O https://github.com/syncthing/syncthing/releases/download/v$(SYNCTHING_VERSION)/syncthing-windows-amd64-v$(SYNCTHING_VERSION).zip
+	unzip syncthing-windows-amd64-v$(SYNCTHING_VERSION).zip
+	mv syncthing-windows-amd64-v$(SYNCTHING_VERSION)/syncthing.exe syncthing-windows.exe
+	rm -rf syncthing-windows-amd64*
+
 go-get:
 	go get -u github.com/GeertJohan/go.rice
 	go get -u github.com/GeertJohan/go.rice/rice
@@ -56,6 +62,11 @@ build-cli-linux: syncthing-linux certs
 	rice append -i ./pkg/syncthing --exec blimp-linux
 	rm ./pkg/syncthing/stbin
 
+build-cli-windows: syncthing-windows.exe certs
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LD_FLAGS) -o blimp-windows.exe ./cli
+	cp syncthing-windows.exe ./pkg/syncthing/stbin
+	rice append -i ./pkg/syncthing --exec blimp-windows.exe
+	rm ./pkg/syncthing/stbin
 
 lint:
 	golangci-lint run
