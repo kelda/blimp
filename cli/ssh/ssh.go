@@ -56,13 +56,13 @@ func run(svc string) error {
 	}
 
 	// Put the terminal into raw mode to prevent it echoing characters twice.
-	oldState, err := terminal.MakeRaw(0)
+	oldState, err := terminal.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
 		return errors.WithContext("set terminal mode", err)
 	}
 
 	defer func() {
-		_ = terminal.Restore(0, oldState)
+		_ = terminal.Restore(int(os.Stdin.Fd()), oldState)
 	}()
 
 	execOpts := core.PodExecOptions{
