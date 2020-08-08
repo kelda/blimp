@@ -138,7 +138,9 @@ func makeTar(dir string) (io.Reader, error) {
 		if err != nil {
 			return errors.WithContext(fmt.Sprintf("get normalized path %q", path), err)
 		}
-		header.Name = relPath
+		// On Windows, relPath will use backslashes. ToSlash normalizes to use
+		// forward slashes.
+		header.Name = filepath.ToSlash(relPath)
 
 		if err := tw.WriteHeader(header); err != nil {
 			return errors.WithContext(fmt.Sprintf("write header %q", header.Name), err)
