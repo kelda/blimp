@@ -30,6 +30,7 @@ REGISTRY_STORAGE = 500Gi
 LOGIN_PROXY_HOSTNAME = blimp-login.kelda.io
 LOGIN_PROXY_IP = 35.247.78.121
 LOGIN_PROXY_GRPC_HOSTNAME = blimp-login-grpc.kelda.io
+LINK_PROXY_IP = 34.83.205.18
 LINK_PROXY_BASE_HOSTNAME = blimp.dev
 CLUSTER_MANAGER_IP = 34.82.73.248
 CLUSTER_MANAGER_HOST = blimp-manager.kelda.io:443
@@ -43,5 +44,8 @@ make deploy-registry
 
 # Deploy the login proxy.
 make deploy-login-proxy
+
+# Deploy the link proxy.
+make deploy-link-proxy
 
 kubectl config use-context ${curr_context}
