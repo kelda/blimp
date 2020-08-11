@@ -1,4 +1,8 @@
 local.mk
 syncthing-linux
 syncthing-macos
+syncthing-windows.exe
+blimp-windows.exe
+blimp-linux
+blimp-osx
 certs/
