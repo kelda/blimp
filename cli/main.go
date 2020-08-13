@@ -51,7 +51,7 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use: "blimp",
 
-		PersistentPreRun:  setupAnalytics,
+		PersistentPreRun:  setup,
 		PersistentPostRun: closeManager,
 
 		// The call to rootCmd.Execute prints the error, so we silence errors
@@ -80,14 +80,14 @@ func main() {
 	}
 }
 
-func setupAnalytics(cmd *cobra.Command, _ []string) {
-	if err := manager.SetupClient(); err != nil {
-		log.WithError(err).Fatal("Failed to connect to the Blimp cluster")
-	}
-
+func setup(cmd *cobra.Command, _ []string) {
 	cfg, err := cfgdir.ParseConfig()
 	if err != nil {
 		log.WithError(err).Fatal("Failed to read blimp config")
+	}
+
+	if err := manager.SetupClient(cfg.ManagerHost, cfg.ManagerCert); err != nil {
+		log.WithError(err).Fatal("Failed to connect to the Blimp cluster")
 	}
 
 	if cfg.OptOutAnalytics {

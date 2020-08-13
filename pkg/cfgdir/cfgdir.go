@@ -14,9 +14,13 @@ import (
 
 type Config struct {
 	OptOutAnalytics bool `json:"opt_out_analytics"`
+
+	KubeHost    string `json:"kube_host"`
+	ManagerHost string `json:"manager_host"`
+	ManagerCert string `json:"manager_cert"`
 }
 
-var ConfigDir string
+var ConfigDir, KubeHostOverride string
 
 func init() {
 	var err error
@@ -56,5 +60,10 @@ func ParseConfig() (Config, error) {
 	if err := yaml.Unmarshal(cfgContents, &cfg); err != nil {
 		return Config{}, errors.WithContext("parse config", err)
 	}
+
+	if cfg.KubeHost != "" {
+		KubeHostOverride = cfg.KubeHost
+	}
+
 	return cfg, nil
 }

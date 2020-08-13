@@ -25,6 +25,7 @@ import (
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/cli/util"
 	"github.com/kelda/blimp/pkg/analytics"
+	"github.com/kelda/blimp/pkg/cfgdir"
 	"github.com/kelda/blimp/pkg/docker"
 	"github.com/kelda/blimp/pkg/dockercompose"
 	"github.com/kelda/blimp/pkg/errors"
@@ -196,7 +197,7 @@ func (cmd *up) run(services []string) error {
 		return err
 	}
 
-	nodeConn, err := util.Dial(cmd.nodeAddr, cmd.nodeCert)
+	nodeConn, err := util.Dial(cmd.nodeAddr, cmd.nodeCert, "")
 	if err != nil {
 		return err
 	}
@@ -335,7 +336,11 @@ func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) err
 	// Save the Kubernetes API credentials for use by other Blimp commands.
 	kubeCreds := resp.GetKubeCredentials()
 	cmd.auth.KubeToken = kubeCreds.Token
-	cmd.auth.KubeHost = kubeCreds.Host
+	if cfgdir.KubeHostOverride != "" {
+		cmd.auth.KubeHost = cfgdir.KubeHostOverride
+	} else {
+		cmd.auth.KubeHost = kubeCreds.Host
+	}
 	cmd.auth.KubeCACrt = kubeCreds.CaCrt
 	cmd.auth.KubeNamespace = kubeCreds.Namespace
 	if err := cmd.auth.Save(); err != nil {
