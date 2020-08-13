@@ -25,6 +25,7 @@ import (
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/cli/util"
 	"github.com/kelda/blimp/pkg/analytics"
+	"github.com/kelda/blimp/pkg/cfgdir"
 	"github.com/kelda/blimp/pkg/docker"
 	"github.com/kelda/blimp/pkg/dockercompose"
 	"github.com/kelda/blimp/pkg/errors"
@@ -56,10 +57,16 @@ func New() *cobra.Command {
 				os.Exit(1)
 			}
 
+			globalConfig, err := cfgdir.ParseConfig()
+			if err != nil {
+				log.WithError(err).Fatal("Failed to read blimp config")
+			}
+
 			cmd := up{
-				auth:        auth,
-				alwaysBuild: alwaysBuild,
-				detach:      detach,
+				auth:         auth,
+				globalConfig: globalConfig,
+				alwaysBuild:  alwaysBuild,
+				detach:       detach,
 			}
 
 			dockerClient, err := util.GetDockerClient()
@@ -109,6 +116,7 @@ func New() *cobra.Command {
 
 type up struct {
 	auth           authstore.Store
+	globalConfig   cfgdir.Config
 	composePath    string
 	overridePaths  []string
 	alwaysBuild    bool
@@ -196,7 +204,7 @@ func (cmd *up) run(services []string) error {
 		return err
 	}
 
-	nodeConn, err := util.Dial(cmd.nodeAddr, cmd.nodeCert)
+	nodeConn, err := util.Dial(cmd.nodeAddr, cmd.nodeCert, "")
 	if err != nil {
 		return err
 	}
@@ -338,6 +346,11 @@ func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) err
 	cmd.auth.KubeHost = kubeCreds.Host
 	cmd.auth.KubeCACrt = kubeCreds.CaCrt
 	cmd.auth.KubeNamespace = kubeCreds.Namespace
+
+	// Apply any overrides from the user's local config.
+	if cmd.globalConfig.KubeHost != "" {
+		cmd.auth.KubeHost = cmd.globalConfig.KubeHost
+	}
 	if err := cmd.auth.Save(); err != nil {
 		return err
 	}
