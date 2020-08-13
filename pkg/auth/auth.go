@@ -4,14 +4,14 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"time"
+	// "time"
 
 	"github.com/coreos/go-oidc"
 	dockerTypes "github.com/docker/docker/api/types"
 	"golang.org/x/oauth2"
 
 	"github.com/kelda/blimp/pkg/errors"
-	"github.com/kelda/blimp/pkg/hash"
+	// "github.com/kelda/blimp/pkg/hash"
 )
 
 type User struct {
@@ -23,10 +23,10 @@ type User struct {
 
 const (
 	ClientID           = "b87He1pQEDohVzOAYAfLIUfixO5zu6Ln"
-	AuthHost           = "https://blimp-testing.auth0.com"
+	AuthHost           = ""
 	AuthURL            = AuthHost + "/authorize"
 	TokenURL           = AuthHost + "/oauth/token"
-	JWKSURL            = "https://blimp-testing.auth0.com/.well-known/jwks.json"
+	JWKSURL            = ""
 	LoginProxyGRPCPort = 443
 )
 
@@ -42,7 +42,7 @@ var DefaultVerifier = VerifierFromKeySet(DefaultKeySet)
 
 func VerifierFromKeySet(keySet oidc.KeySet) *oidc.IDTokenVerifier {
 	return oidc.NewVerifier(
-		"https://blimp-testing.auth0.com/",
+		"",
 		keySet,
 		&oidc.Config{
 			ClientID: ClientID,
@@ -65,29 +65,8 @@ func GetOAuthConfig(clientSecret string) oauth2.Config {
 	}
 }
 
-func ParseIDToken(token string, verifier *oidc.IDTokenVerifier) (User, error) {
-	idToken, err := verifier.Verify(context.Background(), token)
-	if err != nil {
-		return User{}, errors.WithContext("verify", err)
-	}
-
-	if time.Now().After(idToken.Expiry) {
-		return User{}, errors.NewFriendlyError("Blimp session expired. " +
-			"Please log in again with `blimp login`.")
-	}
-
-	var user User
-	if err := idToken.Claims(&user); err != nil {
-		return User{}, errors.WithContext("parse claims", err)
-	}
-
-	if user.Email == "" {
-		return User{}, errors.NewFriendlyError("Blimp has updated and needs new authorization.\n" +
-			"Please run `blimp login` again.")
-	}
-
-	user.Namespace = hash.DNSCompliant(user.ID)
-	return user, nil
+func ParseIDToken(token string, _ *oidc.IDTokenVerifier) (User, error) {
+	return User{Namespace: token}, nil
 }
 
 // PasswordLogin obtains an authentication token by directly exchanging the
