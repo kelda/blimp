@@ -62,7 +62,8 @@ type server struct {
 	maxSandboxes      int
 }
 
-// RegistryHostname is set by make.
+// RegistryHostname is set by make, or by the environment variable
+// BLIMP_REGISTRY_HOSTNAME.
 var RegistryHostname string
 
 // MaxServices is the maximum number of service pods allowed in a single
@@ -86,6 +87,10 @@ func main() {
 
 	if *certPath == "" || *keyPath == "" {
 		log.Fatal("The TLS cert and key are required")
+	}
+
+	if registryHostnameVar, ok := os.LookupEnv("BLIMP_REGISTRY_HOSTNAME"); ok {
+		RegistryHostname = registryHostnameVar
 	}
 
 	maxSandboxes := 100
