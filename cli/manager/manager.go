@@ -28,28 +28,32 @@ var (
 
 var C Client
 
-var Host = getHost()
-
 type Client struct {
 	cluster.ManagerClient
 	*grpc.ClientConn
 }
 
-func SetupClient() (err error) {
-	C, err = dial()
+func SetupClient(cfgHost, cfgCert string) (err error) {
+	host := DefaultManagerHost
+	hostname := "" // Use default for host.
+	cert := clusterManagerCert
+	envVal := os.Getenv("MANAGER_HOST")
+	if envVal != "" {
+		host = envVal
+	} else if cfgHost != "" {
+		host = cfgHost
+		hostname = "localhost"
+		cert = cfgCert
+	}
+	C, err = dial(host, cert, hostname)
 	return err
 }
 
-func getHost() string {
-	envVal := os.Getenv("MANAGER_HOST")
-	if envVal != "" {
-		return envVal
-	}
-	return DefaultManagerHost
-}
-
-func dial() (Client, error) {
-	conn, err := util.Dial(Host, clusterManagerCert)
+func dial(host, cert, hostname string) (Client, error) {
+	// Since we are manually specifying the exact certificate to use, it should
+	// be okay to override the server name. This simplifies self-hosted
+	// deployments.
+	conn, err := util.Dial(host, cert, hostname)
 	if err != nil {
 		return Client{}, errors.WithContext("dial", err)
 	}

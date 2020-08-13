@@ -14,6 +14,10 @@ import (
 
 type Config struct {
 	OptOutAnalytics bool `json:"opt_out_analytics"`
+
+	KubeHost    string `json:"kube_host"`
+	ManagerHost string `json:"manager_host"`
+	ManagerCert string `json:"manager_cert"`
 }
 
 var ConfigDir string
@@ -56,5 +60,6 @@ func ParseConfig() (Config, error) {
 	if err := yaml.Unmarshal(cfgContents, &cfg); err != nil {
 		return Config{}, errors.WithContext("parse config", err)
 	}
+
 	return cfg, nil
 }
