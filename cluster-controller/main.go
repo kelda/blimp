@@ -1153,6 +1153,10 @@ func (s *server) pushImage(oldName, newName, token string,
 		return errors.WithContext("parse new image reference", err)
 	}
 
+	if newRef.Context().RegistryStr() != RegistryHostname {
+		return errors.New("illegal registry %q", newRef.Context().RegistryStr())
+	}
+
 	auth := authn.Basic{Username: "ignored", Password: token}
 	err = remote.Write(newRef, image, remote.WithAuth(&auth))
 	if err != nil {
