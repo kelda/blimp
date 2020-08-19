@@ -198,7 +198,7 @@ func (cmd *up) prePushBaseImages(services composeTypes.Services) (<-chan string,
 			continue
 		}
 
-		if baseImageName == "scratch" {
+		if true || baseImageName == "scratch" {
 			// "scratch" is not an actual image, it just indicates that this is
 			// a base image and there is no parent image to push.
 			ready(svc.Name)
