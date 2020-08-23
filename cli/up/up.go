@@ -351,6 +351,9 @@ func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) err
 	if cmd.globalConfig.KubeHost != "" {
 		cmd.auth.KubeHost = cmd.globalConfig.KubeHost
 	}
+	if cmd.globalConfig.KubeCert != "" {
+		cmd.auth.KubeCACrt = cmd.globalConfig.KubeCert
+	}
 	if err := cmd.auth.Save(); err != nil {
 		return err
 	}

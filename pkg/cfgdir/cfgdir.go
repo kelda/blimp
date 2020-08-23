@@ -16,6 +16,7 @@ type Config struct {
 	OptOutAnalytics bool `json:"opt_out_analytics"`
 
 	KubeHost    string `json:"kube_host"`
+	KubeCert    string `json:"kube_cert"`
 	ManagerHost string `json:"manager_host"`
 	ManagerCert string `json:"manager_cert"`
 }
