@@ -1,3 +1,8 @@
+# This can be deployed by doing:
+# kubectl create namespace datadog
+# helm install -n datadog datadog-agent -f monitoring/datadog-helm-values.yaml stable/datadog
+
+
 ## Default values for Datadog Agent
 ## See Datadog helm documentation to learn more:
 ## https://docs.datadoghq.com/agent/kubernetes/helm/
@@ -580,7 +585,7 @@ agents:
     ## Define the Agent version to use.
     ## Use 7-jmx to enable jmx fetch collection
     #
-    tag: 7.19.0
+    tag: 7.21.1
 
     ## @param doNotCheckTag - boolean - optional
     ## By default, the version passed in agents.image.tag is checked
