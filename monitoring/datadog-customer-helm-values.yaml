@@ -1,6 +1,6 @@
 # This can be deployed by doing:
 # kubectl create namespace datadog
-# helm install -n datadog datadog-agent -f monitoring/datadog-helm-values.yaml stable/datadog
+# helm install -n datadog datadog-agent -f monitoring/datadog-customer-helm-values.yaml stable/datadog
 
 
 ## Default values for Datadog Agent
@@ -246,6 +246,10 @@ datadog:
   ## ref: https://github.com/DataDog/datadog-agent/tree/master/Dockerfiles/agent#environment-variables
   #
   env:
+    - name: DD_CONTAINER_EXCLUDE
+      value: "image:.*"
+    - name: DD_CONTAINER_INCLUDE
+      value: "kube_namespace:default kube_namespace:kube-system kube_namespace:datadog kube_namespace:blimp-system name:dns name:syncthing name:reservation"
   #   - name: <ENV_VAR_NAME>
   #     value: <ENV_VAR_VALUE>
 
@@ -256,22 +260,6 @@ datadog:
   ## ref: https://docs.datadoghq.com/agent/autodiscovery/
   #
   confd:
-    tcp_check.yaml: |-
-      init_config:
-      instances:
-        - name: cluster-manager-prod
-          host: blimp-manager.kelda.io
-          port: "443"
-        - name: login-proxy-prod
-          host: blimp-login.kelda.io
-          port: "444"
-    http_check.yaml: |-
-      init_config:
-      instances:
-        - name: registry-prod
-          url: "https://blimp-registry.kelda.io"
-        - name: login-proxy-prod
-          url: "https://blimp-login.kelda.io"
   #   redisdb.yaml: |-
   #     init_config:
   #     instances:
