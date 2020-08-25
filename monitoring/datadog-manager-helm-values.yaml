@@ -265,6 +265,9 @@ datadog:
         - name: login-proxy-prod
           host: blimp-login.kelda.io
           port: "444"
+        - name: link-proxy-prod
+          host: 00000000000000000000000000000000.blimp.dev
+          port: "443"
     http_check.yaml: |-
       init_config:
       instances:
