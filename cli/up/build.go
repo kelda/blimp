@@ -45,7 +45,7 @@ type image struct {
 // file. It builds all of the images first, and then tries to push them. When
 // pushing, it first checks whether the image already exists remotely, and if
 // it does, short circuits the push.
-func (cmd *up) buildImages(composeFile composeTypes.Config) (map[string]string, error) {
+func (cmd *up) buildImages(composeFile composeTypes.Project) (map[string]string, error) {
 	if cmd.dockerClient == nil {
 		return nil, errors.New("no docker client")
 	}

@@ -21,7 +21,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/golang/protobuf v1.4.2
 	github.com/google/go-containerregistry v0.1.0
-	github.com/kelda/compose-go v0.0.0-20200514165240-955c80c756a9
+	github.com/kelda/compose-go v0.0.0-20200826211901-ba4701afc2b7
 	github.com/lithammer/dedent v1.1.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/moby/buildkit v0.6.4
@@ -30,7 +30,7 @@ require (
 	github.com/spf13/cobra v1.0.0
 	github.com/stretchr/testify v1.5.1
 	github.com/syncthing/syncthing v1.6.1
-	golang.org/x/crypto v0.0.0-20200604202706-70a84ac30bf9
+	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	google.golang.org/grpc v1.29.1
 	k8s.io/api v0.17.4
