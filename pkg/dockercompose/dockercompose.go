@@ -24,12 +24,12 @@ var fs = afero.NewOsFs()
 
 // Load loads and merges the given compose files. If `services` is non-empty,
 // the return config only includes the services specified in `services`.
-func Load(composePath string, overridePaths, services []string) (types.Config, error) {
+func Load(composePath string, overridePaths, services []string) (types.Project, error) {
 	var configFiles []types.ConfigFile
 	for _, path := range append([]string{composePath}, overridePaths...) {
 		b, err := afero.ReadFile(fs, path)
 		if err != nil {
-			return types.Config{}, errors.WithContext("read compose file", err)
+			return types.Project{}, errors.WithContext("read compose file", err)
 		}
 
 		configIntf, err := loader.ParseYAML(b)
@@ -39,7 +39,7 @@ func Load(composePath string, overridePaths, services []string) (types.Config, e
 			if context, ok := getErrorContext(b, err.Error()); ok {
 				msg += "\n\n" + context
 			}
-			return types.Config{}, errors.NewFriendlyError(msg)
+			return types.Project{}, errors.NewFriendlyError(msg)
 		}
 
 		configFiles = append(configFiles, types.ConfigFile{
@@ -53,7 +53,7 @@ func Load(composePath string, overridePaths, services []string) (types.Config, e
 	if _, err := os.Stat(dotenvPath); err == nil {
 		dotenv, err := parseEnvFile(dotenvPath)
 		if err != nil {
-			return types.Config{}, errors.NewFriendlyError(
+			return types.Project{}, errors.NewFriendlyError(
 				"Failed to parse .env file at %s.\n\n"+
 					"The full error was:\n%s",
 				dotenvPath, err)
@@ -81,6 +81,9 @@ func Load(composePath string, overridePaths, services []string) (types.Config, e
 
 		// Skip validation so that the loader doesn't error on non-v3 files.
 		withSkipValidation,
+
+		// Skip consistency check since it's broken for volumes that are just a path.
+		withSkipConsistency,
 	}
 
 	cfgPtr, err := load(types.ConfigDetails{
@@ -94,7 +97,7 @@ func Load(composePath string, overridePaths, services []string) (types.Config, e
 			for property, tip := range forbiddenPropertiesErr.Properties {
 				tips = append(tips, fmt.Sprintf("%s: %s", property, tip))
 			}
-			return types.Config{}, errors.NewFriendlyError("Compose File uses forbidden properties. "+
+			return types.Project{}, errors.NewFriendlyError("Compose File uses forbidden properties. "+
 				"Please upgrade to Compose Spec version 3 (http://link.kelda.io/upgrade-compose).\n\n%s",
 				strings.Join(tips, "\n"))
 		}
@@ -104,7 +107,7 @@ func Load(composePath string, overridePaths, services []string) (types.Config, e
 			debugCmd = append(debugCmd, "-f", path)
 		}
 		debugCmd = append(debugCmd, "config")
-		return types.Config{}, errors.NewFriendlyError("Malformed Docker Compose file. "+
+		return types.Project{}, errors.NewFriendlyError("Malformed Docker Compose file. "+
 			"To get a more informative error message, run `%s`.\n\n"+
 			"The full error was:\n%s", strings.Join(debugCmd, " "), err)
 	}
@@ -173,7 +176,7 @@ func Load(composePath string, overridePaths, services []string) (types.Config, e
 			return nil
 		})
 		if err != nil {
-			return types.Config{}, errors.WithContext("lookup services", err)
+			return types.Project{}, errors.WithContext("lookup services", err)
 		}
 
 		cfgPtr.Services = filtered
@@ -199,10 +202,11 @@ func parseEnvFile(path string) (map[string]string, error) {
 	return ret, nil
 }
 
-func Unmarshal(b []byte) (parsed types.Config, err error) {
+// Unmarshal loads the parsed compose spec that was serialized by the Marshal function.
+func Unmarshal(b []byte) (parsed types.Project, err error) {
 	configIntf, err := loader.ParseYAML(b)
 	if err != nil {
-		return types.Config{}, errors.WithContext("parse", err)
+		return types.Project{}, errors.WithContext("parse", err)
 	}
 
 	cfgPtr, err := load(types.ConfigDetails{
@@ -211,20 +215,30 @@ func Unmarshal(b []byte) (parsed types.Config, err error) {
 				Config: configIntf,
 			},
 		},
-	}, withSkipValidation, withSkipInterpolation)
+	}, withSkipValidation, withSkipConsistency, withSkipInterpolation)
 	if err != nil {
-		return types.Config{}, errors.WithContext("load", err)
+		return types.Project{}, errors.WithContext("load", err)
 	}
 
 	return *cfgPtr, nil
 }
 
-func Marshal(cfg types.Config) ([]byte, error) {
+// Marshal serializes a parsed compose spec so that it can be loaded by the
+// Unmarshal function.
+// Note that `Marshal` and `Unmarshal` used to use `types.Config` types, but
+// switching to `types.Project` is fully backwards compatible, since
+// `types.Project` and `types.Config` both have the same field names and types
+// for `Services`, `Networks`, and `Volumes`.
+func Marshal(cfg types.Project) ([]byte, error) {
 	return yaml.Marshal(cfg)
 }
 
 func withSkipValidation(opts *loader.Options) {
 	opts.SkipValidation = true
+}
+
+func withSkipConsistency(opts *loader.Options) {
+	opts.SkipConsistencyCheck = true
 }
 
 func withSkipInterpolation(opts *loader.Options) {
@@ -280,7 +294,7 @@ func getErrorContext(file []byte, errMsg string) (string, bool) {
 //   bad: parsing
 // ```
 // load wraps the call to loader.Load and catches any panics.
-func load(det types.ConfigDetails, opts ...func(opts *loader.Options)) (cfg *types.Config, err error) {
+func load(det types.ConfigDetails, opts ...func(opts *loader.Options)) (cfg *types.Project, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = errors.New("%s", r)

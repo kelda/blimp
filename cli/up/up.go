@@ -357,7 +357,7 @@ func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) err
 	return nil
 }
 
-func (cmd *up) runGUI(ctx context.Context, parsedCompose composeTypes.Config) error {
+func (cmd *up) runGUI(ctx context.Context, parsedCompose composeTypes.Project) error {
 	services := parsedCompose.ServiceNames()
 	statusPrinter := newStatusPrinter(services)
 	if !statusPrinter.Run(ctx, manager.C, cmd.auth.AuthToken) {
@@ -414,7 +414,7 @@ func startTunnel(ncc node.ControllerClient, token, name, hostIP string,
 	}
 }
 
-func (cmd *up) makeSyncthingClient(dcCfg composeTypes.Config) syncthing.Client {
+func (cmd *up) makeSyncthingClient(dcCfg composeTypes.Project) syncthing.Client {
 	var allVolumes []syncthing.BindVolume
 	for _, svc := range dcCfg.Services {
 		// bindVolumes maps target paths (the paths to be mounted in the
