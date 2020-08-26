@@ -68,6 +68,23 @@ func TestBlimp(t *testing.T) {
 			},
 		},
 
+		examples.Test{
+			Name:       "Extends",
+			WorkingDir: filepath.Join(reposRoot, "github.com/kelda-inc/blimp/ci/tests/extends"),
+			Tests: []blimpAssert.Test{
+				blimpAssert.HTTPGetTest{
+					Name:     "Get",
+					Endpoint: "http://localhost:8000/extends.html",
+					Expected: []byte("Extended\n"),
+				},
+				blimpAssert.HTTPGetTest{
+					Name:     "Get",
+					Endpoint: "http://localhost:8000/base.html",
+					Expected: []byte("Base\n"),
+				},
+			},
+		},
+
 		volume.Test{},
 		logs.Test{},
 		build.Test{},

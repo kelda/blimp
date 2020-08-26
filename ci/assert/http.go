@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/kelda/blimp/pkg/errors"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,6 +24,7 @@ type HTTPPostTest struct {
 type HTTPGetTest struct {
 	Name     string
 	Endpoint string
+	Expected []byte
 }
 
 func (test HTTPPostTest) Run(_ context.Context, t *testing.T) {
@@ -46,12 +48,17 @@ func (test HTTPPostTest) GetName() string {
 
 func (test HTTPGetTest) Run(_ context.Context, t *testing.T) {
 	resp, err := http.Get(test.Endpoint)
-	if err != nil {
-		require.NoError(t, err, "get")
+	if !assert.NoError(t, err, "get") {
+		return
 	}
 
-	// Close the body to avoid leaking resources.
-	resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if !assert.NoError(t, err, "read") {
+		return
+	}
+	defer resp.Body.Close()
+
+	assert.Equal(t, test.Expected, body)
 }
 
 func (test HTTPGetTest) GetName() string {
