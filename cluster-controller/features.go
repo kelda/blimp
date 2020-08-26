@@ -49,6 +49,7 @@ func validateServices(services types.Services) []string {
 		{ID: ".Command"},
 		{ID: ".ContainerName"},
 		{ID: ".Entrypoint"},
+		{ID: ".Extends"},
 		{ID: ".DependsOn"},
 		{ID: ".Environment"},
 		{ID: ".EnvFile"},
