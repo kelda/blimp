@@ -617,15 +617,15 @@ func (s *server) createSyncthing(user auth.User, syncedFolders map[string]string
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: user.Namespace,
-			Name:      "syncthing",
+			Name:      kube.PodNameSyncthing,
 			Labels: map[string]string{
-				"service":                     "syncthing",
+				"service":                     kube.PodNameSyncthing,
 				affinity.ColocateNamespaceKey: user.Namespace,
 			},
 		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{{
-				Name:         "syncthing",
+				Name:         kube.PodNameSyncthing,
 				Image:        version.SyncthingImage,
 				Args:         syncthing.MapToArgs(idPathMap),
 				VolumeMounts: []corev1.VolumeMount{mount},

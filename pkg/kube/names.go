@@ -10,4 +10,6 @@ const (
 	BlimpNamespace = "blimp-system"
 
 	ExposeAnnotation = "blimp.exposed-service"
+
+	PodNameSyncthing = "syncthing"
 )

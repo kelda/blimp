@@ -124,7 +124,7 @@ func (s *server) Tunnel(nsrv node.Controller_TunnelServer) error {
 	// redesign the other APIs that refer to service names, such as logs and
 	// SSH.
 	podName := serviceName
-	if serviceName != "syncthing" {
+	if serviceName != kube.PodNameSyncthing {
 		podName = names.PodName(serviceName)
 	}
 
