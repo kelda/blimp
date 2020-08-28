@@ -19,11 +19,20 @@ const (
 	// kustomerNodeKey is the node label used to designate that a node should
 	// only run kustomer sandboxes.
 	kustomerNodeKey = "blimp.kustomer"
+
+	// buildkitNodeKey is the node label used to designate that a node should
+	// only run buildkit containers. These nodes should use Ubuntu as the host
+	// OS rather than COS because rootless buildkit doesn't work on COS:
+	// https://github.com/moby/buildkit/issues/879.
+	buildkitNodeKey = "blimp.buildkit"
 )
+
+var OnBuilderNode = newAffinity(onNode(buildkitNodeKey))
 
 func ForUser(user auth.User) *corev1.Affinity {
 	opts := []affinityOption{
 		withPods(ColocateNamespaceKey, user.Namespace),
+		notNode(buildkitNodeKey),
 	}
 
 	if strings.HasSuffix(user.Email, "@kustomer.com") {

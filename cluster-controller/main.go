@@ -238,6 +238,64 @@ func (s *server) AttachToSandbox(ctx context.Context, req *cluster.AttachToSandb
 	}, nil
 }
 
+func (s *server) GetBuildkit(ctx context.Context, req *cluster.GetBuildkitRequest) (
+	*cluster.GetBuildkitResponse, error) {
+	log.Info("Start GetBuildkit")
+
+	// Validate that the user logged in, and get their information.
+	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
+	if err != nil {
+		return &cluster.GetBuildkitResponse{}, err
+	}
+
+	// Even if this is called at the same time as CreateSandbox, these calls
+	// should be okay since they should be idempotent.
+
+	_, err = s.kubeClient.CoreV1().Namespaces().Get(user.Namespace, metav1.GetOptions{})
+	if err != nil {
+		if !kerrors.IsNotFound(err) {
+			return &cluster.GetBuildkitResponse{}, errors.WithContext("get sandbox", err)
+		}
+
+		if err := s.createNamespace(ctx, user.Namespace); err != nil {
+			return &cluster.GetBuildkitResponse{}, errors.WithContext("create namespace", err)
+		}
+	}
+
+	if err := createBuildkitd(s.kubeClient, user.Namespace); err != nil {
+		return &cluster.GetBuildkitResponse{}, errors.WithContext("deploy buildkitd", err)
+	}
+
+	buildkitPod, err := s.getPod(ctx, user.Namespace, kube.PodNameBuildkitd, podIsReady)
+	if err != nil {
+		return &cluster.GetBuildkitResponse{}, errors.WithContext("buildkit never started", err)
+	}
+
+	nodeAddress, nodeCert, err := node.GetConnectionInfo(ctx, s.kubeClient, buildkitPod.Spec.NodeName)
+	if err != nil {
+		return &cluster.GetBuildkitResponse{}, errors.WithContext("get node connection info", err)
+	}
+
+	return &cluster.GetBuildkitResponse{
+		NodeAddress: nodeAddress,
+		NodeCert:    nodeCert,
+	}, nil
+}
+
+func (s *server) GetImageNamespace(ctx context.Context, req *cluster.GetImageNamespaceRequest) (
+	*cluster.GetImageNamespaceResponse, error) {
+	log.Info("Start GetImageNamespace")
+
+	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
+	if err != nil {
+		return &cluster.GetImageNamespaceResponse{}, err
+	}
+
+	return &cluster.GetImageNamespaceResponse{
+		Namespace: fmt.Sprintf("%s/%s", RegistryHostname, user.Namespace),
+	}, nil
+}
+
 func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRequest) (
 	*cluster.CreateSandboxResponse, error) {
 	log.Info("Start CreateSandbox")
@@ -346,6 +404,10 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, errors.WithContext("deploy syncthing", err)
 	}
 
+	if err := createBuildkitd(s.kubeClient, namespace); err != nil {
+		return &cluster.CreateSandboxResponse{}, errors.WithContext("deploy buildkitd", err)
+	}
+
 	if err := s.deployDNS(user); err != nil {
 		return &cluster.CreateSandboxResponse{}, errors.WithContext("deploy dns", err)
 	}
@@ -393,6 +455,14 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 			WithField("namespace", user.Namespace).
 			WithField("unsupportedFeatures", unsupportedFeatures).
 			Warn("Used unsupported feature")
+	}
+
+	// Block the RPC on the buildkit pod starting up so that the CLI doesn't
+	// try to build before buildkit is running.
+	// We make this check as late as possible so that we can do other work
+	// while Kubernetes boots the pod.
+	if _, err := s.getPod(ctx, namespace, kube.PodNameBuildkitd, podIsReady); err != nil {
+		return &cluster.CreateSandboxResponse{}, errors.WithContext("buildkit never started", err)
 	}
 
 	return &cluster.CreateSandboxResponse{

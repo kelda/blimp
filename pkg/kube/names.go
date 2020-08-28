@@ -12,4 +12,5 @@ const (
 	ExposeAnnotation = "blimp.exposed-service"
 
 	PodNameSyncthing = "syncthing"
+	PodNameBuildkitd = "buildkitd"
 )

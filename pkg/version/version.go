@@ -9,6 +9,7 @@ var (
 	ReservationImage    = ""
 	SyncthingImage      = ""
 	DNSImage            = ""
+	BuildkitdImage      = "moby/buildkit:master-rootless"
 )
 
 func init() {
