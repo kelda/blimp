@@ -8,13 +8,17 @@ go 1.13
 replace (
 	github.com/containerd/containerd v1.3.0-0.20190507210959-7c1e88399ec0 => github.com/containerd/containerd v1.3.0-beta.2.0.20190823190603-4a2f61c4f2b4
 	github.com/docker/docker => github.com/moby/moby v0.7.3-0.20190826074503-38ab9da00309
+	// https://github.com/moby/buildkit/blob/v0.6.4/go.mod#L78
+	github.com/jaguilar/vt100 => github.com/tonistiigi/vt100 v0.0.0-20190402012908-ad4c4a574305
 	golang.org/x/crypto v0.0.0-20190129210102-0709b304e793 => golang.org/x/crypto v0.0.0-20180904163835-0709b304e793
 )
 
 require (
 	github.com/GeertJohan/go.rice v1.0.0
 	github.com/buger/goterm v0.0.0-20200322175922-2f3e71b85129
+	github.com/containerd/console v0.0.0-20181022165439-0650fd9eeb50
 	github.com/containerd/continuity v0.0.0-20200413184840-d3ef23f19fbb // indirect
+	github.com/containerd/ttrpc v1.0.1 // indirect
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/docker/cli v0.0.0-20191017083524-a8ff7f821017
 	github.com/docker/docker v1.14.0-0.20190319215453-e7b5f7dbe98c
