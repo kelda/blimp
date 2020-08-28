@@ -417,7 +417,7 @@ func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest
 	}
 
 	namespace := user.Namespace
-	dnsPod, err := s.getPod(ctx, namespace, "dns", podIsRunning)
+	dnsPod, err := s.getPod(ctx, namespace, "dns", podIsReady)
 	if err != nil {
 		return &cluster.DeployResponse{}, errors.WithContext("get dns server's IP", err)
 	}
@@ -1277,8 +1277,13 @@ func toPods(
 
 type podCondition func(*corev1.Pod) bool
 
-func podIsRunning(pod *corev1.Pod) bool {
-	return pod.Status.Phase == corev1.PodRunning
+func podIsReady(pod *corev1.Pod) bool {
+	for _, cond := range pod.Status.Conditions {
+		if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }
 
 func podIsScheduled(pod *corev1.Pod) bool {
