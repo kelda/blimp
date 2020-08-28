@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 
+	"github.com/kelda-inc/blimp/cluster-controller/affinity"
 	"github.com/kelda-inc/blimp/cluster-controller/node"
 	"github.com/kelda-inc/blimp/cluster-controller/volume"
 	"github.com/kelda-inc/blimp/pkg/analytics"
@@ -245,6 +246,15 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
 	if err != nil {
 		return &cluster.CreateSandboxResponse{}, err
+	}
+
+	// We schedule Kustomer emails on to special nodes, so make sure that
+	// kustomer email addresses are verified.
+	// We don't enforce email verification for other email addresses to make
+	// onboarding simpler.
+	if strings.HasSuffix(user.Email, "@kustomer.com") && !user.EmailVerified {
+		return &cluster.CreateSandboxResponse{}, errors.NewFriendlyError(
+			"Hi Kustomer employee! Please verify your email and then run `blimp login` again.")
 	}
 
 	dcCfg, err := dockercompose.Unmarshal([]byte(req.GetComposeFile()))
@@ -560,18 +570,13 @@ func (s *server) createReservation(user auth.User, numServices int) error {
 	memory := resource.MustParse(
 		fmt.Sprintf("%d%s", memoryRequest*numServices, memoryRequestUnits))
 
-	affinity, err := affinityForUser(user)
-	if err != nil {
-		return err
-	}
-
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: user.Namespace,
 			Name:      "reservation",
 			Labels: map[string]string{
-				"service":        "reservation",
-				"blimp.customer": user.Namespace,
+				"service":                     "reservation",
+				affinity.ColocateNamespaceKey: user.Namespace,
 				// We set blimp.customerPod=true so that the pod will get
 				// cleaned up when the actual sandbox is deployed.
 				"blimp.customerPod": "true",
@@ -588,7 +593,7 @@ func (s *server) createReservation(user auth.User, numServices int) error {
 					},
 				},
 			}},
-			Affinity: affinity,
+			Affinity: affinity.ForUser(user),
 		},
 	}
 
@@ -599,11 +604,6 @@ func (s *server) createReservation(user auth.User, numServices int) error {
 }
 
 func (s *server) createSyncthing(user auth.User, syncedFolders map[string]string) error {
-	affinity, err := affinityForUser(user)
-	if err != nil {
-		return err
-	}
-
 	mount := corev1.VolumeMount{
 		Name:      volume.PersistentVolume.Name,
 		MountPath: "/pv",
@@ -619,8 +619,8 @@ func (s *server) createSyncthing(user auth.User, syncedFolders map[string]string
 			Namespace: user.Namespace,
 			Name:      "syncthing",
 			Labels: map[string]string{
-				"service":        "syncthing",
-				"blimp.customer": user.Namespace,
+				"service":                     "syncthing",
+				affinity.ColocateNamespaceKey: user.Namespace,
 			},
 		},
 		Spec: corev1.PodSpec{
@@ -641,7 +641,7 @@ func (s *server) createSyncthing(user auth.User, syncedFolders map[string]string
 				},
 			}},
 			Volumes:  []corev1.Volume{volume.PersistentVolume},
-			Affinity: affinity,
+			Affinity: affinity.ForUser(user),
 		},
 	}
 
@@ -656,11 +656,6 @@ func (s *server) createSyncthing(user auth.User, syncedFolders map[string]string
 
 func (s *server) deployDNS(user auth.User) error {
 	namespace := user.Namespace
-	affinity, err := affinityForUser(user)
-	if err != nil {
-		return err
-	}
-
 	serviceAccount := corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "dns",
@@ -691,8 +686,8 @@ func (s *server) deployDNS(user auth.User) error {
 			Namespace: namespace,
 			Name:      "dns",
 			Labels: map[string]string{
-				"service":        "dns",
-				"blimp.customer": namespace,
+				"service":                     "dns",
+				affinity.ColocateNamespaceKey: namespace,
 			},
 		},
 		Spec: corev1.PodSpec{
@@ -720,7 +715,7 @@ func (s *server) deployDNS(user auth.User) error {
 					},
 				},
 			}},
-			Affinity:           affinity,
+			Affinity:           affinity.ForUser(user),
 			ServiceAccountName: serviceAccount.Name,
 		},
 	}
@@ -1278,60 +1273,6 @@ func toPods(
 	}
 
 	return pods, configMaps, nil
-}
-
-func affinityForUser(user auth.User) (*corev1.Affinity, error) {
-	var nodeSelector corev1.NodeSelector
-
-	if strings.HasSuffix(user.Email, "@kustomer.com") {
-		if !user.EmailVerified {
-			return nil, errors.NewFriendlyError(
-				"Hi Kustomer employee! Please verify your email and then run `blimp login` again.\n")
-		}
-		nodeSelector = corev1.NodeSelector{
-			NodeSelectorTerms: []corev1.NodeSelectorTerm{
-				{
-					MatchExpressions: []corev1.NodeSelectorRequirement{
-						{
-							Key:      "blimp.kustomer",
-							Operator: corev1.NodeSelectorOpExists,
-						},
-					},
-				},
-			},
-		}
-	} else {
-		nodeSelector = corev1.NodeSelector{
-			NodeSelectorTerms: []corev1.NodeSelectorTerm{
-				{
-					MatchExpressions: []corev1.NodeSelectorRequirement{
-						{
-							Key:      "blimp.kustomer",
-							Operator: corev1.NodeSelectorOpDoesNotExist,
-						},
-					},
-				},
-			},
-		}
-	}
-
-	return &corev1.Affinity{
-		PodAffinity: &corev1.PodAffinity{
-			RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
-				{
-					LabelSelector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"blimp.customer": user.Namespace,
-						},
-					},
-					TopologyKey: corev1.LabelHostname,
-				},
-			},
-		},
-		NodeAffinity: &corev1.NodeAffinity{
-			RequiredDuringSchedulingIgnoredDuringExecution: &nodeSelector,
-		},
-	}, nil
 }
 
 type podCondition func(*corev1.Pod) bool

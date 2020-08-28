@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/kelda-inc/blimp/cluster-controller/affinity"
 	"github.com/kelda-inc/blimp/cluster-controller/volume"
 	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/metadata"
@@ -132,10 +133,8 @@ func newPodBuilder(user auth.User, dnsIP, nodeControllerIP string, builtImages m
 }
 
 func (b podBuilder) ToPod(svc composeTypes.ServiceConfig) (corev1.Pod, []corev1.ConfigMap, error) {
-	spec, err := podSpecForUser(b.user)
-	if err != nil {
-		return corev1.Pod{}, nil, err
-	}
+	spec := podSpec{namespace: b.user.Namespace}
+	spec.pod.Spec.Affinity = affinity.ForUser(b.user)
 
 	if svc.Build != nil {
 		spec.image = b.builtImages[svc.Name]
@@ -201,18 +200,6 @@ func (b podBuilder) ToPod(svc composeTypes.ServiceConfig) (corev1.Pod, []corev1.
 	}
 	spec.sanitize()
 	return spec.pod, spec.configMaps, nil
-}
-
-func podSpecForUser(user auth.User) (*podSpec, error) {
-	podSpec := podSpec{namespace: user.Namespace}
-
-	affinity, err := affinityForUser(user)
-	if err != nil {
-		return nil, err
-	}
-	podSpec.pod.Spec.Affinity = affinity
-
-	return &podSpec, nil
 }
 
 func (p *podSpec) addVolumeSeeder(volumes []composeTypes.ServiceVolumeConfig) {
@@ -290,9 +277,9 @@ func (p *podSpec) addRuntimeContainer(svc composeTypes.ServiceConfig, dnsIP stri
 	p.pod.Namespace = p.namespace
 	p.pod.Name = names.PodName(svc.Name)
 	p.pod.Labels = map[string]string{
-		"blimp.service":     svc.Name,
-		"blimp.customerPod": "true",
-		"blimp.customer":    p.namespace,
+		"blimp.service":               svc.Name,
+		"blimp.customerPod":           "true",
+		affinity.ColocateNamespaceKey: p.namespace,
 	}
 
 	var volumeMounts []corev1.VolumeMount
