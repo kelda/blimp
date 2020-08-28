@@ -354,6 +354,10 @@ func (cmd *up) pushImage(image string) error {
 }
 
 func (cmd *up) getCachedImages() ([]types.ImageSummary, error) {
+	if cmd.dockerClient == nil {
+		return nil, errors.New("no docker client")
+	}
+
 	if cmd.alwaysBuild {
 		// If alwaysBuild is true, we are going to rebuild everything anyway. We
 		// should ignore all cached images.
