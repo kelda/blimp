@@ -9,7 +9,7 @@ import (
 // ValidateComposeFile attempts to find common cases of broken Compose files so
 // we can abort early and provide a helpful error.
 // This is needlessly abstract for now, but I imagine more will be added.
-func ValidateComposeFile(cfg types.Config) []string {
+func ValidateComposeFile(cfg types.Project) []string {
 	problems := []string{}
 
 	problems = append(problems, checkNonexistentDepends(cfg.Services)...)

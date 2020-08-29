@@ -1249,7 +1249,7 @@ func toPods(
 	user auth.User,
 	dnsIP,
 	nodeControllerIP string,
-	cfg composeTypes.Config,
+	cfg composeTypes.Project,
 	builtImages map[string]string,
 ) (
 	pods []corev1.Pod,

@@ -11,12 +11,12 @@ import (
 
 func TestValidateComposeConfig(t *testing.T) {
 	tests := []struct {
-		cfg         types.Config
+		cfg         types.Project
 		expProblems []string
 	}{
 		// Basic compose file, no issues.
 		{
-			cfg: types.Config{
+			cfg: types.Project{
 				Services: types.Services([]types.ServiceConfig{
 					{
 						Name:  "test",
@@ -28,7 +28,7 @@ func TestValidateComposeConfig(t *testing.T) {
 		},
 		// Compose file with correct dependency.
 		{
-			cfg: types.Config{
+			cfg: types.Project{
 				Services: types.Services([]types.ServiceConfig{
 					{
 						Name:  "test1",
@@ -49,7 +49,7 @@ func TestValidateComposeConfig(t *testing.T) {
 		},
 		// Invalid dependency.
 		{
-			cfg: types.Config{
+			cfg: types.Project{
 				Services: types.Services([]types.ServiceConfig{
 					{
 						Name:  "test1",

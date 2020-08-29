@@ -11,7 +11,7 @@ import (
 )
 
 // GetUnsupportedFeatures checks for any references to unsupported features.
-func GetUnsupportedFeatures(cfg types.Config) []string {
+func GetUnsupportedFeatures(cfg types.Project) []string {
 	var messages []string
 	if len(cfg.Secrets) != 0 {
 		messages = append(messages, "secrets")

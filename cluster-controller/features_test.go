@@ -11,12 +11,12 @@ import (
 
 func TestValidateFeatures(t *testing.T) {
 	tests := []struct {
-		cfg types.Config
+		cfg types.Project
 		exp []string
 	}{
 		// All features are supported.
 		{
-			cfg: types.Config{
+			cfg: types.Project{
 				Services: types.Services([]types.ServiceConfig{
 					{
 						Name:    "test",
@@ -33,7 +33,7 @@ func TestValidateFeatures(t *testing.T) {
 
 		// Using an unsupported feature.
 		{
-			cfg: types.Config{
+			cfg: types.Project{
 				Services: types.Services([]types.ServiceConfig{
 					{
 						Name:     "test",
@@ -48,7 +48,7 @@ func TestValidateFeatures(t *testing.T) {
 
 		// Using a supported value for ports.
 		{
-			cfg: types.Config{
+			cfg: types.Project{
 				Services: types.Services([]types.ServiceConfig{
 					{
 						Name:  "test",
@@ -64,7 +64,7 @@ func TestValidateFeatures(t *testing.T) {
 
 		// Using an unsupported value for ports.
 		{
-			cfg: types.Config{
+			cfg: types.Project{
 				Services: types.Services([]types.ServiceConfig{
 					{
 						Name:  "test",
@@ -80,7 +80,7 @@ func TestValidateFeatures(t *testing.T) {
 
 		// Using a supported field in volumes.
 		{
-			cfg: types.Config{
+			cfg: types.Project{
 				Volumes: map[string]types.VolumeConfig{
 					"volume": {
 						Name: "volume",
@@ -92,7 +92,7 @@ func TestValidateFeatures(t *testing.T) {
 
 		// Using an unsupported field in volumes.
 		{
-			cfg: types.Config{
+			cfg: types.Project{
 				Volumes: map[string]types.VolumeConfig{
 					"volume": {
 						Name:   "volume",
@@ -105,7 +105,7 @@ func TestValidateFeatures(t *testing.T) {
 
 		// Using a supported bind volume via local driver.
 		{
-			cfg: types.Config{
+			cfg: types.Project{
 				Volumes: map[string]types.VolumeConfig{
 					"volume": {
 						Name:   "volume",
@@ -123,7 +123,7 @@ func TestValidateFeatures(t *testing.T) {
 
 		// Using a mostly-supported bind volume via local driver.
 		{
-			cfg: types.Config{
+			cfg: types.Project{
 				Volumes: map[string]types.VolumeConfig{
 					"volume": {
 						Name: "volume",
@@ -139,7 +139,7 @@ func TestValidateFeatures(t *testing.T) {
 
 		// Using unsupported local driver options.
 		{
-			cfg: types.Config{
+			cfg: types.Project{
 				Volumes: map[string]types.VolumeConfig{
 					"volume": {
 						Name:   "volume",
