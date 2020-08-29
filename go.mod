@@ -32,6 +32,7 @@ require (
 	github.com/syncthing/syncthing v1.6.1
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
+	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
 	google.golang.org/grpc v1.29.1
 	k8s.io/api v0.17.4
 	k8s.io/apimachinery v0.17.4

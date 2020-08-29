@@ -3,7 +3,6 @@ package up
 import (
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -17,6 +16,8 @@ import (
 	composeTypes "github.com/kelda/compose-go/types"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/kelda/blimp/cli/authstore"
@@ -125,11 +126,13 @@ type up struct {
 	dockerConfig   *configfile.ConfigFile
 	regCreds       map[string]types.AuthConfig
 	imageNamespace string
-	nodeAddr       string
-	nodeCert       string
 
 	// The images in the image cache from previous Blimp runs.
 	cachedImages []types.ImageSummary
+
+	nodeControllerConn   *grpc.ClientConn
+	nodeControllerClient node.ControllerClient
+	tunnelManager        tunnel.Manager
 }
 
 func (cmd *up) run(services []string) error {
@@ -177,6 +180,7 @@ func (cmd *up) run(services []string) error {
 	if err := cmd.createSandbox(string(parsedComposeBytes), idPathMap); err != nil {
 		log.WithError(err).Fatal("Failed to create development sandbox")
 	}
+	defer cmd.nodeControllerConn.Close()
 
 	cachedImages, err := cmd.getCachedImages()
 	if err == nil {
@@ -204,37 +208,14 @@ func (cmd *up) run(services []string) error {
 		return err
 	}
 
-	nodeConn, err := util.Dial(cmd.nodeAddr, cmd.nodeCert, "")
-	if err != nil {
-		return err
-	}
-	defer nodeConn.Close()
-	nodeController := node.NewControllerClient(nodeConn)
-
-	// Start the tunnels.
-	for _, svc := range parsedCompose.Services {
-		for _, mapping := range svc.Ports {
-			if mapping.Protocol == "tcp" {
-				go startTunnel(nodeController, cmd.auth.AuthToken, svc.Name,
-					mapping.HostIP, mapping.Published, mapping.Target)
-			}
-		}
-	}
-
 	syncthingError := make(chan error, 1)
 	syncthingCtx, cancelSyncthing := context.WithCancel(context.Background())
 	defer cancelSyncthing()
 	if len(idPathMap) != 0 {
-		tunneledRemoteAPIPort := uint32(8385)
-		go startTunnel(nodeController, cmd.auth.AuthToken, "syncthing",
-			"127.0.0.1", syncthing.Port, syncthing.Port)
-		go startTunnel(nodeController, cmd.auth.AuthToken, "syncthing",
-			"127.0.0.1", tunneledRemoteAPIPort, syncthing.APIPort)
 		go func() {
 			defer close(syncthingError)
 
-			output, err := stClient.Run(syncthingCtx, nodeController,
-				fmt.Sprintf("127.0.0.1:%d", tunneledRemoteAPIPort), cmd.auth.AuthToken)
+			output, err := stClient.Run(syncthingCtx, cmd.nodeControllerClient, cmd.auth.AuthToken, cmd.tunnelManager)
 			select {
 			// We intentionally killed the Syncthing process, so exiting was expected.
 			case <-syncthingCtx.Done():
@@ -251,12 +232,36 @@ func (cmd *up) run(services []string) error {
 		}()
 	}
 
+	// Start the tunnels.
+	var tunnelsErrGroup errgroup.Group
+	startedTunnels := false
+	for _, svc := range parsedCompose.Services {
+		svc := svc
+		for _, mapping := range svc.Ports {
+			mapping := mapping
+			if mapping.Protocol == "tcp" {
+				startedTunnels = true
+				tunnelsErrGroup.Go(func() error {
+					return cmd.tunnelManager.Run(mapping.HostIP, mapping.Published, svc.Name, mapping.Target)
+				})
+			}
+		}
+	}
+	tunnelsError := make(chan error, 1)
+	if startedTunnels {
+		go func() {
+			tunnelsError <- tunnelsErrGroup.Wait()
+		}()
+	}
+
+	// Start the GUI.
 	guiCtx, cancelGui := context.WithCancel(context.Background())
 	guiError := make(chan error, 1)
 	go func() {
 		guiError <- cmd.runGUI(guiCtx, parsedCompose)
 	}()
 
+	// Wait for the user to exit, or for something to error.
 	exit := make(chan os.Signal, 1)
 	signal.Notify(exit, syscall.SIGINT, syscall.SIGTERM)
 
@@ -270,6 +275,9 @@ func (cmd *up) run(services []string) error {
 		}
 		log.Info("All containers have completed. Exiting.")
 		return nil
+
+	case err := <-tunnelsError:
+		return errors.WithContext("tunnel crashed", err)
 
 	case <-exit:
 		cancelGui()
@@ -336,9 +344,14 @@ func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) err
 		os.Exit(1)
 	}
 
+	cmd.nodeControllerConn, err = util.Dial(resp.NodeAddress, resp.NodeCert, "")
+	if err != nil {
+		return errors.WithContext("connect to node controller", err)
+	}
+	cmd.nodeControllerClient = node.NewControllerClient(cmd.nodeControllerConn)
+	cmd.tunnelManager = tunnel.NewManager(cmd.nodeControllerClient, cmd.auth.AuthToken)
+
 	cmd.imageNamespace = resp.ImageNamespace
-	cmd.nodeAddr = resp.NodeAddress
-	cmd.nodeCert = resp.NodeCert
 
 	// Save the Kubernetes API credentials for use by other Blimp commands.
 	kubeCreds := resp.GetKubeCredentials()
@@ -370,48 +383,6 @@ func (cmd *up) runGUI(ctx context.Context, parsedCompose composeTypes.Project) e
 		Opts:     corev1.PodLogOptions{Follow: true},
 		Auth:     cmd.auth,
 	}.Run(ctx)
-}
-
-func startTunnel(ncc node.ControllerClient, token, name, hostIP string,
-	hostPort, containerPort uint32) {
-
-	addr := fmt.Sprintf("%s:%d", hostIP, hostPort)
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		switch {
-		case strings.Contains(err.Error(), "permission denied"):
-			err = errors.NewFriendlyError("Permission denied while listening for connections\n"+
-				"Make sure that the local port for the service %q is above 1024.\n\n"+
-				"The full error was:\n%s", name, err)
-		case strings.Contains(err.Error(), "address already in use"):
-			err = errors.NewFriendlyError("Another process is already listening on the same port\n"+
-				"If you have been using docker-compose, make sure to run docker-compose down.\n"+
-				"Make sure that the there aren't any other "+
-				"services listening locally on port %d. This can be checked with the following command:\n"+
-				"sudo lsof -i -P -n | grep :%d\n\n"+
-				"The full error was:\n%s", hostPort, hostPort, err)
-		}
-
-		// TODO.  It's appropriate that this error is fatal, but we need
-		// a better way of handling it.  Log messages are ugly, and we
-		// need to do some cleanup.
-		log.WithError(err).
-			WithField("address", addr).
-			Fatal("Failed to started tunnels")
-	}
-
-	err = tunnel.Client(ncc, ln, token, name, containerPort)
-	if err != nil {
-		// TODO.  Same question about Fatal.  Also if accept errors
-		// maybe wes hould have retried inside accept tunnels instead of
-		// fatal out here?
-		log.WithFields(log.Fields{
-			"error":   err,
-			"address": addr,
-			"network": "tcp",
-		}).Fatal("failed to listen for connections")
-		return
-	}
 }
 
 func (cmd *up) makeSyncthingClient(dcCfg composeTypes.Project) syncthing.Client {
