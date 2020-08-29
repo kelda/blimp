@@ -19,8 +19,9 @@ const (
 	// actually uses this port so we should be good w.r.t. conflicts.  The "right"
 	// thing to do, would be to use a unix socket in the CLI, and then conflicts
 	// aren't possible.
-	Port    = 22022
-	APIPort = 8384
+	Port            = 22022
+	APIPort         = 8384
+	TunneledAPIPort = 8385
 
 	CLIDeviceID    = "ROHA7NN-4KWKQ3Q-CHJMZBK-6UD7Z6D-ZTWQR5C-TYLN6WG-Q2EQJAI-JU73EQN"
 	RemoteDeviceID = "K6QHA3P-VGHXBZE-2NILDY3-Y4E2EUU-7DCSOVF-DFVCQRM-P5BVGMB-LDLP6QA"
