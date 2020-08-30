@@ -11,7 +11,9 @@ service Manager {
   rpc CreateSandbox(CreateSandboxRequest) returns (CreateSandboxResponse) {}
   rpc DeployToSandbox(DeployRequest) returns (DeployResponse) {}
   rpc DeleteSandbox(DeleteSandboxRequest) returns (DeleteSandboxResponse) {}
+  rpc GetBuildkit(GetBuildkitRequest) returns (GetBuildkitResponse) {}
   rpc GetStatus(GetStatusRequest) returns (GetStatusResponse) {}
+  rpc GetImageNamespace(GetImageNamespaceRequest) returns (GetImageNamespaceResponse) {}
   rpc ProxyAnalytics(ProxyAnalyticsRequest) returns (ProxyAnalyticsResponse) {}
   rpc WatchStatus(GetStatusRequest) returns (stream GetStatusResponse) {}
   rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}
@@ -189,4 +191,23 @@ message UnexposeRequest {
 
 message UnexposeResponse {
   blimp.errors.v0.Error error = 1;
+}
+
+message GetImageNamespaceRequest {
+  string token = 1;
+}
+
+message GetImageNamespaceResponse {
+  blimp.errors.v0.Error error = 1;
+  string namespace = 2;
+}
+
+message GetBuildkitRequest {
+  string token = 1;
+}
+
+message GetBuildkitResponse {
+  blimp.errors.v0.Error error = 1;
+  string NodeAddress = 2;
+  string NodeCert = 3;
 }
