@@ -371,7 +371,7 @@ func (c Client) startTunnels(tm tunnel.Manager) chan error {
 		go func() {
 			select {
 			// TODO: This will block until it exits right?
-			case errChan <- tm.Run("127.0.0.1", tunnel.localPort, "syncthing", tunnel.remotePort):
+			case errChan <- tm.Run("127.0.0.1", tunnel.localPort, "syncthing", tunnel.remotePort, nil):
 			default:
 			}
 		}()

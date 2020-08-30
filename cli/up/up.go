@@ -242,7 +242,7 @@ func (cmd *up) run(services []string) error {
 			if mapping.Protocol == "tcp" {
 				startedTunnels = true
 				tunnelsErrGroup.Go(func() error {
-					return cmd.tunnelManager.Run(mapping.HostIP, mapping.Published, svc.Name, mapping.Target)
+					return cmd.tunnelManager.Run(mapping.HostIP, mapping.Published, svc.Name, mapping.Target, nil)
 				})
 			}
 		}
