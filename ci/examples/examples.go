@@ -14,10 +14,10 @@ import (
 )
 
 type Test struct {
-	Name         string
-	WorkingDir   string
-	ComposePaths []string
-	Tests        []blimpAssert.Test
+	Name       string
+	WorkingDir string
+	UpArgs     []string
+	Tests      []blimpAssert.Test
 }
 
 func (test Test) GetName() string {
@@ -29,14 +29,9 @@ func (test Test) Run(ctx context.Context, t *testing.T) {
 		require.NoError(t, os.Chdir(test.WorkingDir), "set working directory for test")
 	}
 
-	var upArgs []string
-	for _, path := range test.ComposePaths {
-		upArgs = append(upArgs, "-f", path)
-	}
-
 	testCtx, cancelTest := context.WithCancel(ctx)
 	upCtx, cancelUp := context.WithCancel(testCtx)
-	waitErr, err := util.Up(upCtx, upArgs...)
+	waitErr, err := util.Up(upCtx, test.UpArgs...)
 	require.NoError(t, err, "start blimp up")
 	exited := make(chan bool)
 	go func() {
