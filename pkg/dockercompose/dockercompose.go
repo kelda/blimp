@@ -121,6 +121,33 @@ func Load(composePath string, overridePaths, services []string) (types.Project, 
 			filepath.Base(filepath.Dir(composePath)), svc.Name)
 	}
 
+	// Convert build contexts to absolute paths, set the default value for the
+	// dockerfile field, and validate that the dockerfile exists.
+	for svcIdx, svc := range cfgPtr.Services {
+		if svc.Build == nil {
+			continue
+		}
+
+		cfgPtr.Services[svcIdx].Build.Context = filepath.Join(filepath.Dir(composePath), svc.Build.Context)
+		if svc.Build.Dockerfile == "" {
+			cfgPtr.Services[svcIdx].Build.Dockerfile = "Dockerfile"
+		}
+
+		dockerfilePath := filepath.Join(cfgPtr.Services[svcIdx].Build.Context, cfgPtr.Services[svcIdx].Build.Dockerfile)
+		stat, err := os.Stat(dockerfilePath)
+		if err != nil {
+			return types.Project{}, errors.NewFriendlyError(
+				"Can't open Dockerfile for %s, please make sure it exists and can be accessed.\n"+
+					"The Dockerfile should be at the path %s.\nThe underlying error was: %v",
+				svc.Name, dockerfilePath, err)
+		}
+		if !stat.Mode().IsRegular() {
+			return types.Project{}, errors.NewFriendlyError(
+				"The Dockerfile for %s (%s) is not a regular file.",
+				svc.Name, dockerfilePath)
+		}
+	}
+
 	for svcIdx, svc := range cfgPtr.Services {
 		for volumeIdx, volume := range svc.Volumes {
 			// Assign names to any volumes that are specified as just paths. E.g.:
@@ -182,6 +209,7 @@ func Load(composePath string, overridePaths, services []string) (types.Project, 
 		cfgPtr.Services = filtered
 	}
 
+	cfgPtr.Name = getProjectName(composePath)
 	return *cfgPtr, nil
 }
 
@@ -307,6 +335,13 @@ func load(det types.ConfigDetails, opts ...func(opts *loader.Options)) (cfg *typ
 
 	cfg, err = loader.Load(det, opts...)
 	return
+}
+
+func getProjectName(absComposePath string) string {
+	// See https://github.com/docker/compose/blob/854c14a5bcf566792ee8a972325c37590521656b/compose/cli/command.py#L176.
+	project := filepath.Base(filepath.Dir(absComposePath))
+	badChar := regexp.MustCompile(`[^-_a-z0-9]`)
+	return badChar.ReplaceAllString(strings.ToLower(project), "")
 }
 
 func ParseNamedBindVolume(vol types.VolumeConfig) (source string, ok bool) {
