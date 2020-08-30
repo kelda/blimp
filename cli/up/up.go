@@ -38,8 +38,7 @@ import (
 
 func New() *cobra.Command {
 	var composePaths []string
-	var alwaysBuild bool
-	var detach bool
+	var cmd up
 	cobraCmd := &cobra.Command{
 		Use:   "up [options] [SERVICE...]",
 		Short: "Create and start containers",
@@ -61,13 +60,6 @@ func New() *cobra.Command {
 			globalConfig, err := cfgdir.ParseConfig()
 			if err != nil {
 				log.WithError(err).Fatal("Failed to read blimp config")
-			}
-
-			cmd := up{
-				auth:         auth,
-				globalConfig: globalConfig,
-				alwaysBuild:  alwaysBuild,
-				detach:       detach,
 			}
 
 			dockerClient, err := util.GetDockerClient()
@@ -92,15 +84,16 @@ func New() *cobra.Command {
 				log.WithError(err).Fatal("Failed to get absolute path to Compose file")
 			}
 
-			cmd.composePath = composePath
-			cmd.overridePaths = overridePaths
-			//import the docker config
-			cfg, err := config.Load(config.Dir())
+			dockerConfig, err := config.Load(config.Dir())
 			if err != nil {
 				log.WithError(err).Fatal("Failed to load docker config")
 			}
 
-			cmd.dockerConfig = cfg
+			cmd.composePath = composePath
+			cmd.overridePaths = overridePaths
+			cmd.dockerConfig = dockerConfig
+			cmd.auth = auth
+			cmd.globalConfig = globalConfig
 			if err := cmd.run(services); err != nil {
 				errors.HandleFatalError(err)
 			}
@@ -108,9 +101,9 @@ func New() *cobra.Command {
 	}
 	cobraCmd.Flags().StringSliceVarP(&composePaths, "file", "f", nil,
 		"Specify an alternate compose file\nDefaults to docker-compose.yml and docker-compose.yaml")
-	cobraCmd.Flags().BoolVarP(&alwaysBuild, "build", "", false,
+	cobraCmd.Flags().BoolVarP(&cmd.alwaysBuild, "build", "", false,
 		"Build images before starting containers")
-	cobraCmd.Flags().BoolVarP(&detach, "detach", "d", false,
+	cobraCmd.Flags().BoolVarP(&cmd.detach, "detach", "d", false,
 		"Leave containers running after blimp up exits")
 	return cobraCmd
 }
