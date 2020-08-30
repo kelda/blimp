@@ -44,29 +44,8 @@ func Build(dockerClient *client.Client, absComposePath, svc string, spec compose
 		PullParent:  pullParent,
 		NoCache:     noCache,
 	}
-	if opts.Dockerfile == "" {
-		opts.Dockerfile = "Dockerfile"
-	}
 
-	dockerfilePath := filepath.Join(filepath.Dir(absComposePath),
-		spec.Context, opts.Dockerfile)
-	stat, err := os.Stat(dockerfilePath)
-	if err != nil {
-		return "", errors.NewFriendlyError(
-			"Can't open Dockerfile for %s, please make sure it exists and can be accessed.\n"+
-				"The Dockerfile should be at the path %s.\nThe underlying error was: %v",
-			svc, dockerfilePath, err)
-	}
-	if !stat.Mode().IsRegular() {
-		return "", errors.NewFriendlyError(
-			"The Dockerfile for %s (%s) is not a regular file.",
-			svc, dockerfilePath)
-	}
-
-	contextPath := filepath.Join(
-		filepath.Dir(absComposePath),
-		spec.Context)
-	buildContextTar, err := makeTar(contextPath)
+	buildContextTar, err := makeTar(spec.Context)
 	if err != nil {
 		return "", errors.WithContext("tar context", err)
 	}
