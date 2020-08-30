@@ -18,7 +18,7 @@ func NewManager(ncc node.ControllerClient, token string) Manager {
 	return Manager{ncc, token}
 }
 
-func (m Manager) Run(hostIP string, hostPort uint32, serviceName string, servicePort uint32) error {
+func (m Manager) Run(hostIP string, hostPort uint32, serviceName string, servicePort uint32, readyNotifier chan struct{}) error {
 	addr := fmt.Sprintf("%s:%d", hostIP, hostPort)
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -37,6 +37,10 @@ func (m Manager) Run(hostIP string, hostPort uint32, serviceName string, service
 		}
 
 		return errors.WithContext("listen locally", err)
+	}
+
+	if readyNotifier != nil {
+		close(readyNotifier)
 	}
 
 	return Client(m.ncc, ln, m.token, serviceName, servicePort)
