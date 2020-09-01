@@ -85,6 +85,23 @@ func TestBlimp(t *testing.T) {
 			},
 		},
 
+		examples.Test{
+			Name:       "VolumeInitSymlink",
+			WorkingDir: filepath.Join(reposRoot, "github.com/kelda-inc/blimp/ci/tests/volume-init-symlink"),
+			Tests: []blimpAssert.Test{
+				blimpAssert.HTTPGetTest{
+					Name:     "Get",
+					Endpoint: "http://localhost:8000/bind.html",
+					Expected: []byte("from-bind\n"),
+				},
+				blimpAssert.HTTPGetTest{
+					Name:     "Get",
+					Endpoint: "http://localhost:8000/masked/masked.html",
+					Expected: []byte("from-dockerfile\n"),
+				},
+			},
+		},
+
 		volume.Test{},
 		logs.Test{},
 		build.Test{},
