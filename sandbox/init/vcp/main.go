@@ -25,11 +25,23 @@ func main() {
 		from, to := argSplit[0], argSplit[1]
 		log.WithField("from", from).WithField("to", to).Info("Starting initialization")
 
+		// Resolve symlinks before copying so that we don't end just copying
+		// the symlink, which will make Kubernetes unable to mount the path as
+		// a directory.
+		// Instead, if it's a symlink, we should copy the contents of the
+		// destination.
+		var err error
+		from, err = filepath.EvalSymlinks(from)
+		if err != nil {
+			if os.IsNotExist(err) {
+				log.Info("Container image doesn't contain folder. Nothing to do.")
+			}
+			log.WithError(err).Warn("Failed to resolve symlinks (if any). Skipping")
+			continue
+		}
+
 		fromInfo, err := os.Stat(from)
 		switch {
-		case os.IsNotExist(err):
-			log.Info("Container image doesn't contain folder. Nothing to do.")
-			continue
 		case err != nil:
 			log.WithError(err).Error("Failed to stat image contents. Skipping.")
 			continue
