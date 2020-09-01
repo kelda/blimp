@@ -546,6 +546,8 @@ github.com/kelda/compose-go v0.0.0-20200826211901-ba4701afc2b7 h1:tT3dgUH5skImJI
 github.com/kelda/compose-go v0.0.0-20200826211901-ba4701afc2b7/go.mod h1:d3Q7ymkwj7+Nh3g+EkCjsblAfv6QYylfmQGtIFu8iNo=
 github.com/kelda/compose-go v0.0.0-20200831212502-2b726ab5e96f h1:+4x5lCnPhS5P2VLYXdD7yEyu3TPZNFwR9A3yJaotCtc=
 github.com/kelda/compose-go v0.0.0-20200831212502-2b726ab5e96f/go.mod h1:d3Q7ymkwj7+Nh3g+EkCjsblAfv6QYylfmQGtIFu8iNo=
+github.com/kelda/compose-go v0.0.0-20200831234959-fcf4186c7f4b h1:IYyO6Cq+ZX8a8J979lltol984brxrXbi5SldHZpcUyA=
+github.com/kelda/compose-go v0.0.0-20200831234959-fcf4186c7f4b/go.mod h1:d3Q7ymkwj7+Nh3g+EkCjsblAfv6QYylfmQGtIFu8iNo=
 github.com/kisielk/errcheck v1.1.0/go.mod h1:EZBBE59ingxPouuu3KfxchcWSUPOHkagtvWXihfKN4Q=
 github.com/kisielk/errcheck v1.2.0/go.mod h1:/BMXB+zMLi60iA8Vv6Ksmxu/1UDYcXs4uQLJ+jE2L00=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=

@@ -21,7 +21,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/golang/protobuf v1.4.2
 	github.com/google/go-containerregistry v0.1.0
-	github.com/kelda/compose-go v0.0.0-20200831212502-2b726ab5e96f
+	github.com/kelda/compose-go v0.0.0-20200831234959-fcf4186c7f4b
 	github.com/lithammer/dedent v1.1.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/moby/buildkit v0.6.4
