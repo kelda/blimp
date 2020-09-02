@@ -1,6 +1,7 @@
 package affinity
 
 import (
+	"os"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -32,7 +33,11 @@ var OnBuilderNode = newAffinity(onNode(buildkitNodeKey))
 func ForUser(user auth.User) *corev1.Affinity {
 	opts := []affinityOption{
 		withPods(ColocateNamespaceKey, user.Namespace),
-		notNode(buildkitNodeKey),
+	}
+
+	isolateBuildkit, ok := os.LookupEnv("ISOLATE_BUILDKIT")
+	if !ok || isolateBuildkit != "false" {
+		opts = append(opts, notNode(buildkitNodeKey))
 	}
 
 	if strings.HasSuffix(user.Email, "@kustomer.com") {
