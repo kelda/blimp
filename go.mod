@@ -30,8 +30,8 @@ require (
 	github.com/google/go-containerregistry v0.1.0
 	github.com/googleapis/gnostic v0.4.0 // indirect
 	github.com/gorilla/mux v1.7.4 // indirect
-	github.com/kelda/blimp v0.0.0-20200826225143-a6fc14985954
-	github.com/kelda/compose-go v0.0.0-20200826211901-ba4701afc2b7
+	github.com/kelda/blimp v0.0.0-20200902145123-9100407f4ce2
+	github.com/kelda/compose-go v0.0.0-20200902144940-ad3de8621596
 	github.com/lithammer/dedent v1.1.0
 	github.com/miekg/dns v1.1.28
 	github.com/mitchellh/go-homedir v1.1.0
