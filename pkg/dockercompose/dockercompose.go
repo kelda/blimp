@@ -215,7 +215,7 @@ func Unmarshal(b []byte) (parsed types.Project, err error) {
 				Config: configIntf,
 			},
 		},
-	}, withSkipValidation, withSkipConsistency, withSkipInterpolation)
+	}, withSkipValidation, withSkipConsistency, withSkipInterpolation, withSkipExtends)
 	if err != nil {
 		return types.Project{}, errors.WithContext("load", err)
 	}
@@ -243,6 +243,10 @@ func withSkipConsistency(opts *loader.Options) {
 
 func withSkipInterpolation(opts *loader.Options) {
 	opts.SkipInterpolation = true
+}
+
+func withSkipExtends(opts *loader.Options) {
+	opts.SkipExtends = true
 }
 
 func getErrorContext(file []byte, errMsg string) (string, bool) {
