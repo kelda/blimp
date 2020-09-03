@@ -8,6 +8,7 @@ option go_package = "github.com/kelda/blimp/pkg/proto/cluster";
 
 service Manager {
   rpc AttachToSandbox(AttachToSandboxRequest) returns (AttachToSandboxResponse) {}
+  rpc BlimpUpPreview(BlimpUpPreviewRequest) returns (BlimpUpPreviewResponse) {}
   rpc CreateSandbox(CreateSandboxRequest) returns (CreateSandboxResponse) {}
   rpc DeployToSandbox(DeployRequest) returns (DeployResponse) {}
   rpc DeleteSandbox(DeleteSandboxRequest) returns (DeleteSandboxResponse) {}
@@ -210,4 +211,14 @@ message GetBuildkitResponse {
   blimp.errors.v0.Error error = 1;
   string NodeAddress = 2;
   string NodeCert = 3;
+}
+
+message BlimpUpPreviewRequest {
+  string token = 1;
+  string repo = 2;
+  repeated string composeFiles = 3;
+}
+
+message BlimpUpPreviewResponse {
+  blimp.errors.v0.Error error = 1;
 }
