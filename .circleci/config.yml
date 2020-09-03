@@ -24,7 +24,9 @@ jobs:
       - checkout
       - run:
           name: Upload Release
-          command: ./scripts/upload_release.sh
+          command: |
+            docker login gcr.io --username _json_key --password "${DOCKER_KEY}"
+            ./scripts/upload_release.sh
 
   lint:
     docker:
