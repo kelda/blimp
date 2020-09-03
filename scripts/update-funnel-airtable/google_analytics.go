@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"sort"
 	"strings"
 	"time"
@@ -91,13 +90,8 @@ type WebsiteSession struct {
 }
 
 func getWebsiteSessions(userID string) (sessions []WebsiteSession, err error) {
-	key, err := ioutil.ReadFile("ga-key.json")
-	if err != nil {
-		return nil, fmt.Errorf("read google analytics auth key: %w", err)
-	}
-
 	jwtConf, err := google.JWTConfigFromJSON(
-		key,
+		GoogleAnalyticsJSONKey,
 		ga.AnalyticsReadonlyScope,
 	)
 	if err != nil {

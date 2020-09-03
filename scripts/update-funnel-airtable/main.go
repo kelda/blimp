@@ -68,12 +68,21 @@ func run() error {
 		return fmt.Errorf("get logins from Google Analytics: %w", err)
 	}
 
+	uniqueLoggedInUsers := map[string]LoginEvent{}
+	for _, login := range logins {
+		if curr, ok := uniqueLoggedInUsers[login.ClientID]; ok && curr.BlimpNamespace != "" {
+			login.BlimpNamespace = curr.BlimpNamespace
+		}
+		uniqueLoggedInUsers[login.ClientID] = login
+	}
+
 	loggedInClientIDs, err := getWebsiteUsers()
 	if err != nil {
 		return fmt.Errorf("get website users: %w", err)
 	}
 
-	for _, login := range logins {
+	for _, login := range uniqueLoggedInUsers {
+		// Don't hit the Google API if they're already in Airtable.
 		if _, ok := loggedInClientIDs[login.ClientID]; ok {
 			continue
 		}
@@ -118,6 +127,10 @@ func run() error {
 					continue
 				}
 
+				if record.Fields.LandingPage == "" {
+					record.Fields.LandingPage = activity.Pageview.PagePath
+				}
+
 				if strings.Contains(activity.Pageview.PagePath, "/thank-you-login") ||
 					strings.Contains(activity.Pageview.PagePath, "/login-success-sign-up-try-blimp") ||
 					strings.Contains(activity.Pageview.PagePath, "/docs/logged-in") {
@@ -137,8 +150,8 @@ func run() error {
 			}
 		}
 
-		if err := createWebsiteUser(&record); err != nil {
-			return fmt.Errorf("create website user: %w", err)
+		if err := upsertWebsiteUser(loggedInClientIDs, &record); err != nil {
+			return fmt.Errorf("upsert website user: %w", err)
 		}
 		loggedInClientIDs[login.ClientID] = record
 	}
@@ -197,7 +210,12 @@ func makeUserRecord(blimpRuns map[string][]BlimpUpRecord, websiteUserRecords map
 	// TODO: This correlation is messy, we should have the CLI report it.
 	websiteUserRecord, err := findWebsiteUserRecord(websiteUserRecords, record.Fields.Namespace, *user.CreatedAt)
 	if err == nil {
-		record.Fields.ClientID = airtable.RecordLink([]string{websiteUserRecord.ID})
+		if len(record.Fields.ClientID) != 0 && record.Fields.ClientID[0] != websiteUserRecord.ID {
+			fmt.Printf("INFO: Not overwriting GA Client ID for %s from %s to %s\n",
+				*user.ID, record.Fields.ClientID, websiteUserRecord.ID)
+		} else {
+			record.Fields.ClientID = airtable.RecordLink([]string{websiteUserRecord.ID})
+		}
 		source := append(record.Fields.Source, websiteUserRecord.Fields.Source)
 		record.Fields.Source = unique(source)
 	} else {

@@ -75,6 +75,7 @@ type WebsiteUserRecord struct {
 		Visits         int        `json:"Visits"`
 		DeviceCategory string     `json:"Device Category"`
 		BlimpNamespace string     `json:"Blimp Namespace"`
+		LandingPage    string     `json:"Landing Page"`
 	}
 }
 
@@ -106,19 +107,24 @@ func getWebsiteUsers() (map[string]WebsiteUserRecord, error) {
 
 	usersMap := map[string]WebsiteUserRecord{}
 	for _, user := range users {
-		// TODO: There are dups for some reason.
-		if existingUser, ok := usersMap[user.Fields.ClientID]; ok && existingUser.Fields.BlimpNamespace != "" {
-			continue
-		}
 		usersMap[user.Fields.ClientID] = user
 	}
 	return usersMap, nil
 }
 
-func createWebsiteUser(record *WebsiteUserRecord) error {
-	fmt.Println("Creating website user record")
+func upsertWebsiteUser(users map[string]WebsiteUserRecord, record *WebsiteUserRecord) error {
 	table := airtableClient.Table("Website Users")
-	return table.Create(record)
+	if curr, ok := users[record.Fields.ClientID]; ok {
+		if !reflect.DeepEqual(curr.Fields, record.Fields) {
+			fmt.Println("Updating Website User record")
+			curr.Fields = record.Fields
+			return table.Update(&curr)
+		}
+	} else {
+		fmt.Println("Creating Website User record")
+		return table.Create(record)
+	}
+	return nil
 }
 
 func getBlimpRunRecordsFromAirtable() (records []BlimpUpRecord, err error) {
