@@ -43,7 +43,7 @@ jobs:
       - setup_remote_docker
       - checkout
       - run:
-          name: Test
+          name: Sync Airtable
           command: cd ./scripts/update-funnel-airtable && go run .
 
 workflows:
