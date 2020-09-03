@@ -8,6 +8,8 @@ LD_FLAGS = "-X github.com/kelda/blimp/pkg/version.Version=${VERSION} \
 	   -X github.com/kelda/blimp/cli/manager.DefaultManagerHost=${CLUSTER_MANAGER_HOST} \
 	   -s -w"
 SYNCTHING_VERSION=1.4.0
+DOCKER_REPO ?= gcr.io/kelda-blimp
+DOCKER_IMAGE = ${DOCKER_REPO}/blimp:${VERSION}
 
 # Include override variables. The production Makefile takes precendence if it exists.
 -include local.mk
@@ -67,6 +69,12 @@ build-cli-windows: syncthing-windows.exe certs
 	cp syncthing-windows.exe ./pkg/syncthing/stbin
 	rice append -i ./pkg/syncthing --exec blimp-windows.exe
 	rm ./pkg/syncthing/stbin
+
+build-docker: build-cli-linux
+	docker build -t "${DOCKER_IMAGE}" .
+
+push-docker: build-docker
+	docker push "${DOCKER_IMAGE}"
 
 lint:
 	golangci-lint run

@@ -18,3 +18,6 @@ chmod +x ${osx_binary} ${linux_binary}
 aws s3 cp ${osx_binary} s3://${s3_bucket}/${osx_binary} --acl public-read
 aws s3 cp ${linux_binary} s3://${s3_bucket}/${linux_binary} --acl public-read
 aws s3 cp ${windows_binary} s3://${s3_bucket}/${windows_binary} --acl public-read
+
+# Upload the CLI image.
+VERSION=${CIRCLE_TAG} make push-docker
