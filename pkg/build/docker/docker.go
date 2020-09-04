@@ -89,8 +89,6 @@ func (c client) BuildAndPush(images map[string]build.BuildPushConfig) (pushedIma
 
 	// Build all the services.
 	for serviceName, opts := range images {
-		needToBuild := true
-
 		// If the image is in the docker cache, then just tag it to be imageName
 		// rather than doing a full build.
 		if !opts.ForceBuild {
@@ -100,14 +98,12 @@ func (c client) BuildAndPush(images map[string]build.BuildPushConfig) (pushedIma
 				if err := c.client.ImageTag(context.Background(), cached.ID, opts.ImageName); err != nil {
 					return nil, errors.WithContext("tag", err)
 				}
-				needToBuild = false
+				continue
 			}
 		}
 
-		if needToBuild {
-			if err := c.build(serviceName, opts.ImageName, opts); err != nil {
-				return nil, errors.WithContext("build", err)
-			}
+		if err := c.build(serviceName, opts.ImageName, opts); err != nil {
+			return nil, errors.WithContext("build", err)
 		}
 	}
 
