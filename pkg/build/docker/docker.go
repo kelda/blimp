@@ -165,12 +165,12 @@ func (c client) BuildAndPush(images map[string]build.BuildPushConfig) (pushedIma
 }
 
 func (c *client) build(serviceName, imageName string, opts build.BuildPushConfig) error {
+	fmt.Printf("Building image for %s...\n", serviceName)
 	buildContextTar, err := makeTar(opts.Context)
 	if err != nil {
 		return errors.WithContext("tar context", err)
 	}
 
-	fmt.Printf("Building image for %s...\n", serviceName)
 	buildResp, err := c.client.ImageBuild(context.TODO(), buildContextTar, types.ImageBuildOptions{
 		Tags:        []string{imageName},
 		Dockerfile:  opts.Dockerfile,
