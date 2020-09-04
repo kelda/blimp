@@ -110,6 +110,7 @@ func New() *cobra.Command {
 					ImageName:   imageName,
 					PullParent:  pull,
 					NoCache:     noCache,
+					ForceBuild:  true,
 				}
 			}
 
@@ -132,7 +133,7 @@ func New() *cobra.Command {
 
 func getImageBuilder(regCreds auth.RegistryCredentials, dockerConfig *configfile.ConfigFile, authToken string, forceBuildkit bool) (build.Interface, error) {
 	if !forceBuildkit {
-		dockerClient, err := docker.New(regCreds, dockerConfig, authToken, docker.CacheOptions{Disable: true})
+		dockerClient, err := docker.New(regCreds, dockerConfig, authToken, docker.CacheOptions{})
 		if err == nil {
 			return dockerClient, nil
 		}

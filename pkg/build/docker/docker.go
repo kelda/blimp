@@ -40,7 +40,6 @@ type client struct {
 }
 
 type CacheOptions struct {
-	Disable     bool
 	ProjectName string
 	ComposePath string
 }
@@ -58,7 +57,7 @@ func New(regCreds auth.RegistryCredentials, dockerConfig *configfile.ConfigFile,
 		blimpToken:   blimpToken,
 	}
 
-	if !cacheOpts.Disable {
+	if cacheOpts.ProjectName != "" && cacheOpts.ComposePath != "" {
 		c.composePath = cacheOpts.ComposePath
 		oldBlimpImageCache, composeImageCache, err := getImageCaches(dockerClient, cacheOpts.ProjectName)
 		if err == nil {
