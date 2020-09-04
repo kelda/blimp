@@ -123,6 +123,7 @@ func main() {
 	}
 	s.statusFetcher.Start(nil)
 
+	createCLINamespace(kubeClient)
 	node.StartControllerBooter(kubeClient)
 
 	if err := s.listenAndServe(); err != nil {
@@ -156,7 +157,8 @@ func (s *server) listenAndServe() error {
 
 	// Start the HTTP server.
 	httpServer, err := httpapi.New(httpAddr, map[string]interface{}{
-		"/api/expose": s.Expose,
+		"/api/expose":           s.Expose,
+		"/api/blimp-up-preview": s.BlimpUpPreview,
 	})
 	if err != nil {
 		return errors.WithContext("create http api server", err)

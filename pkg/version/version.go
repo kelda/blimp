@@ -5,6 +5,7 @@ import "os"
 var (
 	Version = ""
 
+	CLIImage            = ""
 	DNSImage            = ""
 	InitImage           = ""
 	ReservationImage    = ""
@@ -20,6 +21,7 @@ func init() {
 		return
 	}
 
+	CLIImage = repo + "/blimp:" + Version
 	DNSImage = repo + "/blimp-dns:" + Version
 	InitImage = repo + "/blimp-init:" + Version
 	ReservationImage = repo + "/sandbox-reservation:" + Version

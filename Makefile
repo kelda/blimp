@@ -18,6 +18,7 @@ MANAGER_CERT_PATH = "./certs/cluster-manager.crt.pem"
 # Note that main.LinkProxyBaseHostname refers to a variable in
 # cluster-controller/main.go and link-proxy/main.go.
 LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
+	   -X github.com/kelda-inc/blimp/pkg/version.CLIImage=${CLI_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/version.DNSImage=${DNS_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/version.InitImage=${INIT_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/version.NodeControllerImage=${NODE_CONTROLLER_IMAGE} \
@@ -62,6 +63,9 @@ build-circle-image:
 test:
 	go test ./...
 
+# The CLI and cluster controller images aren't kept in sync, so we just deploy
+# `latest`.
+CLI_IMAGE = ${DOCKER_REPO}/blimp:latest
 CLUSTER_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-cluster-controller:${VERSION}
 DNS_IMAGE = ${DOCKER_REPO}/blimp-dns:${VERSION}
 DOCKER_AUTH_IMAGE = ${DOCKER_REPO}/blimp-docker-auth:${VERSION}

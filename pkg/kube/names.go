@@ -7,7 +7,8 @@ const (
 	ContainerNameWaitInitialSync           = "wait-sync"
 	ContainerNameWaitInitializedVolumes    = "wait-initialized-volumes"
 
-	BlimpNamespace = "blimp-system"
+	BlimpNamespace      = "blimp-system"
+	PreviewCLINamespace = "blimp-cli"
 
 	ExposeAnnotation = "blimp.exposed-service"
 
