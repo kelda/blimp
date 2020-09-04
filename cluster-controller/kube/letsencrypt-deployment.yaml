@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: letsencrypt
+  namespace: manager
+spec:
+  selector:
+    matchLabels:
+      service: letsencrypt
+  template:
+    metadata:
+      labels:
+        service: letsencrypt
+    spec:
+      containers:
+      # We have to run LetsEncrypt in a separate deployment since the
+      # linuxserver LetsEncrypt container binds to :9000 for php-fpm, which
+      # conflicts with the cluster manager gRPC port.
+      - name: letsencrypt
+        image: linuxserver/letsencrypt
+        env:
+          - name: URL
+            value: <CLUSTER_MANAGER_HTTP_API_HOSTNAME>
+        volumeMounts:
+        - mountPath: /config
+          name: lets-encrypt-state
+        - mountPath: /config/nginx/site-confs
+          name: nginx-conf
+
+      volumes:
+      - name: lets-encrypt-state
+        persistentVolumeClaim:
+          claimName: lets-encrypt-pvc
+      - name: nginx-conf
+        configMap:
+          name: nginx-conf

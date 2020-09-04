@@ -33,7 +33,8 @@ LOGIN_PROXY_GRPC_HOSTNAME = blimp-login-grpc.kelda.io
 LINK_PROXY_IP = 34.83.205.18
 LINK_PROXY_BASE_HOSTNAME = blimp.dev
 CLUSTER_MANAGER_IP = 34.82.73.248
-CLUSTER_MANAGER_HOST = blimp-manager.kelda.io:443
+CLUSTER_MANAGER_HTTP_API_HOSTNAME = blimp-manager-api.kelda.io
+CLUSTER_MANAGER_HTTP_API_IP = 35.247.75.232
 EOF
 
 # Deploy the manager service.

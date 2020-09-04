@@ -1,7 +1,8 @@
+# This file defines the public service that routes to the manager's gRPC API.
 apiVersion: v1
 kind: Service
 metadata:
-  name: manager
+  name: manager-grpc
   namespace: manager
 spec:
   ports:

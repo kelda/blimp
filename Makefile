@@ -6,7 +6,8 @@ LINK_PROXY_BASE_HOSTNAME ?= blimp.dev
 # Only needs to be set during local development if the manager is being
 # deployed to a remote cluster.
 CLUSTER_MANAGER_IP ?= 8.8.8.8
-CLUSTER_MANAGER_HOST ?= blimp-manager.kelda.io:443
+CLUSTER_MANAGER_HTTP_API_IP ?= 35.247.75.232
+CLUSTER_MANAGER_HTTP_API_HOSTNAME ?= blimp-manager-api.kelda.io
 REGISTRY_IP ?= 8.8.8.8
 REGISTRY_STORAGE ?= "5Gi"
 #VERSION?=$(shell ./scripts/dev_version.sh)
@@ -107,7 +108,9 @@ deploy-registry:
 
 deploy-manager:
 	sed -i.bak 's|<CLUSTER_MANAGER_IMAGE>|${CLUSTER_CONTROLLER_IMAGE}|' ./cluster-controller/kube/manager-deployment.yaml
-	sed -i.bak 's|<CLUSTER_MANAGER_IP>|${CLUSTER_MANAGER_IP}|' ./cluster-controller/kube/manager-service.yaml
+	sed -i.bak 's|<CLUSTER_MANAGER_HTTP_API_HOSTNAME>|${CLUSTER_MANAGER_HTTP_API_HOSTNAME}|' ./cluster-controller/kube/letsencrypt-deployment.yaml
+	sed -i.bak 's|<CLUSTER_MANAGER_IP>|${CLUSTER_MANAGER_IP}|' ./cluster-controller/kube/manager-grpc-service.yaml
+	sed -i.bak 's|<CLUSTER_MANAGER_HTTP_API_IP>|${CLUSTER_MANAGER_HTTP_API_IP}|' ./cluster-controller/kube/manager-https-service.yaml
 	kubectl apply -f ./cluster-controller/kube
 
 deploy-login-proxy:

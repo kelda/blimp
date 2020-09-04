@@ -31,6 +31,7 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	"github.com/kelda-inc/blimp/cluster-controller/affinity"
+	"github.com/kelda-inc/blimp/cluster-controller/httpapi"
 	"github.com/kelda-inc/blimp/cluster-controller/node"
 	"github.com/kelda-inc/blimp/cluster-controller/volume"
 	"github.com/kelda-inc/blimp/pkg/analytics"
@@ -124,28 +125,56 @@ func main() {
 
 	node.StartControllerBooter(kubeClient)
 
-	addr := fmt.Sprintf("0.0.0.0:%d", ports.ClusterManagerInternalPort)
-	if err := s.listenAndServe(addr); err != nil {
+	if err := s.listenAndServe(); err != nil {
 		log.WithError(err).Error("Unexpected error")
 		os.Exit(1)
 	}
 }
 
-func (s *server) listenAndServe(address string) error {
-	lis, err := net.Listen("tcp", address)
+func (s *server) listenAndServe() error {
+	grpcAddr := fmt.Sprintf(":%d", ports.ClusterManagerGRPCInternalPort)
+	httpAddr := fmt.Sprintf(":%d", ports.ClusterManagerHTTPInternalPort)
+
+	// Start the gRPC server.
+	grpcLis, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
 		return err
 	}
 
-	creds, err := credentials.NewServerTLSFromFile(s.certPath, s.keyPath)
+	grpcCreds, err := credentials.NewServerTLSFromFile(s.certPath, s.keyPath)
 	if err != nil {
 		return errors.WithContext("parse cert", err)
 	}
 
-	log.WithField("address", address).Info("Listening for connections..")
-	grpcServer := grpc.NewServer(grpc.Creds(creds), grpc.UnaryInterceptor(errors.UnaryServerInterceptor))
+	grpcServer := grpc.NewServer(grpc.Creds(grpcCreds), grpc.UnaryInterceptor(errors.UnaryServerInterceptor))
 	cluster.RegisterManagerServer(grpcServer, s)
-	return grpcServer.Serve(lis)
+
+	serveGrpcErr := make(chan error, 1)
+	go func() {
+		serveGrpcErr <- grpcServer.Serve(grpcLis)
+	}()
+
+	// Start the HTTP server.
+	httpServer, err := httpapi.New(httpAddr, map[string]interface{}{
+		"/api/expose": s.Expose,
+	})
+	if err != nil {
+		return errors.WithContext("create http api server", err)
+	}
+
+	serveHTTPErr := make(chan error, 1)
+	go func() {
+		serveHTTPErr <- httpServer.ListenAndServe()
+	}()
+
+	log.WithField("address", grpcAddr).Info("Listening for grpc connections..")
+	log.WithField("address", httpAddr).Info("Listening for http connections..")
+	select {
+	case err := <-serveHTTPErr:
+		return errors.WithContext("serve http", err)
+	case err := <-serveGrpcErr:
+		return errors.WithContext("serve grpc", err)
+	}
 }
 
 func (s *server) CheckVersion(ctx context.Context, req *cluster.CheckVersionRequest) (
