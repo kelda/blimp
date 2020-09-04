@@ -13,6 +13,9 @@ REGISTRY_STORAGE ?= "5Gi"
 VERSION?=latest
 MANAGER_KEY_PATH = "./certs/cluster-manager.key.pem"
 MANAGER_CERT_PATH = "./certs/cluster-manager.crt.pem"
+
+# Note that main.LinkProxyBaseHostname refers to a variable in
+# cluster-controller/main.go and link-proxy/main.go.
 LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
 	   -X github.com/kelda-inc/blimp/pkg/version.DNSImage=${DNS_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/version.InitImage=${INIT_IMAGE} \

@@ -63,9 +63,15 @@ type server struct {
 	maxSandboxes      int
 }
 
-// RegistryHostname is set by make, or by the environment variable
-// BLIMP_REGISTRY_HOSTNAME.
-var RegistryHostname string
+var (
+	// RegistryHostname is set by make, or by the environment variable
+	// BLIMP_REGISTRY_HOSTNAME.
+	RegistryHostname string
+
+	// LinkProxyBaseHostname is the base hostname for Blimp preview links. It
+	// should match base hostname used in the link proxy.
+	LinkProxyBaseHostname string
+)
 
 // MaxServices is the maximum number of service pods allowed in a single
 // sandbox.
@@ -1268,7 +1274,7 @@ func (s *server) Expose(ctx context.Context, req *cluster.ExposeRequest) (
 	}
 
 	return &cluster.ExposeResponse{
-		Link: fmt.Sprintf("https://%s.blimp.dev/", user.Namespace),
+		Link: fmt.Sprintf("https://%s.%s/", user.Namespace, LinkProxyBaseHostname),
 	}, nil
 }
 
