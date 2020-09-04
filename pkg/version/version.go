@@ -3,13 +3,15 @@ package version
 import "os"
 
 var (
-	Version             = ""
-	NodeControllerImage = ""
+	Version = ""
+
+	DNSImage            = ""
 	InitImage           = ""
 	ReservationImage    = ""
 	SyncthingImage      = ""
-	DNSImage            = ""
-	BuildkitdImage      = "moby/buildkit:master-rootless"
+	NodeControllerImage = ""
+
+	BuildkitdImage = "moby/buildkit:master-rootless"
 )
 
 func init() {
@@ -18,9 +20,9 @@ func init() {
 		return
 	}
 
-	NodeControllerImage = repo + "/blimp-node-controller:" + Version
+	DNSImage = repo + "/blimp-dns:" + Version
 	InitImage = repo + "/blimp-init:" + Version
 	ReservationImage = repo + "/sandbox-reservation:" + Version
 	SyncthingImage = repo + "/sandbox-syncthing:" + Version
-	DNSImage = repo + "/blimp-dns:" + Version
+	NodeControllerImage = repo + "/blimp-node-controller:" + Version
 }

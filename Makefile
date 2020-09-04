@@ -14,11 +14,11 @@ VERSION?=latest
 MANAGER_KEY_PATH = "./certs/cluster-manager.key.pem"
 MANAGER_CERT_PATH = "./certs/cluster-manager.crt.pem"
 LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
-	   -X github.com/kelda-inc/blimp/pkg/version.NodeControllerImage=${NODE_CONTROLLER_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/version.DNSImage=${DNS_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/version.InitImage=${INIT_IMAGE} \
-	   -X github.com/kelda-inc/blimp/pkg/version.SyncthingImage=${SYNCTHING_IMAGE} \
+	   -X github.com/kelda-inc/blimp/pkg/version.NodeControllerImage=${NODE_CONTROLLER_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/version.ReservationImage=${RESERVATION_IMAGE} \
+	   -X github.com/kelda-inc/blimp/pkg/version.SyncthingImage=${SYNCTHING_IMAGE} \
 	   -X main.LoginProxyHost=${LOGIN_PROXY_HOSTNAME} \
 	   -X main.RegistryHostname=${REGISTRY_HOSTNAME} \
 	   -X main.LinkProxyBaseHostname=${LINK_PROXY_BASE_HOSTNAME} \
@@ -58,15 +58,15 @@ build-circle-image:
 test:
 	go test ./...
 
-NODE_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-node-controller:${VERSION}
-DNS_IMAGE = ${DOCKER_REPO}/blimp-dns:${VERSION}
 CLUSTER_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-cluster-controller:${VERSION}
-INIT_IMAGE = ${DOCKER_REPO}/blimp-init:${VERSION}
-SYNCTHING_IMAGE = ${DOCKER_REPO}/sandbox-syncthing:${VERSION}
+DNS_IMAGE = ${DOCKER_REPO}/blimp-dns:${VERSION}
 DOCKER_AUTH_IMAGE = ${DOCKER_REPO}/blimp-docker-auth:${VERSION}
-LOGIN_PROXY_IMAGE = ${DOCKER_REPO}/login-proxy:${VERSION}
-RESERVATION_IMAGE = ${DOCKER_REPO}/sandbox-reservation:${VERSION}
+INIT_IMAGE = ${DOCKER_REPO}/blimp-init:${VERSION}
 LINK_PROXY_IMAGE = ${DOCKER_REPO}/link-proxy:${VERSION}
+LOGIN_PROXY_IMAGE = ${DOCKER_REPO}/login-proxy:${VERSION}
+NODE_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-node-controller:${VERSION}
+RESERVATION_IMAGE = ${DOCKER_REPO}/sandbox-reservation:${VERSION}
+SYNCTHING_IMAGE = ${DOCKER_REPO}/sandbox-syncthing:${VERSION}
 
 build-docker: certs
 	# Exit if the base container fails to build.
