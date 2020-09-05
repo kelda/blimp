@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Masterminds/semver"
+	"github.com/golang/protobuf/proto"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
@@ -156,9 +157,16 @@ func (s *server) listenAndServe() error {
 	}()
 
 	// Start the HTTP server.
-	httpServer, err := httpapi.New(httpAddr, map[string]interface{}{
-		"/api/expose":           s.Expose,
-		"/api/blimp-up-preview": s.BlimpUpPreview,
+	httpServer, err := httpapi.NewServer(httpAddr, map[string]httpapi.Handler{
+		"/api/expose":           httpapi.UnaryHandler{RPC: s.Expose},
+		"/api/blimp-up-preview": httpapi.UnaryHandler{RPC: s.BlimpUpPreview},
+		"/api/watch-status": httpapi.StreamHandler{
+			RequestType: &cluster.GetStatusRequest{},
+			RPC: func(req proto.Message, wss httpapi.WebSocketStream) error {
+				shim := &watchStatusShim{WebSocketStream: wss}
+				return s.WatchStatus(req.(*cluster.GetStatusRequest), shim)
+			},
+		},
 	})
 	if err != nil {
 		return errors.WithContext("create http api server", err)
