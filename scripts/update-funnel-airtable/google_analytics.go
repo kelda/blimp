@@ -14,6 +14,13 @@ import (
 
 var gaTimezone *time.Location
 
+var loggedInPaths = []string{
+	"/thank-you-login",
+	"/login-success-sign-up-try-blimp",
+	"/get-started/#welcome",
+	"/docs/logged-in",
+}
+
 func init() {
 	var err error
 	gaTimezone, err = time.LoadLocation("America/Los_Angeles")
@@ -36,7 +43,7 @@ type LoginEvent struct {
 	BlimpNamespace string
 }
 
-func getLoginsFromGoogleAnalytics() ([]LoginEvent, error) {
+func getLoginsFromGoogleAnalytics() (map[string]LoginEvent, error) {
 	jwtConf, err := google.JWTConfigFromJSON(
 		GoogleAnalyticsJSONKey,
 		ga.AnalyticsReadonlyScope,
@@ -51,36 +58,66 @@ func getLoginsFromGoogleAnalytics() ([]LoginEvent, error) {
 		return nil, fmt.Errorf("make client: %w", err)
 	}
 
-	var logins []LoginEvent
+	var filters []string
+	for _, loggedInPath := range loggedInPaths {
+		filters = append(filters, fmt.Sprintf("ga:pagePath=~%s", loggedInPath))
+	}
+	filterStr := strings.Join(filters, ",")
+
+	// First, add all users that have logged in, regardless of whether we have
+	// their Blimp Namespace.
+	logins := map[string]LoginEvent{}
+	req := svc.Data.Ga.
+		Get(googleAnalyticsViewID, "120daysAgo", "today", "ga:pageViews").
+		Dimensions(strings.Join([]string{
+			clientIDDimension,
+		}, ",")).
+		Filters(filterStr)
+	callback := func(row []string) {
+		logins[row[0]] = LoginEvent{ClientID: row[0]}
+	}
+	if err := getAll(req, callback); err != nil {
+		return nil, fmt.Errorf("get", err)
+	}
+
+	// Then, add the BlimpNamespace data for the users that have it set.
+	req = svc.Data.Ga.
+		Get(googleAnalyticsViewID, "120daysAgo", "today", "ga:pageViews").
+		Dimensions(strings.Join([]string{
+			clientIDDimension,
+			blimpNamespaceDimension,
+		}, ",")).
+		Filters(filterStr)
+	callback = func(row []string) {
+		logins[row[0]] = LoginEvent{ClientID: row[0], BlimpNamespace: row[1]}
+	}
+	if err := getAll(req, callback); err != nil {
+		return nil, fmt.Errorf("get", err)
+	}
+
+	return logins, nil
+}
+
+func getAll(req *ga.DataGaGetCall, callback func([]string)) error {
 	startIndex := int64(0)
 	for {
-		req := svc.Data.Ga.
-			Get(googleAnalyticsViewID, "120daysAgo", "today", "ga:pageViews").
-			Dimensions(strings.Join([]string{
-				clientIDDimension,
-				blimpNamespaceDimension,
-			}, ",")).
-			Filters("ga:pagePath=~/thank-you-login,ga:pagePath=~/login-success-sign-up-try-blimp,ga:pagePath=~/docs/logged-in")
 		if startIndex != 0 {
 			req = req.StartIndex(startIndex)
 		}
 
 		res, err := req.Do()
 		if err != nil {
-			return nil, fmt.Errorf("query logins: %w", err)
+			return err
 		}
 
 		for _, row := range res.Rows {
-			logins = append(logins, LoginEvent{
-				ClientID:       row[0],
-				BlimpNamespace: row[1],
-			})
+			callback(row)
 		}
 
-		if int64(len(logins)) == res.TotalResults {
-			return logins, nil
-		}
 		startIndex += int64(len(res.Rows))
+		if startIndex == res.TotalResults {
+			return nil
+		}
 	}
 }
 

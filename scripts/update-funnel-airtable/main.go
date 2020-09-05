@@ -68,20 +68,12 @@ func run() error {
 		return fmt.Errorf("get logins from Google Analytics: %w", err)
 	}
 
-	uniqueLoggedInUsers := map[string]LoginEvent{}
-	for _, login := range logins {
-		if curr, ok := uniqueLoggedInUsers[login.ClientID]; ok && curr.BlimpNamespace != "" {
-			login.BlimpNamespace = curr.BlimpNamespace
-		}
-		uniqueLoggedInUsers[login.ClientID] = login
-	}
-
 	loggedInClientIDs, err := getWebsiteUsers()
 	if err != nil {
 		return fmt.Errorf("get website users: %w", err)
 	}
 
-	for _, login := range uniqueLoggedInUsers {
+	for _, login := range logins {
 		// Don't hit the Google API if they're already in Airtable.
 		if _, ok := loggedInClientIDs[login.ClientID]; ok {
 			continue
@@ -131,22 +123,30 @@ func run() error {
 					record.Fields.LandingPage = activity.Pageview.PagePath
 				}
 
-				if strings.Contains(activity.Pageview.PagePath, "/thank-you-login") ||
-					strings.Contains(activity.Pageview.PagePath, "/login-success-sign-up-try-blimp") ||
-					strings.Contains(activity.Pageview.PagePath, "/docs/logged-in") {
-					// TODO: Would be nice if we didn't have to reparse in every usage of activity.ActivityTime.
-					// Parses to UTC even though it shouldn't.
-					activityTime, err := time.ParseInLocation(time.RFC3339, activity.ActivityTime, gaTimezone)
-					activityTime = time.Date(activityTime.Year(), activityTime.Month(), activityTime.Day(), activityTime.Hour(), activityTime.Minute(), activityTime.Second(), activityTime.Nanosecond(), gaTimezone)
-					if err == nil {
-						record.Fields.FirstLogin = &activityTime
-					} else {
-						fmt.Printf("WARN: Failed to parse timestamp %s: %s\n", activity.ActivityTime, err)
+				isLoggedInPage := false
+				for _, loggedInPath := range loggedInPaths {
+					if strings.Contains(activity.Pageview.PagePath, loggedInPath) {
+						isLoggedInPage = true
+						break
 					}
-
-					record.Fields.FirstLoginPath = activity.Pageview.PagePath
-					break Outer
 				}
+
+				if !isLoggedInPage {
+					continue
+				}
+
+				// TODO: Would be nice if we didn't have to reparse in every usage of activity.ActivityTime.
+				// Parses to UTC even though it shouldn't.
+				activityTime, err := time.ParseInLocation(time.RFC3339, activity.ActivityTime, gaTimezone)
+				activityTime = time.Date(activityTime.Year(), activityTime.Month(), activityTime.Day(), activityTime.Hour(), activityTime.Minute(), activityTime.Second(), activityTime.Nanosecond(), gaTimezone)
+				if err == nil {
+					record.Fields.FirstLogin = &activityTime
+				} else {
+					fmt.Printf("WARN: Failed to parse timestamp %s: %s\n", activity.ActivityTime, err)
+				}
+
+				record.Fields.FirstLoginPath = activity.Pageview.PagePath
+				break Outer
 			}
 		}
 
