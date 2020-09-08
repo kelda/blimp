@@ -59,7 +59,7 @@ func (s WebSocketStream) RecvMsg(_ interface{}) error {
 	return errors.New("unimplemented")
 }
 
-func (handler StreamHandler) Handler() (func(http.ResponseWriter, *http.Request), error) {
+func (handler StreamHandler) Handler() (http.HandlerFunc, error) {
 	// Validate that the RequestType field is as expected.
 	if handler.RequestType == nil {
 		return nil, errors.New("RequestType must be set")

@@ -17,7 +17,7 @@ import (
 
 type UnaryHandler struct{ RPC interface{} }
 
-func (uh UnaryHandler) Handler() (func(http.ResponseWriter, *http.Request), error) {
+func (uh UnaryHandler) Handler() (http.HandlerFunc, error) {
 	handler := reflect.ValueOf(uh.RPC)
 
 	// Validate the function signature.

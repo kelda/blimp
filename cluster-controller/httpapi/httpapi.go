@@ -8,7 +8,7 @@ import (
 )
 
 type Handler interface {
-	Handler() (func(http.ResponseWriter, *http.Request), error)
+	Handler() (http.HandlerFunc, error)
 }
 
 // NewServer creates a http.Server that provides a JSON interface for gRPC handlers.
