@@ -15,6 +15,7 @@ import (
 	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/version"
 	"github.com/kelda/blimp/pkg/auth"
+	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/names"
 	"github.com/kelda/blimp/pkg/proto/cluster"
 )
@@ -84,5 +85,14 @@ func (s *server) BlimpUpPreview(ctx context.Context, req *cluster.BlimpUpPreview
 		},
 	}
 
-	return &cluster.BlimpUpPreviewResponse{}, kube.DeployPod(s.kubeClient, pod, kube.DeployPodOptions{})
+	err = kube.DeployPod(s.kubeClient, pod, kube.DeployPodOptions{})
+	if err != nil {
+		return &cluster.BlimpUpPreviewResponse{}, errors.WithContext("start cli", err)
+	}
+
+	if _, err := s.getPod(ctx, pod.Namespace, pod.Name, podIsReady); err != nil {
+		return &cluster.BlimpUpPreviewResponse{}, errors.WithContext("cli never started", err)
+	}
+
+	return &cluster.BlimpUpPreviewResponse{}, nil
 }
