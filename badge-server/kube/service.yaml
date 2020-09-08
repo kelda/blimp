@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: badge-server
+  namespace: badge-server
+spec:
+  type: LoadBalancer
+  selector:
+    service: badge-server
+  loadBalancerIP: 34.105.123.233
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
