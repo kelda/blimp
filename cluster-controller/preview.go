@@ -44,6 +44,11 @@ func (s *server) BlimpUpPreview(ctx context.Context, req *cluster.BlimpUpPreview
 		return &cluster.BlimpUpPreviewResponse{}, err
 	}
 
+	blimpCmd := []string{"blimp", "up"}
+	for _, f := range req.GetComposeFiles() {
+		blimpCmd = append(blimpCmd, "-f", f)
+	}
+
 	// XXX: This should probably be a Deployment rather than a Pod so that the
 	// CLI will get redeployed if the pod gets unscheduled. However, the
 	// behavior of reattaching the Blimp CLI is undefined, and we don't need
@@ -77,9 +82,7 @@ func (s *server) BlimpUpPreview(ctx context.Context, req *cluster.BlimpUpPreview
 						Value: req.GetRepo(),
 					},
 				},
-				Args: []string{
-					"blimp", "up",
-				},
+				Args: blimpCmd,
 			}},
 			RestartPolicy: corev1.RestartPolicyNever,
 		},
