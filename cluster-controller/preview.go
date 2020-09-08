@@ -80,6 +80,7 @@ func (s *server) BlimpUpPreview(ctx context.Context, req *cluster.BlimpUpPreview
 					"blimp", "up",
 				},
 			}},
+			RestartPolicy: corev1.RestartPolicyNever,
 		},
 	}
 

@@ -158,8 +158,9 @@ func (s *server) listenAndServe() error {
 
 	// Start the HTTP server.
 	httpServer, err := httpapi.NewServer(httpAddr, map[string]httpapi.Handler{
-		"/api/expose":           httpapi.UnaryHandler{RPC: s.Expose},
 		"/api/blimp-up-preview": httpapi.UnaryHandler{RPC: s.BlimpUpPreview},
+		"/api/delete-sandbox":   httpapi.UnaryHandler{RPC: s.DeleteSandbox},
+		"/api/expose":           httpapi.UnaryHandler{RPC: s.Expose},
 		"/api/watch-status": httpapi.StreamHandler{
 			RequestType: &cluster.GetStatusRequest{},
 			RPC: func(req proto.Message, wss httpapi.WebSocketStream) error {
