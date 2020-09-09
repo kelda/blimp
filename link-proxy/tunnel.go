@@ -90,6 +90,8 @@ func (tc *tunnelConn) Read(b []byte) (n int, err error) {
 		n = copy(b, tc.pendingData)
 		if n < len(tc.pendingData) {
 			tc.pendingData = tc.pendingData[n:]
+		} else {
+			tc.pendingData = nil
 		}
 		return n, nil
 	}
