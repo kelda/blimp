@@ -19,6 +19,9 @@ aws s3 cp ${osx_binary} s3://${s3_bucket}/${osx_binary} --acl public-read
 aws s3 cp ${linux_binary} s3://${s3_bucket}/${linux_binary} --acl public-read
 aws s3 cp ${windows_binary} s3://${s3_bucket}/${windows_binary} --acl public-read
 
-# Upload the CLI image.
+# Upload the CLI image. push-docker rebuilds the linux binary, which fails if
+# binary already exists.
+rm blimp-linux
 VERSION=${CIRCLE_TAG} make push-docker
+rm blimp-linux
 VERSION=latest make push-docker
