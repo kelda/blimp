@@ -12,7 +12,6 @@ jobs:
     executor: docker-executor
 
     steps:
-      - setup_remote_docker
       - checkout
       - run:
           name: Build
@@ -21,6 +20,7 @@ jobs:
   upload-release:
     executor: docker-executor
     steps:
+      - setup_remote_docker
       - checkout
       - run:
           name: Upload Release
