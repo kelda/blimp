@@ -76,27 +76,56 @@ func (handler StreamHandler) Handler() (http.HandlerFunc, error) {
 			log.WithError(err).Warn("Failed to upgrade connection")
 			return
 		}
+		defer conn.Close()
 
-		err = handler.forward(conn)
+		// The client's first message should always be the protobuf request.
+		_, reqJSON, err := conn.ReadMessage()
+		if err != nil {
+			log.WithError(err).Warn("Failed to read client stream request")
+			return
+		}
+
+		// Shut down the forwarder if the connection closes.
+		forwardCtx, cancelForward := context.WithCancel(context.Background())
+		defer cancelForward()
+		go func() {
+			for {
+				_, _, err := conn.ReadMessage()
+				if err != nil {
+					// err could be non-nil if the client gracefully closes the
+					// connection with a Close message, or if the connection
+					// breaks. Either way, we should stop sending messages
+					// back.
+					cancelForward()
+					return
+				}
+			}
+		}()
+
+		err = handler.forward(forwardCtx, conn, string(reqJSON))
 		if err == nil {
 			return
 		}
 
+		select {
+		// If the forwarder exited because the context was cancelled, don't
+		// bother sending any more messages.
+		case <-forwardCtx.Done():
+			return
+		default:
+		}
+
 		if err := conn.WriteJSON(unaryHTTPResponse{Error: err}); err != nil {
-			if websocket.IsCloseError(err, websocket.CloseGoingAway) {
-				return
-			}
-			log.WithError(err).Warn("Failed to send stream update")
+			log.WithError(err).Warn("Failed to send final stream update")
+		}
+
+		if err := conn.WriteMessage(websocket.CloseMessage, []byte{}); err != nil {
+			log.WithError(err).Warn("Failed to send websocket close")
 		}
 	}, nil
 }
 
-func (handler StreamHandler) forward(conn *websocket.Conn) error {
-	_, reqJSON, err := conn.ReadMessage()
-	if err != nil {
-		return errors.WithContext("read request", err)
-	}
-
+func (handler StreamHandler) forward(ctx context.Context, conn *websocket.Conn, reqJSON string) error {
 	// The Handler method guarantees that RequestType's concrete type is a
 	// pointer.
 	reqType := reflect.TypeOf(handler.RequestType).Elem()
@@ -106,21 +135,17 @@ func (handler StreamHandler) forward(conn *websocket.Conn) error {
 	}
 
 	// Forward messages from the gRPC stream to the websockets stream.
-	ctx, cancel := context.WithCancel(context.Background())
 	messages := make(chan proto.Message)
 	wsStream := WebSocketStream{messages: messages, ctx: ctx}
+	ctx, cancel := context.WithCancel(ctx)
 	doneForwarding := make(chan struct{})
 	go func() {
-		// Signal to wsStream that messages will no longer be forwarded.
-		defer cancel()
 		defer close(doneForwarding)
 		for {
 			select {
 			case msg := <-messages:
 				if err := conn.WriteJSON(unaryHTTPResponse{Result: msg}); err != nil {
-					if !websocket.IsCloseError(err, websocket.CloseGoingAway) {
-						log.WithError(err).Warn("Failed to send stream update")
-					}
+					log.WithError(err).Warn("Failed to send stream update")
 					return
 				}
 			case <-ctx.Done():
@@ -129,7 +154,7 @@ func (handler StreamHandler) forward(conn *websocket.Conn) error {
 		}
 	}()
 
-	err = handler.RPC(protoReq, wsStream)
+	err := handler.RPC(protoReq, wsStream)
 	cancel()
 
 	// Block until the forwarder goroutine has returned to avoid concurrent
