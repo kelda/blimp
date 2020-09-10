@@ -49,6 +49,20 @@ func (s *server) BlimpUpPreview(req *cluster.BlimpUpPreviewRequest, srv cluster.
 		blimpCmd = append(blimpCmd, "-f", f)
 	}
 
+	env := []corev1.EnvVar{
+		{
+			Name:  "BLIMP_TOKEN",
+			Value: req.GetToken(),
+		},
+		{
+			Name:  "GIT_REPO",
+			Value: req.GetRepo(),
+		},
+	}
+	for k, v := range req.GetEnv() {
+		env = append(env, corev1.EnvVar{Name: k, Value: v})
+	}
+
 	// XXX: This should probably be a Deployment rather than a Pod so that the
 	// CLI will get redeployed if the pod gets unscheduled. However, the
 	// behavior of reattaching the Blimp CLI is undefined, and we don't need
@@ -72,16 +86,7 @@ func (s *server) BlimpUpPreview(req *cluster.BlimpUpPreviewRequest, srv cluster.
 						"memory": resource.MustParse("1Gi"),
 					},
 				},
-				Env: []corev1.EnvVar{
-					{
-						Name:  "BLIMP_TOKEN",
-						Value: req.GetToken(),
-					},
-					{
-						Name:  "GIT_REPO",
-						Value: req.GetRepo(),
-					},
-				},
+				Env:  env,
 				Args: blimpCmd,
 			}},
 			RestartPolicy: corev1.RestartPolicyNever,
