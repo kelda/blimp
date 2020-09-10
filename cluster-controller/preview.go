@@ -100,12 +100,19 @@ func (s *server) BlimpUpPreview(req *cluster.BlimpUpPreviewRequest, srv cluster.
 		})
 	}
 
-	if _, err := s.getPod(srv.Context(), pod.Namespace, pod.Name, podIsReady); err != nil {
+	started := func(pod *corev1.Pod) bool {
+		return pod.Status.Phase == corev1.PodRunning ||
+			pod.Status.Phase == corev1.PodSucceeded ||
+			pod.Status.Phase == corev1.PodFailed
+	}
+	if _, err := s.getPod(srv.Context(), pod.Namespace, pod.Name, started); err != nil {
 		return srv.Send(&cluster.BlimpUpPreviewResponse{
 			Error: errors.Marshal(errors.WithContext("cli never started", err)),
 		})
 	}
 
+	// Even if the CLI exited, still send the CLI logs so that the user has
+	// more info.
 	msg := &cluster.BlimpUpPreviewResponse{StartedCli: true}
 	if err := srv.Send(msg); err != nil {
 		return errors.WithContext("send", err)
