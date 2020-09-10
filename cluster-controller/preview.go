@@ -44,7 +44,7 @@ func (s *server) BlimpUpPreview(req *cluster.BlimpUpPreviewRequest, srv cluster.
 		return err
 	}
 
-	blimpCmd := []string{"blimp", "up", "--disable-status-output"}
+	blimpCmd := []string{"blimp", "up", "-d", "--disable-status-output"}
 	for _, f := range req.GetComposeFiles() {
 		blimpCmd = append(blimpCmd, "-f", f)
 	}
