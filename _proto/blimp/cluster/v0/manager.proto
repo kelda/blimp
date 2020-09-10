@@ -217,6 +217,7 @@ message BlimpUpPreviewRequest {
   string token = 1;
   string repo = 2;
   repeated string composeFiles = 3;
+  map<string, string> env = 4;
 }
 
 message BlimpUpPreviewResponse {
