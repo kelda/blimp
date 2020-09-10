@@ -70,7 +70,13 @@ func (handler StreamHandler) Handler() (http.HandlerFunc, error) {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		upgrader := &websocket.Upgrader{}
+		upgrader := &websocket.Upgrader{
+			// By default, only same-origin requests are allowed. Allow all
+			// requests, regardless of origin.
+			CheckOrigin: func(r *http.Request) bool {
+				return true
+			},
+		}
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			log.WithError(err).Warn("Failed to upgrade connection")
