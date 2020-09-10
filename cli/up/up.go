@@ -98,20 +98,28 @@ func New() *cobra.Command {
 		"Leave containers running after blimp up exits")
 	cobraCmd.Flags().BoolVarP(&cmd.forceBuildkit, "remote-build", "", false,
 		"Force Docker images to be built in your sandbox instead of locally")
+
+	cobraCmd.Flags().BoolVarP(&cmd.disableStatusOutput, "disable-status-output", "", false,
+		"Don't print status updates. Used by preview implementation.")
+	if err := cobraCmd.Flags().MarkHidden("disable-status-output"); err != nil {
+		panic(err)
+	}
+
 	return cobraCmd
 }
 
 type up struct {
-	auth           authstore.Store
-	globalConfig   cfgdir.Config
-	composePath    string
-	overridePaths  []string
-	alwaysBuild    bool
-	detach         bool
-	forceBuildkit  bool
-	dockerConfig   *configfile.ConfigFile
-	regCreds       auth.RegistryCredentials
-	imageNamespace string
+	auth                authstore.Store
+	globalConfig        cfgdir.Config
+	composePath         string
+	overridePaths       []string
+	alwaysBuild         bool
+	detach              bool
+	forceBuildkit       bool
+	disableStatusOutput bool
+	dockerConfig        *configfile.ConfigFile
+	regCreds            auth.RegistryCredentials
+	imageNamespace      string
 
 	nodeControllerConn   *grpc.ClientConn
 	nodeControllerClient node.ControllerClient
@@ -354,7 +362,7 @@ func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) err
 
 func (cmd *up) runGUI(ctx context.Context, parsedCompose composeTypes.Project) error {
 	services := parsedCompose.ServiceNames()
-	statusPrinter := newStatusPrinter(services)
+	statusPrinter := newStatusPrinter(services, cmd.disableStatusOutput)
 	if !statusPrinter.Run(ctx, manager.C, cmd.auth.AuthToken) {
 		return nil
 	}

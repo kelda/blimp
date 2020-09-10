@@ -21,7 +21,8 @@ import (
 )
 
 type statusPrinter struct {
-	services []string
+	services      []string
+	disableOutput bool
 
 	currStatus map[string]*cluster.ServiceStatus
 	sync.Mutex
@@ -32,8 +33,8 @@ type statusPrinter struct {
 
 var spinnerChars = []string{"/", "-", "\\", "|"}
 
-func newStatusPrinter(services []string) *statusPrinter {
-	sp := &statusPrinter{services: services}
+func newStatusPrinter(services []string, disableOutput bool) *statusPrinter {
+	sp := &statusPrinter{services: services, disableOutput: disableOutput}
 	sort.Strings(sp.services)
 	return sp
 }
@@ -47,9 +48,24 @@ func (sp *statusPrinter) Run(ctx context.Context,
 	go sp.syncStatus(syncCtx, clusterManager, authToken)
 
 	for {
-		if sp.printStatus() {
-			break
+		if !sp.disableOutput {
+			sp.printStatus()
 		}
+
+		// Exit if all the services have finished booting.
+		allReady := true
+		for _, svc := range sp.services {
+			_, _, done := sp.getServiceStatus(svc)
+			if !done {
+				allReady = false
+				break
+			}
+		}
+
+		if allReady {
+			return true
+		}
+
 		select {
 		case <-ctx.Done():
 			return false
@@ -103,7 +119,7 @@ func (sp *statusPrinter) syncStatus(ctx context.Context,
 	}
 }
 
-func (sp *statusPrinter) printStatus() bool {
+func (sp *statusPrinter) printStatus() {
 	// Reset the cursor so that we'll write over the previous status update.
 	// TODO: Doesn't properly work if the previous print spanned multiple lines.
 	for i := 0; i < sp.prevLinesPrinted; i++ {
@@ -115,21 +131,18 @@ func (sp *statusPrinter) printStatus() bool {
 	sp.spinnerIdx = (sp.spinnerIdx + 1) % len(spinnerChars)
 	spinner := spinnerChars[sp.spinnerIdx]
 
-	allReady := true
 	out := tabwriter.NewWriter(os.Stdout, 0, 10, 5, ' ', 0)
 	defer out.Flush()
 	for _, svc := range sp.services {
 		statusStr, color, done := sp.getServiceStatus(svc)
 		if !done {
 			statusStr += " " + spinner
-			allReady = false
 		}
 
 		fmt.Fprintf(out, "%s\t%s\n", svc, goterm.Color(statusStr, color))
 	}
 
 	sp.prevLinesPrinted = len(sp.services)
-	return allReady
 }
 
 func (sp *statusPrinter) getServiceStatus(svc string) (msg string, color int, booted bool) {
