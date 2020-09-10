@@ -1,8 +1,8 @@
 package main
 
 import (
-	"context"
 	"fmt"
+	"io"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -38,13 +38,13 @@ func createCLINamespace(kubeClient kubernetes.Interface) {
 	}
 }
 
-func (s *server) BlimpUpPreview(ctx context.Context, req *cluster.BlimpUpPreviewRequest) (*cluster.BlimpUpPreviewResponse, error) {
+func (s *server) BlimpUpPreview(req *cluster.BlimpUpPreviewRequest, srv cluster.Manager_BlimpUpPreviewServer) error {
 	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
 	if err != nil {
-		return &cluster.BlimpUpPreviewResponse{}, err
+		return err
 	}
 
-	blimpCmd := []string{"blimp", "up"}
+	blimpCmd := []string{"blimp", "up", "--disable-status-output"}
 	for _, f := range req.GetComposeFiles() {
 		blimpCmd = append(blimpCmd, "-f", f)
 	}
@@ -90,12 +90,43 @@ func (s *server) BlimpUpPreview(ctx context.Context, req *cluster.BlimpUpPreview
 
 	err = kube.DeployPod(s.kubeClient, pod, kube.DeployPodOptions{})
 	if err != nil {
-		return &cluster.BlimpUpPreviewResponse{}, errors.WithContext("start cli", err)
+		return srv.Send(&cluster.BlimpUpPreviewResponse{
+			Error: errors.Marshal(errors.WithContext("start cli", err)),
+		})
 	}
 
-	if _, err := s.getPod(ctx, pod.Namespace, pod.Name, podIsReady); err != nil {
-		return &cluster.BlimpUpPreviewResponse{}, errors.WithContext("cli never started", err)
+	if _, err := s.getPod(srv.Context(), pod.Namespace, pod.Name, podIsReady); err != nil {
+		return srv.Send(&cluster.BlimpUpPreviewResponse{
+			Error: errors.Marshal(errors.WithContext("cli never started", err)),
+		})
 	}
 
-	return &cluster.BlimpUpPreviewResponse{}, nil
+	msg := &cluster.BlimpUpPreviewResponse{StartedCli: true}
+	if err := srv.Send(msg); err != nil {
+		return errors.WithContext("send", err)
+	}
+
+	logsReq := s.kubeClient.CoreV1().Pods(pod.Namespace).
+		GetLogs(pod.Name, &corev1.PodLogOptions{Follow: true})
+	logsStream, err := logsReq.Stream()
+	if err != nil {
+		return errors.WithContext("start logs stream", err)
+	}
+	defer logsStream.Close()
+
+	output := make([]byte, 16*1024)
+	for {
+		n, err := logsStream.Read(output)
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
+
+		msg := &cluster.BlimpUpPreviewResponse{Output: output[:n]}
+		if err := srv.Send(msg); err != nil {
+			return errors.WithContext("start logs stream", err)
+		}
+	}
 }

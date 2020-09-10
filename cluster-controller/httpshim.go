@@ -12,3 +12,11 @@ type watchStatusShim struct {
 func (shim watchStatusShim) Send(msg *cluster.GetStatusResponse) error {
 	return shim.SendProtoMessage(msg)
 }
+
+type blimpUpPreviewShim struct {
+	httpapi.WebSocketStream
+}
+
+func (shim blimpUpPreviewShim) Send(msg *cluster.BlimpUpPreviewResponse) error {
+	return shim.SendProtoMessage(msg)
+}
