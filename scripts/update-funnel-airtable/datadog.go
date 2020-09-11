@@ -71,10 +71,13 @@ func getBlimpRunsFromDataDog(since time.Time) ([]BlimpUpRecord, bool, error) {
 		case "Fatal error":
 			attrs := *log.Content.Attributes
 			namespace := getNamespaceFromTags(*log.Content.Tags)
+			msg := attrs["msg"]
+			if msg == nil {
+				continue
+			}
 			eventsByNamespace[namespace] = append(eventsByNamespace[namespace], eventUpCrashed{
 				time: *log.Content.Timestamp,
-				// TODO: Make sure these fields exist.
-				err: attrs["msg"].(string),
+				err:  msg.(string),
 			})
 		case "Containers booted":
 			namespace := getNamespaceFromTags(*log.Content.Tags)
