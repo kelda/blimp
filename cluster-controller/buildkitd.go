@@ -76,7 +76,7 @@ func createBuildkitd(kubeClient kubernetes.Interface, namespace string) error {
 					InitialDelaySeconds: 5,
 				},
 			}},
-			Affinity:      affinity.OnBuilderNode,
+			Affinity:      affinity.OnBuilderNode(),
 			RestartPolicy: corev1.RestartPolicyAlways,
 		},
 	}

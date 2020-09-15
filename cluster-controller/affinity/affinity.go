@@ -28,7 +28,15 @@ const (
 	buildkitNodeKey = "blimp.buildkit"
 )
 
-var OnBuilderNode = newAffinity(onNode(buildkitNodeKey))
+func OnBuilderNode() *corev1.Affinity {
+	isolateBuildkit, ok := os.LookupEnv("ISOLATE_BUILDKIT")
+	if ok && isolateBuildkit == "false" {
+		// Let buildkit run on any node.
+		return &corev1.Affinity{}
+	}
+
+	return newAffinity(onNode(buildkitNodeKey))
+}
 
 func ForUser(user auth.User) *corev1.Affinity {
 	opts := []affinityOption{
