@@ -137,7 +137,7 @@ func (booter *booter) runWorker() (shutdown bool) {
 	}
 
 	log.WithField("node", node.Name).Info("Deploying node controller")
-	err = booter.deployNodeController(node.Name)
+	err = booter.deployNodeController(node)
 	if err == nil {
 		log.WithField("node", node.Name).Info("Successfully deployed node controller")
 		return false
@@ -162,7 +162,7 @@ func (booter *booter) requeue(key interface{}) {
 	}
 }
 
-func (booter *booter) deployNodeController(node string) error {
+func (booter *booter) deployNodeController(node *corev1.Node) error {
 	serviceAccount := corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "node-controller",
@@ -203,7 +203,7 @@ func (booter *booter) deployNodeController(node string) error {
 			Name: "cert",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: CertSecretName(node),
+					SecretName: CertSecretName(node.Name),
 				},
 			},
 		},
@@ -218,10 +218,10 @@ func (booter *booter) deployNodeController(node string) error {
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: NodeControllerNamespace,
-			Name:      nodeControllerName(node),
+			Name:      nodeControllerName(node.Name),
 			Labels: map[string]string{
 				"service": "node-controller",
-				"node":    node,
+				"node":    node.Name,
 			},
 		},
 		Spec: corev1.PodSpec{
@@ -244,7 +244,7 @@ func (booter *booter) deployNodeController(node string) error {
 					Env: []corev1.EnvVar{
 						{
 							Name:  "NODE_NAME",
-							Value: node,
+							Value: node.Name,
 						},
 					},
 					Resources: corev1.ResourceRequirements{
@@ -261,7 +261,7 @@ func (booter *booter) deployNodeController(node string) error {
 			},
 			Volumes:            volumes,
 			ServiceAccountName: serviceAccount.Name,
-			NodeName:           node,
+			NodeName:           node.Name,
 			Tolerations: []corev1.Toleration{
 				{
 					Key:      dnsTaint.Key,
@@ -272,110 +272,39 @@ func (booter *booter) deployNodeController(node string) error {
 		},
 	}
 
-	service := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      nodeControllerName(node),
-			Namespace: NodeControllerNamespace,
-		},
-		Spec: corev1.ServiceSpec{
-			Type:     corev1.ServiceTypeLoadBalancer,
-			Selector: pod.Labels,
-			Ports: []corev1.ServicePort{
-				{
-					Port:       ports.NodeControllerPublicPort,
-					TargetPort: intstr.FromInt(ports.NodeControllerInternalPort),
-				},
-			},
-		},
-	}
-
 	// Create the Service first so that we can generate a certificate for the
-	// Node Controller's public IP.
-	newService := false
-	servicesClient := booter.kubeClient.CoreV1().Services(NodeControllerNamespace)
-	if _, err := servicesClient.Get(service.Name, metav1.GetOptions{}); err != nil {
-		newService = true
-		_, err := servicesClient.Create(service)
-		if err != nil {
-			return errors.WithContext("create service", err)
-		}
-	}
-
-	var certIPs []net.IP
-	var certHostnames []string
-	var host string
-	// EKS can take ~3 minutes in some cases.
-	ctx, _ := context.WithTimeout(context.Background(), 5*time.Minute)
-	err := kubewait.WaitForObject(ctx,
-		kubewait.ServiceGetter(booter.kubeClient, NodeControllerNamespace, service.Name),
-		booter.kubeClient.CoreV1().Services(NodeControllerNamespace).Watch,
-		func(svcIntf interface{}) bool {
-			svc := svcIntf.(*corev1.Service)
-
-			ingress := svc.Status.LoadBalancer.Ingress
-			if len(ingress) == 1 {
-				if ingress[0].IP != "" {
-					certIPs = []net.IP{net.ParseIP(ingress[0].IP)}
-					host = ingress[0].IP
-					return true
-				}
-				if ingress[0].Hostname != "" {
-					certHostnames = []string{ingress[0].Hostname}
-					host = ingress[0].Hostname
-					return true
-				}
-			}
-			return false
-		})
+	// Node Controller's public address.
+	ips, hostnames, port, err := booter.createService(node.Name, pod.Labels)
 	if err != nil {
-		return errors.WithContext("wait for public IP", err)
+		return errors.WithContext("create service", err)
 	}
 
-	// Add a taint to the node if the service is hostname-based. We will remove
-	// the taint once DNS records for the service are available. This will keep
-	// sandboxes from being scheduled to the node without being able to connect
-	// to the node controller.
-	if len(certHostnames) > 0 {
-		if newService {
-			hasTaint, err := nodeHasTaint(booter.kubeClient, node, dnsTaint)
-			if err != nil {
-				return err
-			}
-
-			if !hasTaint {
-				err := updateNode(booter.kubeClient, node,
-					func(node corev1.Node) corev1.Node {
-						node.Spec.Taints = append(node.Spec.Taints, dnsTaint)
-						return node
-					})
-				if err != nil {
-					return errors.WithContext("add DNS taint", err)
-				}
-			}
-		}
-
-		// Watch for DNS to become available, and then remove the corresponding
-		// taint. We do this in a goroutine because it can take several minutes,
-		// and it's mostly just waiting around.
-		go booter.watchDNSTaint(node, host)
+	var pubAddr string
+	switch {
+	case len(ips) > 0:
+		pubAddr = ips[0].String()
+	case len(hostnames) > 0:
+		pubAddr = hostnames[0]
+	default:
+		return errors.WithContext("service has no public address", err)
 	}
 
 	// Generate new certificates for the Node Controller if it's the first
 	// time deploying the controller.
 	secretsClient := booter.kubeClient.CoreV1().Secrets(NodeControllerNamespace)
-	_, err = secretsClient.Get(CertSecretName(node), metav1.GetOptions{})
+	_, err = secretsClient.Get(CertSecretName(node.Name), metav1.GetOptions{})
 	if err != nil {
-		cert, key, err := newSelfSignedCert(certIPs, certHostnames)
+		cert, key, err := newSelfSignedCert(ips, hostnames)
 		if err != nil {
 			return errors.WithContext("generate cert", err)
 		}
 
 		certSecret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      CertSecretName(node),
+				Name:      CertSecretName(node.Name),
 				Namespace: NodeControllerNamespace,
 				Annotations: map[string]string{
-					"host": fmt.Sprintf("%s:%d", host, ports.NodeControllerPublicPort),
+					"host": fmt.Sprintf("%s:%d", pubAddr, port),
 				},
 			},
 			Data: map[string][]byte{
@@ -397,6 +326,95 @@ func (booter *booter) deployNodeController(node string) error {
 	}
 
 	return nil
+}
+
+func (booter *booter) createService(nodeName string, podSelector map[string]string) (ips []net.IP, hostnames []string, port int32, err error) {
+	service := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      nodeControllerName(nodeName),
+			Namespace: NodeControllerNamespace,
+		},
+		Spec: corev1.ServiceSpec{
+			Type:     corev1.ServiceTypeLoadBalancer,
+			Selector: podSelector,
+			Ports: []corev1.ServicePort{
+				{
+					Port:       ports.NodeControllerPublicPort,
+					TargetPort: intstr.FromInt(ports.NodeControllerInternalPort),
+				},
+			},
+		},
+	}
+
+	// Create the service if it doesn't already exist.
+	newService := false
+	servicesClient := booter.kubeClient.CoreV1().Services(NodeControllerNamespace)
+	if _, err := servicesClient.Get(service.Name, metav1.GetOptions{}); err != nil {
+		newService = true
+		_, err := servicesClient.Create(service)
+		if err != nil {
+			return nil, nil, 0, errors.WithContext("create service", err)
+		}
+	}
+
+	// Wait for the service to have a public IP or hostname.
+	// EKS can take ~3 minutes in some cases.
+	ctx, _ := context.WithTimeout(context.Background(), 5*time.Minute)
+	err = kubewait.WaitForObject(ctx,
+		kubewait.ServiceGetter(booter.kubeClient, NodeControllerNamespace, service.Name),
+		booter.kubeClient.CoreV1().Services(NodeControllerNamespace).Watch,
+		func(svcIntf interface{}) bool {
+			svc := svcIntf.(*corev1.Service)
+
+			ingress := svc.Status.LoadBalancer.Ingress
+			if len(ingress) == 1 {
+				if ingress[0].IP != "" {
+					ips = []net.IP{net.ParseIP(ingress[0].IP)}
+					return true
+				}
+				if ingress[0].Hostname != "" {
+					hostnames = []string{ingress[0].Hostname}
+					return true
+				}
+			}
+			return false
+		})
+	if err != nil {
+		return nil, nil, 0, errors.WithContext("wait for public IP", err)
+	}
+
+	// Add a taint to the node if the service is hostname-based. We will remove
+	// the taint once DNS records for the service are available. This will keep
+	// sandboxes from being scheduled to the node without being able to connect
+	// to the node controller.
+	if len(hostnames) > 0 {
+		if newService {
+			hasTaint, err := nodeHasTaint(booter.kubeClient, nodeName, dnsTaint)
+			if err != nil {
+				return nil, nil, 0, err
+			}
+
+			if !hasTaint {
+				err := updateNode(booter.kubeClient, nodeName,
+					func(node corev1.Node) corev1.Node {
+						node.Spec.Taints = append(node.Spec.Taints, dnsTaint)
+						return node
+					})
+				if err != nil {
+					return nil, nil, 0, errors.WithContext("add DNS taint", err)
+				}
+			}
+		}
+
+		// Watch for DNS to become available, and then remove the corresponding
+		// taint. We do this in a goroutine because it can take several minutes,
+		// and it's mostly just waiting around.
+		// XXX: We only watch the first hostname since the CLI only ever
+		// connects to the first hostname, even if there are multiple.
+		go booter.watchDNSTaint(nodeName, hostnames[0])
+	}
+
+	return ips, hostnames, ports.NodeControllerPublicPort, nil
 }
 
 func (booter *booter) watchDNSTaint(node, hostname string) {
