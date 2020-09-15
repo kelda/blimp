@@ -5,6 +5,11 @@ metadata:
   name: nginx-conf
 data:
   default: |
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        '' close;
+    }
+
     server {
       listen 443 ssl;
 
@@ -19,5 +24,10 @@ data:
         proxy_set_header  X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header  X-Forwarded-Proto $scheme;
         proxy_read_timeout                  900;
+
+        # Pass through the headers use by WebSocket to upgrade connections.
+        # This will not affect requests that do not use WebSockets.
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
       }
     }
