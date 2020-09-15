@@ -30,6 +30,9 @@ type tunnelConn struct {
 
 // dialTunnelContext dials a network connection over a tunnel, and expects addr
 // to be a namespace to connect to instead of an actual network address.
+// Note, from net.Dialer.DialContext: If the context expires before the
+// connection is complete, an error is returned. Once successfully connected,
+// any expiration of the context will not affect the connection.
 func (s *server) dialTunnelContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	if network != "tcp" {
 		// http.Transport should only ever make TCP connections.
@@ -65,7 +68,11 @@ func (s *server) dialTunnelContext(ctx context.Context, network, addr string) (n
 	}
 
 	nodeController := node.NewControllerClient(nodeConn)
-	tunnel, err := nodeController.ExposedTunnel(ctx)
+	// We can't use ctx here. If ctx is canceled once the connection is
+	// established, that should be a no-op.  However, the context here is used
+	// for the duration of the stream, and canceling it will terminate the
+	// stream.
+	tunnel, err := nodeController.ExposedTunnel(context.Background())
 	if err != nil {
 		return nil, errors.New("failed to establish tunnel")
 	}
