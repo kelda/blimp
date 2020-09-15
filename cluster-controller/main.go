@@ -125,7 +125,9 @@ func main() {
 	s.statusFetcher.Start(nil)
 
 	createCLINamespace(kubeClient)
-	node.StartControllerBooter(kubeClient)
+
+	useNodePort := os.Getenv("USE_NODE_PORT_FOR_NODE_CONTROLLER") == "true"
+	node.StartControllerBooter(kubeClient, useNodePort)
 
 	if err := s.listenAndServe(); err != nil {
 		log.WithError(err).Error("Unexpected error")

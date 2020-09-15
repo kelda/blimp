@@ -51,6 +51,7 @@ var dnsTaint = corev1.Taint{
 }
 
 type booter struct {
+	useNodePort  bool
 	nodeInformer cache.SharedIndexInformer
 	kubeClient   kubernetes.Interface
 	workqueue    workqueue.RateLimitingInterface
@@ -58,7 +59,7 @@ type booter struct {
 
 // StartControllerBooter starts a watcher that watches for new Kubernetes
 // nodes, and deploys a Blimp Node Controller onto them.
-func StartControllerBooter(kubeClient kubernetes.Interface) {
+func StartControllerBooter(kubeClient kubernetes.Interface, useNodePort bool) {
 	for {
 		_, err := kubeClient.CoreV1().Namespaces().Create(&corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -84,6 +85,7 @@ func StartControllerBooter(kubeClient kubernetes.Interface) {
 		Core().V1().Nodes().Informer()
 
 	b := booter{
+		useNodePort:  useNodePort,
 		kubeClient:   kubeClient,
 		nodeInformer: informer,
 		workqueue:    workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
@@ -274,7 +276,16 @@ func (booter *booter) deployNodeController(node *corev1.Node) error {
 
 	// Create the Service first so that we can generate a certificate for the
 	// Node Controller's public address.
-	ips, hostnames, port, err := booter.createService(node.Name, pod.Labels)
+	var ips []net.IP
+	var hostnames []string
+	var port int32
+	var err error
+	if booter.useNodePort {
+		ips, hostnames, port, err = booter.createNodePortService(node, pod.Labels)
+	} else {
+		ips, hostnames, port, err = booter.createLoadBalancerService(node.Name, pod.Labels)
+	}
+
 	if err != nil {
 		return errors.WithContext("create service", err)
 	}
@@ -328,7 +339,7 @@ func (booter *booter) deployNodeController(node *corev1.Node) error {
 	return nil
 }
 
-func (booter *booter) createService(nodeName string, podSelector map[string]string) (ips []net.IP, hostnames []string, port int32, err error) {
+func (booter *booter) createLoadBalancerService(nodeName string, podSelector map[string]string) (ips []net.IP, hostnames []string, port int32, err error) {
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      nodeControllerName(nodeName),
@@ -339,7 +350,7 @@ func (booter *booter) createService(nodeName string, podSelector map[string]stri
 			Selector: podSelector,
 			Ports: []corev1.ServicePort{
 				{
-					Port:       ports.NodeControllerPublicPort,
+					Port:       ports.NodeControllerPublicLoadBalancerPort,
 					TargetPort: intstr.FromInt(ports.NodeControllerInternalPort),
 				},
 			},
@@ -414,7 +425,71 @@ func (booter *booter) createService(nodeName string, podSelector map[string]stri
 		go booter.watchDNSTaint(nodeName, hostnames[0])
 	}
 
-	return ips, hostnames, ports.NodeControllerPublicPort, nil
+	return ips, hostnames, ports.NodeControllerPublicLoadBalancerPort, nil
+}
+
+func (booter *booter) createNodePortService(node *corev1.Node, podSelector map[string]string) (ips []net.IP, hostnames []string, port int32, err error) {
+	pubAddrStr, ok := node.Annotations[kube.NodePublicAddressAnnotation]
+	if !ok {
+		return nil, nil, 0, errors.New("node's public address must be set via %s annotation", kube.NodePublicAddressAnnotation)
+	}
+
+	// Try to parse the public address as an IP. If the parse fails, assume
+	// that it's a hostname.
+	if pubIP := net.ParseIP(pubAddrStr); pubIP != nil {
+		ips = []net.IP{pubIP}
+	} else {
+		hostnames = []string{pubAddrStr}
+	}
+
+	// Create the service if it doesn't already exist.
+	service := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      nodeControllerName(node.Name),
+			Namespace: NodeControllerNamespace,
+		},
+		Spec: corev1.ServiceSpec{
+			Type:     corev1.ServiceTypeNodePort,
+			Selector: podSelector,
+			Ports: []corev1.ServicePort{
+				{
+					Port: ports.NodeControllerInternalPort,
+				},
+			},
+		},
+	}
+
+	servicesClient := booter.kubeClient.CoreV1().Services(NodeControllerNamespace)
+	if _, err := servicesClient.Get(service.Name, metav1.GetOptions{}); err != nil {
+		_, err := servicesClient.Create(service)
+		if err != nil {
+			return nil, nil, 0, errors.WithContext("create service", err)
+		}
+	}
+
+	// Wait for Kubernetes to assign the service a port. We can't just hardcode
+	// a standard port because node ports have to be unique *cluster-wide* --
+	// not just on the ndoe.
+	ctx, _ := context.WithTimeout(context.Background(), 3*time.Minute)
+	err = kubewait.WaitForObject(ctx,
+		kubewait.ServiceGetter(booter.kubeClient, service.Namespace, service.Name),
+		booter.kubeClient.CoreV1().Services(service.Namespace).Watch,
+		func(svcIntf interface{}) bool {
+			svc := svcIntf.(*corev1.Service)
+			if len(svc.Spec.Ports) == 0 {
+				// This should never happen unless someone manually edits the
+				// service.
+				return false
+			}
+
+			port = svc.Spec.Ports[0].NodePort
+			return port != 0
+		})
+	if err != nil {
+		return nil, nil, 0, errors.WithContext("wait for node port", err)
+	}
+
+	return ips, hostnames, port, nil
 }
 
 func (booter *booter) watchDNSTaint(node, hostname string) {
