@@ -16,6 +16,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -94,6 +95,23 @@ func StartControllerBooter(kubeClient kubernetes.Interface, useNodePort bool) {
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			key, err := cache.MetaNamespaceKeyFunc(obj)
+			if err == nil {
+				b.workqueue.Add(key)
+			}
+		},
+		UpdateFunc: func(old, cur interface{}) {
+			// Don't bother trying to deploy if only the node's status has
+			// changed. Node status is constantly changing because of heartbeat
+			// update in the node conditions.
+			oldNode := old.(*corev1.Node)
+			curNode := cur.(*corev1.Node)
+			oldNode.ResourceVersion = curNode.ResourceVersion
+			oldNode.Status = curNode.Status
+			if apiequality.Semantic.DeepEqual(oldNode, curNode) {
+				return
+			}
+
+			key, err := cache.MetaNamespaceKeyFunc(cur)
 			if err == nil {
 				b.workqueue.Add(key)
 			}
