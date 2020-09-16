@@ -2,17 +2,12 @@ package main
 
 import (
 	"context"
-	"crypto/x509"
 	"io"
 	"net"
 	"regexp"
 	"time"
 
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/encoding/gzip"
-	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
 	"github.com/kelda/blimp/pkg/errors"
@@ -47,27 +42,11 @@ func (s *server) dialTunnelContext(ctx context.Context, network, addr string) (n
 		return nil, errors.New("unexpected namespace format: %q", namespace)
 	}
 
-	nodeAddr, nodeCert, err := s.getNodeController(namespace)
+	nodeController, err := s.getNodeControllerConn(ctx, namespace)
 	if err != nil {
-		return nil, errors.WithContext("get node controller IP", err)
+		return nil, errors.WithContext("get node controller connection", err)
 	}
 
-	certPool := x509.NewCertPool()
-	if !certPool.AppendCertsFromPEM([]byte(nodeCert)) {
-		return nil, errors.New("failed to parse node controller cert")
-	}
-	nodeConn, err := grpc.DialContext(ctx, nodeAddr,
-		grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(certPool, "")),
-		// AWS ELBs close connections that are inactive for 60s, so we set a
-		// keepalive interval lower than this.
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{Time: 30 * time.Second}),
-		grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)),
-		grpc.WithUnaryInterceptor(errors.UnaryClientInterceptor))
-	if err != nil {
-		return nil, errors.WithContext("dial node controller", err)
-	}
-
-	nodeController := node.NewControllerClient(nodeConn)
 	// We can't use ctx here. If ctx is canceled once the connection is
 	// established, that should be a no-op.  However, the context here is used
 	// for the duration of the stream, and canceling it will terminate the
