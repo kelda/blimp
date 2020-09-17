@@ -163,10 +163,6 @@ func run() error {
 
 	var userRecords []UserRecord
 	for _, user := range auth0Users {
-		if *user.ID == "" {
-			fmt.Printf("%+v\n", user)
-		}
-
 		userRecord, ok := currUserRecords[*user.ID]
 		if ok {
 			userRecord = makeUserRecord(blimpUpRecords, loggedInClientIDs, *user, &userRecord)
@@ -177,7 +173,15 @@ func run() error {
 		userRecords = append(userRecords, userRecord)
 	}
 
-	return upsertUsers(currUserRecords, userRecords)
+	if err := upsertUsers(currUserRecords, userRecords); err != nil {
+		return fmt.Errorf("upsert users: %w", err)
+	}
+
+	if err := syncToDrip(userRecords); err != nil {
+		return fmt.Errorf("sync to drip: %w", err)
+	}
+
+	return nil
 }
 
 func makeUserRecord(blimpRuns map[string][]BlimpUpRecord, websiteUserRecords map[string]WebsiteUserRecord, user management.User, existingRecord *UserRecord) UserRecord {
