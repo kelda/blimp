@@ -15,7 +15,6 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
@@ -73,8 +72,9 @@ func main() {
 // used by our custom transport.
 func director(req *http.Request) {
 	// Make sure we don't get bamboozled into doing weird things. We expect
-	// "<namespace>.blimp.dev".
-	hostRegexp := regexp.MustCompile("^([0-9a-f]{32})\\." + regexp.QuoteMeta(LinkProxyBaseHostname) + "$")
+	// "<namespace><token>.blimp.dev". The namespace is 32 hex characters, and
+	// the token is 8 hex characters.
+	hostRegexp := regexp.MustCompile(`^([0-9a-f]{40})\.` + regexp.QuoteMeta(LinkProxyBaseHostname) + `$`)
 	matches := hostRegexp.FindAllStringSubmatch(strings.ToLower(req.Host), 1)
 	if len(matches) != 1 {
 		// Host header did not match what we were expecting, abort.
@@ -93,8 +93,8 @@ func director(req *http.Request) {
 
 func (s *server) getNodeControllerConn(ctx context.Context, namespace string) (
 	conn nodeGRPC.ControllerClient, err error) {
-	// This could also use the cluster manager AttachToSandbox gRPC, but this
-	// seeemed simpler for now.
+	// XXX: This should happen via a gRPC to the cluster-controller, to avoid
+	// having to interact directly with kubernetes.
 	dnsPod, err := s.kubeClient.CoreV1().Pods(namespace).Get("dns", metav1.GetOptions{})
 	if err != nil {
 		return nil, errors.WithContext("get sandbox node", err)

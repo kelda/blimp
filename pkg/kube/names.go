@@ -10,7 +10,7 @@ const (
 	BlimpNamespace      = "blimp-system"
 	PreviewCLINamespace = "blimp-cli"
 
-	ExposeAnnotation            = "blimp.exposed-service"
+	ExposeAnnotation            = "blimp.exposed"
 	NodePublicAddressAnnotation = "blimp.public-address"
 
 	PodNameSyncthing = "syncthing"

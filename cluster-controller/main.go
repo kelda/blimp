@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math/big"
 	"net"
 	"os"
 	"path/filepath"
@@ -36,6 +38,7 @@ import (
 	"github.com/kelda-inc/blimp/cluster-controller/node"
 	"github.com/kelda-inc/blimp/cluster-controller/volume"
 	"github.com/kelda-inc/blimp/pkg/analytics"
+	"github.com/kelda-inc/blimp/pkg/expose"
 	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/metadata"
 	"github.com/kelda-inc/blimp/pkg/ports"
@@ -1292,6 +1295,10 @@ func (s *server) Expose(ctx context.Context, req *cluster.ExposeRequest) (
 		return &cluster.ExposeResponse{}, err
 	}
 
+	if req.Port < 1 || req.Port > 65535 {
+		return &cluster.ExposeResponse{}, errors.NewFriendlyError("Port must be between 1 and 65535")
+	}
+
 	namespacesClient := s.kubeClient.CoreV1().Namespaces()
 	_, err = namespacesClient.Get(user.Namespace, metav1.GetOptions{})
 	if err != nil {
@@ -1301,18 +1308,43 @@ func (s *server) Expose(ctx context.Context, req *cluster.ExposeRequest) (
 		return &cluster.ExposeResponse{}, errors.WithContext("get sandbox", err)
 	}
 
-	// TODO: Validate service/port (e.g. pod exists for service, 0 <= port < 65536).
+	exposeInfo := expose.ExposeInfo{
+		Service: req.Service,
+		Port:    int(req.Port),
+	}
+
+	// Secret should be 8 hex digits, so between 0x00000000 and 0xffffffff
+	secretNum, err := rand.Int(rand.Reader, big.NewInt(0x100000000))
+	if err != nil {
+		return &cluster.ExposeResponse{}, errors.WithContext("generate secret", err)
+	}
+	secret := fmt.Sprintf("%08x", secretNum)
 
 	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		namespace, err := namespacesClient.Get(user.Namespace, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
+
 		if namespace.Annotations == nil {
 			namespace.Annotations = map[string]string{}
 		}
 
-		namespace.Annotations[kube.ExposeAnnotation] = fmt.Sprintf("%s:%d", req.Service, req.Port)
+		annotation := expose.ExposeAnnotation{}
+		annotationJson, ok := namespace.Annotations[kube.ExposeAnnotation]
+		if ok {
+			annotation, err = expose.ParseJsonAnnotation(annotationJson)
+			if err != nil {
+				return err
+			}
+		}
+
+		annotation[secret] = exposeInfo
+		annotationJson, err = annotation.ToJson()
+		if err != nil {
+			return err
+		}
+		namespace.Annotations[kube.ExposeAnnotation] = annotationJson
 
 		_, err = namespacesClient.Update(namespace)
 		return err
@@ -1322,7 +1354,7 @@ func (s *server) Expose(ctx context.Context, req *cluster.ExposeRequest) (
 	}
 
 	return &cluster.ExposeResponse{
-		Link: fmt.Sprintf("https://%s.%s/", user.Namespace, LinkProxyBaseHostname),
+		Link: fmt.Sprintf("https://%s%s.%s/", user.Namespace, secret, LinkProxyBaseHostname),
 	}, nil
 }
 

@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -21,6 +19,7 @@ import (
 
 	"github.com/kelda-inc/blimp/node/wait"
 	"github.com/kelda-inc/blimp/pkg/analytics"
+	"github.com/kelda-inc/blimp/pkg/expose"
 	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/ports"
 	"github.com/kelda/blimp/pkg/auth"
@@ -159,29 +158,31 @@ func (s *server) ExposedTunnel(nsrv node.Controller_ExposedTunnelServer) error {
 		return status.New(codes.OutOfRange, "unknown destination").Err()
 	}
 
-	servicePort, ok := namespace.Annotations[kube.ExposeAnnotation]
+	annotationJson, ok := namespace.Annotations[kube.ExposeAnnotation]
 	if !ok {
-		return status.New(codes.PermissionDenied, "no service exposed").Err()
+		// For security, if nothing is exposed, don't leak that the namespace exists.
+		return status.New(codes.OutOfRange, "unknown destination").Err()
 	}
 
-	split := strings.SplitN(servicePort, ":", 2)
-	if len(split) != 2 {
-		return status.New(codes.Internal, "failed to parse expose annotation").Err()
-	}
-	serviceName := split[0]
-	port, err := strconv.Atoi(split[1])
+	annotation, err := expose.ParseJsonAnnotation(annotationJson)
 	if err != nil {
+		log.WithError(err).Error("Failed to parse expose annotation")
 		return status.New(codes.Internal, "failed to parse expose annotation").Err()
 	}
 
-	podName := names.PodName(serviceName)
+	info, ok := annotation[header.Token]
+	if !ok {
+		return status.New(codes.OutOfRange, "unknown destination").Err()
+	}
+
+	podName := names.PodName(info.Service)
 
 	dstPod, err := s.podLister.Pods(header.Namespace).Get(podName)
 	if err != nil {
 		return status.New(codes.OutOfRange, "unknown destination").Err()
 	}
 
-	dialAddr := fmt.Sprintf("%s:%d", dstPod.Status.PodIP, port)
+	dialAddr := fmt.Sprintf("%s:%d", dstPod.Status.PodIP, info.Port)
 	stream, err := net.Dial("tcp", dialAddr)
 	if err != nil {
 		return status.New(codes.Internal, err.Error()).Err()

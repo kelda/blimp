@@ -24,7 +24,8 @@ type tunnelConn struct {
 }
 
 // dialTunnelContext dials a network connection over a tunnel, and expects addr
-// to be a namespace to connect to instead of an actual network address.
+// to be the blimp.dev subdomain to connect to instead of an actual network
+// address. The subdomain should be the namespace, followed by the token.
 // Note, from net.Dialer.DialContext: If the context expires before the
 // connection is complete, an error is returned. Once successfully connected,
 // any expiration of the context will not affect the connection.
@@ -33,14 +34,22 @@ func (s *server) dialTunnelContext(ctx context.Context, network, addr string) (n
 		// http.Transport should only ever make TCP connections.
 		panic("unexpected network type")
 	}
-	// The address should be in the format <namespace>:port. We ignore the port.
-	namespace, _, err := net.SplitHostPort(addr)
+
+	// The address should be in the format hostname:port. We ignore the port.
+	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, errors.WithContext("tunnel dial parse address", err)
 	}
-	if !regexp.MustCompile("^[a-f0-9]{32}$").MatchString(namespace) {
-		return nil, errors.New("unexpected namespace format: %q", namespace)
+	hostRegexp := regexp.MustCompile(`^([a-f0-9]{32})([a-f0-9]{8})$`)
+	matches := hostRegexp.FindStringSubmatch(host)
+	if len(matches) != 3 {
+		return nil, errors.New("unexpected namespace format: %q", host)
 	}
+
+	// matches[0] contains the entire match, matches[1] and matches[2] are the
+	// submatches.
+	namespace := matches[1]
+	token := matches[2]
 
 	nodeController, err := s.getNodeControllerConn(ctx, namespace)
 	if err != nil {
@@ -58,6 +67,7 @@ func (s *server) dialTunnelContext(ctx context.Context, network, addr string) (n
 
 	err = tunnel.Send(&node.TunnelMsg{Msg: &node.TunnelMsg_Header{
 		Header: &node.TunnelHeader{
+			Token:     token,
 			Namespace: namespace,
 		}}})
 	if err != nil {
