@@ -30,6 +30,17 @@ jobs:
             docker login gcr.io --username _json_key --password "${DOCKER_KEY}"
             BLIMP_DOCKER_REPO=gcr.io/kelda-blimp VERSION=${CIRCLE_TAG} make push-docker
 
+  push-docker-latest:
+    executor: docker-executor
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Push Docker image
+          command: |
+            docker login gcr.io --username _json_key --password "${DOCKER_KEY}"
+            BLIMP_DOCKER_REPO=gcr.io/kelda-blimp VERSION=latest make push-docker
+
   lint:
     docker:
       - image: golangci/golangci-lint
@@ -53,6 +64,13 @@ workflows:
     jobs:
       - build
       - lint
+
+  build-push-tag:
+    jobs:
+      - push-docker-latest:
+          filters:
+            branches:
+              only: master
 
   build-push-tag:
     jobs:
