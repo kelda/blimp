@@ -22,11 +22,6 @@ type StreamID struct {
 }
 
 func Init(c cluster.ManagerClient, id StreamID) {
-	// Don't publish analytics during development.
-	if version.Version == "latest" {
-		return
-	}
-
 	Log.AddHook(&hook{
 		levels: logrus.AllLevels,
 		stream: "analytics",
