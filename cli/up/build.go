@@ -10,6 +10,7 @@ import (
 	composeTypes "github.com/kelda/compose-go/types"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/kelda/blimp/pkg/analytics"
 	"github.com/kelda/blimp/pkg/build"
 	"github.com/kelda/blimp/pkg/build/buildkit"
 	"github.com/kelda/blimp/pkg/build/docker"
@@ -75,6 +76,7 @@ func (cmd *up) getImageBuilder(projectName string) (build.Interface, error) {
 			ComposePath: cmd.composePath,
 		})
 		if err == nil {
+			analytics.Log.Info("Using local Docker image builder")
 			return dockerClient, nil
 		}
 		log.WithError(err).Debug("Failed to get Docker client for local builder. " +
@@ -85,6 +87,7 @@ func (cmd *up) getImageBuilder(projectName string) (build.Interface, error) {
 	if err != nil {
 		return nil, errors.WithContext("create buildkit image builder", err)
 	}
+	analytics.Log.Info("Using remote Buildkit image builder")
 	return buildkitClient, nil
 }
 
