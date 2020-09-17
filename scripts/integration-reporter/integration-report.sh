@@ -1,13 +1,20 @@
 #!/bin/bash
+# This script executes the given command, and reports the result to DataDog.
 set -euo pipefail
+
+test_cmd="${1}"
+dd_check="${2}"
 
 stdout=$(mktemp)
 stderr=$(mktemp)
 
+echo "Stdout is at ${stdout}"
+echo "Stderr is at ${stderr}"
+
 # allow this command to fail without the whole script exiting
 set +e
 # run the test
-$(dirname "${BASH_SOURCE[0]}")/integration-test.sh > "${stdout}" 2> "${stderr}"
+${test_cmd} > "${stdout}" 2> "${stderr}"
 status=$?
 set -e
 
@@ -32,7 +39,7 @@ fi
 
 dd_message='
 {
-  "check": "blimp.integration",
+  "check": "'"${dd_check}"'",
   "status": "'"${dd_status}"'",
   "message": .
 }

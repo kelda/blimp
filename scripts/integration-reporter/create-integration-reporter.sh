@@ -17,7 +17,7 @@ if [[ $# -ne 2 ]]; then
 	exit 1
 fi
 
-_gcloud_compute instances create "${INSTANCE}" --zone "${ZONE}" --machine-type n1-standard-1 --image-family=ubuntu-2004-lts --image-project=ubuntu-os-cloud
+_gcloud_compute instances create "${INSTANCE}" --zone "${ZONE}" --machine-type n1-standard-1 --image-family=ubuntu-2004-lts --image-project=ubuntu-os-cloud --boot-disk-size=100GB
 
 # wait for machine to come up
 sleep 30

@@ -1,9 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-# this script is blimp/scripts/integration-report.sh
+# this script is blimp/scripts/integration-reporter/integration-report.sh
 # cd to blimp
-cd $(dirname "${BASH_SOURCE[0]}")/..
+cd $(dirname "${BASH_SOURCE[0]}")/../..
 
 # install the latest version of blimp
 # we can't use kelda.io/get-blimp.sh (install.sh) because
@@ -27,7 +27,7 @@ rm -rf ~/.blimp
 blimp loginpw $(cat ~/blimp-creds)
 
 # pull the latest node-todo
-export GOPATH=~/go
+export GOPATH=~/prod-go
 app_location="$GOPATH/src/github.com/kelda/node-todo"
 mkdir -p "$app_location"
 rm -rf "$app_location"

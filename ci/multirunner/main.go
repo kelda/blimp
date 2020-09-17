@@ -92,7 +92,7 @@ func run(concurrency int, runRegex string) error {
 		fmt.Println()
 
 		result := <-testResults
-		if result.err == nil && result.duration > 10*time.Minute {
+		if result.err == nil && result.duration > 40*time.Minute {
 			result.err = errors.New("test passed, but took too long (%s)", result.duration)
 		}
 
@@ -132,19 +132,25 @@ func buildRunnerImage(managerHost string) error {
 	dockerfileLines := []string{
 		"FROM golang:1.13",
 		"RUN apt-get update && apt-get install ca-certificates",
-		// TODO: Just run git clone.
 		"GO-COPY github.com/kelda/node-todo",
 
+		// Install dependencies.
 		"WORKDIR /go/src/github.com/kelda/blimp",
 		"GO-COPY github.com/kelda/blimp/Makefile",
 		"RUN make go-get",
-		"GO-COPY github.com/kelda/blimp",
-		"RUN make build-cli-linux && mv ./blimp-linux /usr/local/bin/blimp",
 
 		"WORKDIR /go/src/github.com/kelda-inc/blimp",
 		"GO-COPY github.com/kelda-inc/blimp/go.mod",
 		"GO-COPY github.com/kelda-inc/blimp/go.sum",
 		"RUN go mod download",
+
+		// Build the CLI.
+		"WORKDIR /go/src/github.com/kelda/blimp",
+		"GO-COPY github.com/kelda/blimp",
+		"RUN make build-cli-linux && mv ./blimp-linux /usr/local/bin/blimp",
+
+		// Build the tests.
+		"WORKDIR /go/src/github.com/kelda-inc/blimp",
 		"GO-COPY github.com/kelda-inc/blimp",
 		"RUN go test -v -c -o /usr/local/bin/run-tests --tags ci --timeout 0 ./ci",
 		fmt.Sprintf("ENV MANAGER_HOST=%s", managerHost),
@@ -168,7 +174,7 @@ func buildRunnerImage(managerHost string) error {
 			return errors.WithContext("make directory for repo", err)
 		}
 
-		err = runCommand("cp",
+		err := runCommand("cp",
 			// Copy all the contents of the directory.
 			"-R",
 			// Follow symlinks (this is necessary to copy github.com/kelda/blimp/certs).
@@ -186,6 +192,12 @@ func buildRunnerImage(managerHost string) error {
 	err = ioutil.WriteFile(filepath.Join(buildCtx, "Dockerfile"), []byte(dockerfile), 0644)
 	if err != nil {
 		return errors.WithContext("write dockerfile", err)
+	}
+
+	// Ignore .git so that it doesn't invalidate the build cache.
+	err = ioutil.WriteFile(filepath.Join(buildCtx, ".dockerignore"), []byte("**/.git"), 0644)
+	if err != nil {
+		return errors.WithContext("write .dockerignore", err)
 	}
 
 	buildCmd := exec.Command("docker", "build", "-t", "blimp-test-runner", buildCtx)
