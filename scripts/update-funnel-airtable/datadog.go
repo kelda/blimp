@@ -105,10 +105,23 @@ func getBlimpRunsFromDataDog(since time.Time) ([]BlimpUpRecord, bool, error) {
 
 	var blimpUps []BlimpUpRecord
 	for namespace, events := range eventsByNamespace {
+		// If the user opted out of CLI analytics then we won't see any of
+		// these events, and we should create the Blimp Up records based on
+		// create sandbox events.
+		optedOutCLIAnalytics := true
+		for _, event := range events {
+			switch event.(type) {
+			case eventUpStarted, eventUpCrashed, eventContainersBooted:
+				optedOutCLIAnalytics = false
+			}
+		}
+
 		var blimpUp *BlimpUpRecord
 		for _, event := range events {
 			switch event := event.(type) {
 			case eventUpStarted:
+				// Add the previously created blimpUp if it doesn't exist, and
+				// create a new event to append to.
 				if blimpUp != nil {
 					blimpUps = append(blimpUps, *blimpUp)
 				}
@@ -123,6 +136,15 @@ func getBlimpRunsFromDataDog(since time.Time) ([]BlimpUpRecord, bool, error) {
 				}
 
 			case eventParsedCreateSandbox:
+				// If the user opted out of CLI analytics, create the record
+				// based on just this event.
+				if optedOutCLIAnalytics {
+					blimpUp = &BlimpUpRecord{}
+					blimpUp.Fields.Date = event.time
+					blimpUp.Fields.DataDogLink = makeDataDogLink(namespace, event.time.Add(-1*time.Minute))
+					blimpUp.Fields.Namespace = namespace
+				}
+
 				if blimpUp != nil {
 					sort.Strings(event.services)
 					blimpUp.Fields.Services = strings.Join(event.services, "\n")
@@ -136,6 +158,14 @@ func getBlimpRunsFromDataDog(since time.Time) ([]BlimpUpRecord, bool, error) {
 					}
 
 					blimpUp.Fields.ExampleApp = isExampleApp
+				}
+
+				if optedOutCLIAnalytics {
+					blimpUps = append(blimpUps, *blimpUp)
+
+					// Keep the event from getting added again at the end of
+					// the loop.
+					blimpUp = nil
 				}
 
 			case eventContainersBooted:
