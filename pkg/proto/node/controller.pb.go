@@ -25,10 +25,13 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
-// In a Tunnel, name, port, and token are used. In an ExposedTunnel, namespace is used.
+// In a Tunnel, name, port, and token are used. In an ExposedTunnel, token and
+// namespace are used.
 type TunnelHeader struct {
-	Name                 string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Port                 uint32   `protobuf:"varint,2,opt,name=port,proto3" json:"port,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Port uint32 `protobuf:"varint,2,opt,name=port,proto3" json:"port,omitempty"`
+	// For Tunnel, token is a normal OAuth ID Token. For ExposedTunnel, it is
+	// the secret key indexing the service/port combination to be exposed.
 	Token                string   `protobuf:"bytes,3,opt,name=token,proto3" json:"token,omitempty"`
 	Namespace            string   `protobuf:"bytes,4,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
