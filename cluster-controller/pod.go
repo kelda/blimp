@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/kelda-inc/blimp/cluster-controller/affinity"
 	"github.com/kelda-inc/blimp/cluster-controller/volume"
@@ -393,9 +394,9 @@ func (p *podSpec) addRuntimeContainer(svc composeTypes.ServiceConfig, dnsIP stri
 	// Ignore the hostname setting if it's not a valid Kubernetes hostname.
 	// Although this may break some applications, it's better than aborting the deployment entirely since
 	// most applications don't seem to rely on the container's hostname.
-	if svc.Hostname != "" && !strings.Contains(svc.Hostname, "_") {
+	if svc.Hostname != "" && len(validation.IsDNS1123Label(svc.Hostname)) == 0 {
 		p.pod.Spec.Hostname = svc.Hostname
-	} else if !strings.Contains(svc.Name, "_") {
+	} else if len(validation.IsDNS1123Label(svc.Name)) == 0 {
 		p.pod.Spec.Hostname = svc.Name
 	}
 
