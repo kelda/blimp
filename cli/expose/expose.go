@@ -90,6 +90,6 @@ func runUnexpose(authToken string) error {
 		return errors.WithContext("send unexpose request", err)
 	}
 
-	fmt.Println("The exposed port has been removed. Active connections may not be immediately closed.")
+	fmt.Println("All exposed ports have been removed. Active connections may not be immediately closed.")
 	return nil
 }
