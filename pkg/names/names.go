@@ -32,6 +32,13 @@ func PodName(serviceName string) string {
 		sanitized = sanitized[:50]
 	}
 
+	// If the service name consists purely of prohibited characters, we make
+	// sure the sanitized name is nonempty. If sanitized == "", the generated
+	// name would start with a "-", which is not DNS-1123 compliant.
+	if len(sanitized) == 0 {
+		sanitized = "empty"
+	}
+
 	// Also append a hash to distinguish between services that are identitical
 	// after being sanitized.
 	h := hash.DNSCompliant(serviceName)
