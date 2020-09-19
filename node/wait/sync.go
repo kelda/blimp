@@ -76,7 +76,10 @@ func (st *SyncTracker) RunServer(namespace string, srv node.Controller_SyncNotif
 	// `cc.NewWaiter` is called in this situation, it'll immediately return
 	// with an error when the GetSyncStatusRequest message fails to send.
 	st.lock.Lock()
-	delete(st.conns, namespace)
+	// Don't delete the connection if it's already been replaced by another.
+	if st.conns[namespace] == cc {
+		delete(st.conns, namespace)
+	}
 	st.lock.Unlock()
 
 	log.WithError(err).
