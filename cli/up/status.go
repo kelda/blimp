@@ -63,6 +63,7 @@ func (sp *statusPrinter) Run(ctx context.Context,
 		}
 
 		if allReady {
+			fmt.Println(goterm.Color("All containers successfully started", goterm.GREEN))
 			return true
 		}
 
@@ -73,8 +74,7 @@ func (sp *statusPrinter) Run(ctx context.Context,
 			// Continue.
 		}
 	}
-	fmt.Println(goterm.Color("All containers successfully started", goterm.GREEN))
-	return true
+	panic("unreached")
 }
 
 func (sp *statusPrinter) syncStatus(ctx context.Context,
