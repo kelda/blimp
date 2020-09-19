@@ -27,7 +27,7 @@ mkdir -p ~/staging-go/src/github.com/kelda-inc
 cd ~/staging-go/src/github.com/kelda-inc
 git clone git@github.com:kelda-inc/blimp
 cd blimp
-echo -e "PATH=/usr/bin:/bin:/usr/local/bin\n0 * * * * (git -C ${PWD} fetch --force --all && git -C ${PWD} reset --hard origin/master && ${PWD}/scripts/integration-reporter/integration-report.sh ${PWD}/scripts/integration-reporter/staging-integration-test.sh blimp.integration-staging) >> ${HOME}/staging-cron-log 2>&1" | crontab
+(crontab -l ; echo -e "0 * * * * (git -C ${PWD} fetch --force --all && git -C ${PWD} reset --hard origin/master && ${PWD}/scripts/integration-reporter/integration-report.sh ${PWD}/scripts/integration-reporter/staging-integration-test.sh blimp.integration-staging) >> ${HOME}/staging-cron-log 2>&1")| crontab -
 
 echo "WARNING: INSTALLATION NOT COMPLETE"
 echo "You still need to manually add the Kube credentials for the staging cluster to ~/.kube/config. Generate them with scripts/make-kubeconfig.sh"
