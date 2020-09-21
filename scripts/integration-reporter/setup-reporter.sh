@@ -20,7 +20,7 @@ mkdir -p ~/prod-go/src/github.com/kelda-inc
 cd ~/prod-go/src/github.com/kelda-inc
 git clone git@github.com:kelda-inc/blimp
 cd blimp
-echo -e "PATH=/usr/bin:/bin:/usr/local/bin\n*/5 * * * * (git -C ${PWD} fetch --force --all --tags && ${PWD}/scripts/integration-reporter/integration-report.sh ${PWD}/scripts/integration-reporter/prod-integration-test.sh blimp.integration) >> ${HOME}/prod-cron-log 2>&1" | crontab
+echo -e "PATH=/usr/bin:/bin:/usr/local/bin:/snap/bin\n*/5 * * * * (git -C ${PWD} fetch --force --all --tags && ${PWD}/scripts/integration-reporter/integration-report.sh ${PWD}/scripts/integration-reporter/prod-integration-test.sh blimp.integration) >> ${HOME}/prod-cron-log 2>&1" | crontab
 
 # setup the staging tests.
 mkdir -p ~/staging-go/src/github.com/kelda-inc
