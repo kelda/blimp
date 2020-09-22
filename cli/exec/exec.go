@@ -17,24 +17,9 @@ import (
 )
 
 func New() *cobra.Command {
-	usageMsg := "exec [-h | --help ] SERVICE CMD [ARGS...]"
-	helpMsg := "Run a command in a service." +
-		"\n\n" +
-		"Usage: blimp " + usageMsg + "\n"
-
 	execCmd := cobra.Command{
-		Use:   usageMsg,
 		Short: "Run a command in a service",
-		// This allows the flags passed in to be used by the CMD to be executed and
-		// not the exec command.
-		DisableFlagParsing:    true,
-		DisableFlagsInUseLine: true,
 		Run: func(_ *cobra.Command, args []string) {
-			if args[0] == "--help" || args[0] == "-h" {
-				fmt.Fprintf(os.Stdout, helpMsg)
-				os.Exit(1)
-			}
-
 			if len(args) < 2 {
 				fmt.Fprintf(os.Stderr, "Service and command need to be defined\n")
 				os.Exit(1)
@@ -44,8 +29,13 @@ func New() *cobra.Command {
 				errors.HandleFatalError(err)
 			}
 		},
+		Use: "exec [options] SERVICE CMD [ARGS...]",
+		// Don't append [flags] to the end of the usage string. We already have
+		// it hardcoded since the options must come before the positional
+		// arguments.
+		DisableFlagsInUseLine: true,
 	}
-	execCmd.SetHelpTemplate(helpMsg)
+	execCmd.Flags().SetInterspersed(false)
 	return &execCmd
 }
 
