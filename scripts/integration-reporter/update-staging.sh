@@ -51,7 +51,7 @@ exp_node_controllers="$(kubectl get nodes -o name | wc -l)"
 attempts=0
 while true; do
     attempts=$((attempts + 1))
-    if [[ ${attempts} -eq 12 ]]; then
+    if [[ ${attempts} -eq 24 ]]; then
         echo "Node controllers never booted"
         exit 1
     fi
