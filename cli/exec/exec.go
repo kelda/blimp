@@ -17,6 +17,7 @@ import (
 )
 
 func New() *cobra.Command {
+	var disableTTY bool
 	execCmd := cobra.Command{
 		Short: "Run a command in a service",
 		Run: func(_ *cobra.Command, args []string) {
@@ -25,7 +26,7 @@ func New() *cobra.Command {
 				os.Exit(1)
 			}
 
-			if err := run(args[0], args[1], args[2:]); err != nil {
+			if err := run(args[0], args[1], args[2:], !disableTTY); err != nil {
 				errors.HandleFatalError(err)
 			}
 		},
@@ -35,11 +36,13 @@ func New() *cobra.Command {
 		// arguments.
 		DisableFlagsInUseLine: true,
 	}
+	execCmd.Flags().BoolVarP(&disableTTY, "disable-tty", "T", false,
+		"Disable pseudo-tty allocation. By default 'blimp exec' allocates a TTY.")
 	execCmd.Flags().SetInterspersed(false)
 	return &execCmd
 }
 
-func run(svc, cmd string, cmdArguments []string) error {
+func run(svc, cmd string, cmdArguments []string, enableTTY bool) error {
 	auth, err := authstore.New()
 	if err != nil {
 		return errors.WithContext("parse auth config", err)
@@ -62,7 +65,7 @@ func run(svc, cmd string, cmdArguments []string) error {
 	}
 
 	// Put the terminal into raw mode to prevent it echoing characters twice.
-	tty := terminal.IsTerminal(int(os.Stdin.Fd()))
+	tty := enableTTY && terminal.IsTerminal(int(os.Stdin.Fd()))
 	if tty {
 		oldState, err := terminal.MakeRaw(int(os.Stdin.Fd()))
 		if err != nil {
