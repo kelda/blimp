@@ -31,3 +31,10 @@ data:
         proxy_set_header Connection $connection_upgrade;
       }
     }
+
+    # Redirect any stray HTTP requests to HTTPS. This helps when apps mistakenly
+    # send you back to HTTP for some reason.
+    server {
+      listen 80;
+      return 301 https://$host$request_uri;
+    }

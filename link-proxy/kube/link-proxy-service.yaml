@@ -12,3 +12,6 @@ spec:
   - name: https
     port: 443
     targetPort: 443
+  - name: http
+    port: 80
+    targetPort: 80
