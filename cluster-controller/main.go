@@ -259,7 +259,7 @@ func (s *server) CheckVersion(ctx context.Context, req *cluster.CheckVersionRequ
 			Version: version.Version,
 			DisplayMessage: "CLI version is incompatible with server. " +
 				"Please upgrade by running:\n\n" +
-				"curl -fsSL 'https://kelda.io/get-blimp.sh' | sh\n\n" +
+				"curl -fsSL 'https://blimpup.io/get-blimp.sh' | sh\n\n" +
 				"Or brew upgrade kelda/tools/blimp",
 			Action: cluster.CLIAction_EXIT,
 		}, nil
@@ -534,7 +534,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		featuresMsg = fmt.Sprintf("WARNING: Docker Compose file uses features unsupported by Kelda Blimp: %v\n"+
 			"Blimp will attempt to continue to boot.\n"+
 			"We're working on reaching full parity with Docker Compose.\n"+
-			"Ping us in Slack (http://slack.kelda.io) to request support for features!",
+			"Ping us in Slack (http://slack.blimpup.io) to request support for features!",
 			unsupportedFeatures)
 
 		analytics.Log.

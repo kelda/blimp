@@ -106,5 +106,5 @@ To run the tests, run `go test -v --tags ci -timeout=0 ./ci`.
 
 1. Update the install script to point to the new version in:
 
-    * `kelda.io/install-blimp.sh`. Make sure to update all AB tests.
+    * `blimpup.io/install-blimp.sh`. Make sure to update all AB tests.
     * `kelda/homebrew-kelda`

@@ -102,7 +102,7 @@ func (s *cliLoginServer) cliLoginCallback(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	redirectURL := "https://kelda.io/thank-you-login/"
+	redirectURL := "https://blimpup.io/thank-you-login/"
 	if user, err := auth.ParseIDToken(token, auth.DefaultVerifier); err == nil {
 		redirectURL += fmt.Sprintf("?bns=%s", user.Namespace)
 	} else {
