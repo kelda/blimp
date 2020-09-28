@@ -9,7 +9,7 @@ LD_FLAGS = "-X github.com/kelda/blimp/pkg/version.Version=${VERSION} \
 	   -s -w"
 SYNCTHING_VERSION=1.4.0
 DOCKER_REPO ?= gcr.io/kelda-blimp
-DOCKER_IMAGE = ${DOCKER_REPO}/blimp:${VERSION}
+DOCKER_IMAGE = ${DOCKER_REPO}/blimp:latest
 
 # Include override variables. The production Makefile takes precendence if it exists.
 -include local.mk

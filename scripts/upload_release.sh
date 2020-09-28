@@ -23,5 +23,3 @@ aws s3 cp ${windows_binary} s3://${s3_bucket}/${windows_binary} --acl public-rea
 # binary already exists.
 rm blimp-linux
 VERSION=${CIRCLE_TAG} make push-docker
-rm blimp-linux
-VERSION=latest make push-docker
