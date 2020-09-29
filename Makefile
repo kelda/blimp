@@ -14,6 +14,9 @@ REGISTRY_STORAGE ?= "5Gi"
 VERSION?=latest
 MANAGER_KEY_PATH = "./certs/cluster-manager.key.pem"
 MANAGER_CERT_PATH = "./certs/cluster-manager.crt.pem"
+LICENSE_PRIVATE_KEY_PATH = "./keys/license.key"
+LICENSE_PUBLIC_KEY_PATH = "./keys/license.pub"
+LICENSE_PUBLIC_KEY_BASE64 ?= $(shell base64 ${LICENSE_PUBLIC_KEY_PATH} | tr -d "\n")
 
 # Note that main.LinkProxyBaseHostname refers to a variable in
 # cluster-controller/main.go and link-proxy/main.go.
@@ -24,6 +27,7 @@ LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
 	   -X github.com/kelda-inc/blimp/pkg/version.NodeControllerImage=${NODE_CONTROLLER_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/version.ReservationImage=${RESERVATION_IMAGE} \
 	   -X github.com/kelda-inc/blimp/pkg/version.SyncthingImage=${SYNCTHING_IMAGE} \
+	   -X github.com/kelda-inc/blimp/pkg/license.LicensePublicKeyBase64=${LICENSE_PUBLIC_KEY_BASE64} \
 	   -X main.LoginProxyHost=${LOGIN_PROXY_HOSTNAME} \
 	   -X main.RegistryHostname=${REGISTRY_HOSTNAME} \
 	   -X main.LinkProxyBaseHostname=${LINK_PROXY_BASE_HOSTNAME} \
@@ -54,7 +58,11 @@ generate:
 certs:
 	./scripts/make-manager-cert.sh ${MANAGER_CERT_PATH} ${MANAGER_KEY_PATH} ${CLUSTER_MANAGER_IP}
 
-run-cluster-controller: certs
+keys:
+	mkdir -p keys
+	go run ./scripts/gen-license-keys ${LICENSE_PRIVATE_KEY_PATH} ${LICENSE_PUBLIC_KEY_PATH}
+
+run-cluster-controller: certs keys
 	go run -ldflags $(LD_FLAGS) ./cluster-controller -tls-cert ${MANAGER_CERT_PATH} -tls-key ${MANAGER_KEY_PATH}
 
 build-circle-image:

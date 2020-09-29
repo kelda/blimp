@@ -1,4 +1,5 @@
 certs/
+keys/
 local.mk
 syncthing-linux
 syncthing-macos
