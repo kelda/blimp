@@ -13,6 +13,7 @@ import (
 
 	"github.com/kelda/blimp/pkg/auth"
 	"github.com/kelda/blimp/pkg/errors"
+	clusterAuth "github.com/kelda-inc/blimp/pkg/auth"
 )
 
 func init() {
@@ -62,8 +63,16 @@ func authenticate(input string) error {
 		return errors.New("malformed authentication input")
 	}
 
-	user, err := auth.ParseIDToken(credentials[1], auth.VerifierFromKeySet(
-		diskCachedKeySet{
+	blimpAuth, err := auth.BlimpRegistryAuth{
+		Username: credentials[0],
+		Password: credentials[1],
+	}.ToBlimpAuth()
+	if err != nil {
+		return errors.WithContext("parse regcred", err)
+	}
+	user, err := clusterAuth.AuthorizeRequestWithVerifier(
+		blimpAuth,
+		auth.VerifierFromKeySet(diskCachedKeySet{
 			localPath: "/blimp-jwks.json",
 			remoteURL: auth.JWKSURL,
 		}))

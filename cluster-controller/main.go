@@ -38,6 +38,7 @@ import (
 	"github.com/kelda-inc/blimp/cluster-controller/node"
 	"github.com/kelda-inc/blimp/cluster-controller/volume"
 	"github.com/kelda-inc/blimp/pkg/analytics"
+	clusterAuth "github.com/kelda-inc/blimp/pkg/auth"
 	"github.com/kelda-inc/blimp/pkg/expose"
 	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/metadata"
@@ -49,6 +50,7 @@ import (
 	"github.com/kelda/blimp/pkg/hash"
 	"github.com/kelda/blimp/pkg/kubewait"
 	"github.com/kelda/blimp/pkg/names"
+	protoAuth "github.com/kelda/blimp/pkg/proto/auth"
 	"github.com/kelda/blimp/pkg/proto/cluster"
 	"github.com/kelda/blimp/pkg/syncthing"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -260,7 +262,7 @@ func (s *server) AttachToSandbox(ctx context.Context, req *cluster.AttachToSandb
 	log.Info("Start AttachToSandbox")
 
 	// Validate that the user logged in, and get their information.
-	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
+	user, err := clusterAuth.AuthorizeRequest(clusterAuth.GetAuth(req))
 	if err != nil {
 		return &cluster.AttachToSandboxResponse{}, err
 	}
@@ -300,7 +302,7 @@ func (s *server) GetBuildkit(ctx context.Context, req *cluster.GetBuildkitReques
 	log.Info("Start GetBuildkit")
 
 	// Validate that the user logged in, and get their information.
-	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
+	user, err := clusterAuth.AuthorizeRequest(clusterAuth.GetAuth(req))
 	if err != nil {
 		return &cluster.GetBuildkitResponse{}, err
 	}
@@ -343,7 +345,7 @@ func (s *server) GetImageNamespace(ctx context.Context, req *cluster.GetImageNam
 	*cluster.GetImageNamespaceResponse, error) {
 	log.Info("Start GetImageNamespace")
 
-	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
+	user, err := clusterAuth.AuthorizeRequest(clusterAuth.GetAuth(req))
 	if err != nil {
 		return &cluster.GetImageNamespaceResponse{}, err
 	}
@@ -358,7 +360,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 	log.Info("Start CreateSandbox")
 
 	// Validate that the user logged in, and get their information.
-	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
+	user, err := clusterAuth.AuthorizeRequest(clusterAuth.GetAuth(req))
 	if err != nil {
 		return &cluster.CreateSandboxResponse{}, err
 	}
@@ -486,10 +488,11 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		creds = map[string]*cluster.RegistryCredential{}
 	}
 
-	creds[RegistryHostname] = &cluster.RegistryCredential{
-		Username: "_blimp_access_token",
-		Password: req.GetToken(),
+	blimpRegCred, err := auth.BlimpRegcred(clusterAuth.GetAuth(req))
+	if err != nil {
+		return &cluster.CreateSandboxResponse{}, errors.WithContext("create Blimp registry credential", err)
 	}
+	creds[RegistryHostname] = blimpRegCred.ToProtobuf()
 	if err := s.createPodRunnerServiceAccount(namespace, creds); err != nil {
 		return &cluster.CreateSandboxResponse{}, errors.WithContext("create pod runner service account", err)
 	}
@@ -533,7 +536,7 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 
 func (s *server) DeployToSandbox(ctx context.Context, req *cluster.DeployRequest) (*cluster.DeployResponse, error) {
 	// Validate that the user logged in, and get their information.
-	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
+	user, err := clusterAuth.AuthorizeRequest(clusterAuth.GetAuth(req))
 	if err != nil {
 		return &cluster.DeployResponse{}, err
 	}
@@ -1035,7 +1038,7 @@ func (s *server) deployCustomerPods(namespace string, desired []corev1.Pod) erro
 
 func (s *server) DeleteSandbox(ctx context.Context, req *cluster.DeleteSandboxRequest) (
 	*cluster.DeleteSandboxResponse, error) {
-	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
+	user, err := clusterAuth.AuthorizeRequest(clusterAuth.GetAuth(req))
 	if err != nil {
 		return &cluster.DeleteSandboxResponse{}, err
 	}
@@ -1081,7 +1084,7 @@ func (s *server) DeleteSandbox(ctx context.Context, req *cluster.DeleteSandboxRe
 }
 
 func (s *server) GetStatus(ctx context.Context, req *cluster.GetStatusRequest) (*cluster.GetStatusResponse, error) {
-	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
+	user, err := clusterAuth.AuthorizeRequest(clusterAuth.GetAuth(req))
 	if err != nil {
 		return &cluster.GetStatusResponse{}, err
 	}
@@ -1095,7 +1098,7 @@ func (s *server) GetStatus(ctx context.Context, req *cluster.GetStatusRequest) (
 }
 
 func (s *server) WatchStatus(req *cluster.GetStatusRequest, stream cluster.Manager_WatchStatusServer) error {
-	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
+	user, err := clusterAuth.AuthorizeRequest(clusterAuth.GetAuth(req))
 	if err != nil {
 		return err
 	}
@@ -1119,7 +1122,7 @@ func (s *server) WatchStatus(req *cluster.GetStatusRequest, stream cluster.Manag
 }
 
 func (s *server) Restart(ctx context.Context, req *cluster.RestartRequest) (*cluster.RestartResponse, error) {
-	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
+	user, err := clusterAuth.AuthorizeRequest(clusterAuth.GetAuth(req))
 	if err != nil {
 		return &cluster.RestartResponse{}, err
 	}
@@ -1158,7 +1161,7 @@ func (s *server) Restart(ctx context.Context, req *cluster.RestartRequest) (*clu
 }
 
 func (s *server) TagImages(req *cluster.TagImagesRequest, stream cluster.Manager_TagImagesServer) error {
-	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
+	user, err := clusterAuth.AuthorizeRequest(clusterAuth.GetAuth(req))
 	if err != nil {
 		return errors.WithContext("authenticate token", err)
 	}
@@ -1169,17 +1172,20 @@ func (s *server) TagImages(req *cluster.TagImagesRequest, stream cluster.Manager
 	if regCreds == nil {
 		regCreds = map[string]*cluster.RegistryCredential{}
 	}
-	regCreds[RegistryHostname] = &cluster.RegistryCredential{
-		Username: "ignored",
-		Password: req.GetToken(),
+
+
+	blimpRegCred, err := auth.BlimpRegcred(clusterAuth.GetAuth(req))
+	if err != nil {
+		return errors.WithContext("create Blimp registry credential", err)
 	}
+	regCreds[RegistryHostname] = blimpRegCred.ToProtobuf()
 
 	ctx, cancel := context.WithCancel(stream.Context())
 
 	responses := make(chan cluster.TagImagesResponse)
 	for _, tagRequest := range req.GetTagRequests() {
 		go func(tagRequest cluster.TagImageRequest) {
-			err := s.pushImage(tagRequest.GetImage(), tagRequest.GetTag(), req.GetToken(), regCreds)
+			err := s.pushImage(tagRequest.GetImage(), tagRequest.GetTag(), clusterAuth.GetAuth(req), regCreds)
 			if err != nil {
 				log.WithError(err).WithField("image", tagRequest.GetImage()).WithField("namespace", user.Namespace).
 					Info("image tag failed")
@@ -1225,7 +1231,7 @@ func (s *server) TagImages(req *cluster.TagImagesRequest, stream cluster.Manager
 	return nil
 }
 
-func (s *server) pushImage(oldName, newName, token string,
+func (s *server) pushImage(oldName, newName string, blimpAuth *protoAuth.BlimpAuth,
 	creds map[string]*cluster.RegistryCredential) error {
 
 	ref, err := name.ParseReference(oldName)
@@ -1279,8 +1285,11 @@ func (s *server) pushImage(oldName, newName, token string,
 		return errors.New("illegal registry %q", newRef.Context().RegistryStr())
 	}
 
-	auth := authn.Basic{Username: "ignored", Password: token}
-	err = remote.Write(newRef, image, remote.WithAuth(&auth))
+	regcred, err := auth.BlimpRegcred(blimpAuth)
+	if err != nil {
+		return errors.WithContext("create Blimp registry credential", err)
+	}
+	err = remote.Write(newRef, image, remote.WithAuth(regcred.ToContainerRegistry()))
 	if err != nil {
 		return errors.WithContext("push image", err)
 	}
@@ -1290,7 +1299,7 @@ func (s *server) pushImage(oldName, newName, token string,
 
 func (s *server) Expose(ctx context.Context, req *cluster.ExposeRequest) (
 	*cluster.ExposeResponse, error) {
-	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
+	user, err := clusterAuth.AuthorizeRequest(clusterAuth.GetAuth(req))
 	if err != nil {
 		return &cluster.ExposeResponse{}, err
 	}
@@ -1360,7 +1369,7 @@ func (s *server) Expose(ctx context.Context, req *cluster.ExposeRequest) (
 
 func (s *server) Unexpose(ctx context.Context, req *cluster.UnexposeRequest) (
 	*cluster.UnexposeResponse, error) {
-	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
+	user, err := clusterAuth.AuthorizeRequest(clusterAuth.GetAuth(req))
 	if err != nil {
 		return &cluster.UnexposeResponse{}, err
 	}

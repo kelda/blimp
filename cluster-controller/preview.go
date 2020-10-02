@@ -12,9 +12,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/kelda-inc/blimp/pkg/auth"
 	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/version"
-	"github.com/kelda/blimp/pkg/auth"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/names"
 	"github.com/kelda/blimp/pkg/proto/cluster"
@@ -39,7 +39,7 @@ func createCLINamespace(kubeClient kubernetes.Interface) {
 }
 
 func (s *server) BlimpUpPreview(req *cluster.BlimpUpPreviewRequest, srv cluster.Manager_BlimpUpPreviewServer) error {
-	user, err := auth.ParseIDToken(req.GetToken(), auth.DefaultVerifier)
+	user, err := auth.AuthorizeRequest(req.GetAuth())
 	if err != nil {
 		return err
 	}
@@ -52,7 +52,7 @@ func (s *server) BlimpUpPreview(req *cluster.BlimpUpPreviewRequest, srv cluster.
 	env := []corev1.EnvVar{
 		{
 			Name:  "BLIMP_TOKEN",
-			Value: req.GetToken(),
+			Value: req.GetAuth().GetToken(),
 		},
 		{
 			Name:  "GIT_REPO",

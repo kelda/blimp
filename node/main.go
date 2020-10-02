@@ -17,12 +17,12 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/kelda-inc/blimp/pkg/auth"
 	"github.com/kelda-inc/blimp/node/wait"
 	"github.com/kelda-inc/blimp/pkg/analytics"
 	"github.com/kelda-inc/blimp/pkg/expose"
 	"github.com/kelda-inc/blimp/pkg/kube"
 	"github.com/kelda-inc/blimp/pkg/ports"
-	"github.com/kelda/blimp/pkg/auth"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/names"
 	"github.com/kelda/blimp/pkg/proto/node"
@@ -112,9 +112,19 @@ func (s *server) listenAndServe(address string) error {
 }
 
 func (s *server) Tunnel(nsrv node.Controller_TunnelServer) error {
-	serviceName, port, namespace, err := tunnel.ServerHeader(nsrv)
+	msg, err := nsrv.Recv()
 	if err != nil {
 		return err
+	}
+
+	header := msg.GetHeader()
+	if header == nil {
+		return status.New(codes.Internal, "first message must be a header").Err()
+	}
+
+	user, err := auth.AuthorizeRequest(auth.GetAuth(header))
+	if err != nil {
+		return errors.WithContext("bad token", err)
 	}
 
 	// XXX: We don't hash the name of the syncthing pod when deploying it.
@@ -122,17 +132,17 @@ func (s *server) Tunnel(nsrv node.Controller_TunnelServer) error {
 	// Node Controller is poorly designed. We should revisit this when we
 	// redesign the other APIs that refer to service names, such as logs and
 	// SSH.
-	podName := serviceName
-	if serviceName != kube.PodNameSyncthing && serviceName != kube.PodNameBuildkitd {
-		podName = names.PodName(serviceName)
+	podName := header.Name
+	if header.Name != kube.PodNameSyncthing && header.Name != kube.PodNameBuildkitd {
+		podName = names.PodName(header.Name)
 	}
 
-	dstPod, err := s.podLister.Pods(namespace).Get(podName)
+	dstPod, err := s.podLister.Pods(user.Namespace).Get(podName)
 	if err != nil {
 		return status.New(codes.OutOfRange, "unknown destination").Err()
 	}
 
-	dialAddr := fmt.Sprintf("%s:%d", dstPod.Status.PodIP, port)
+	dialAddr := fmt.Sprintf("%s:%d", dstPod.Status.PodIP, header.Port)
 	stream, err := net.Dial("tcp", dialAddr)
 	if err != nil {
 		return status.New(codes.Internal, err.Error()).Err()
@@ -148,7 +158,7 @@ func (s *server) ExposedTunnel(nsrv node.Controller_ExposedTunnelServer) error {
 		return status.New(codes.Internal, err.Error()).Err()
 	}
 
-	header := msg.GetHeader()
+	header := msg.GetExposedHeader()
 	if header == nil {
 		return status.New(codes.Internal, "first message must be a header").Err()
 	}
@@ -198,7 +208,7 @@ func (s *server) SyncNotifications(srv node.Controller_SyncNotificationsServer) 
 		return err
 	}
 
-	user, err := auth.ParseIDToken(handshake.GetToken(), auth.DefaultVerifier)
+	user, err := auth.AuthorizeRequest(auth.GetAuth(handshake))
 	if err != nil {
 		return errors.WithContext("validate token", err)
 	}

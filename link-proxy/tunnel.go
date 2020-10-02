@@ -65,8 +65,8 @@ func (s *server) dialTunnelContext(ctx context.Context, network, addr string) (n
 		return nil, errors.New("failed to establish tunnel")
 	}
 
-	err = tunnel.Send(&node.TunnelMsg{Msg: &node.TunnelMsg_Header{
-		Header: &node.TunnelHeader{
+	err = tunnel.Send(&node.TunnelMsg{Msg: &node.TunnelMsg_ExposedHeader{
+		ExposedHeader: &node.ExposedTunnelHeader{
 			Token:     token,
 			Namespace: namespace,
 		}}})
