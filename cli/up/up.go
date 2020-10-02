@@ -19,14 +19,13 @@ import (
 	"google.golang.org/grpc"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/kelda/blimp/cli/authstore"
+	cliConfig "github.com/kelda/blimp/cli/config"
 	"github.com/kelda/blimp/cli/down"
 	"github.com/kelda/blimp/cli/logs"
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/cli/util"
 	"github.com/kelda/blimp/pkg/analytics"
 	"github.com/kelda/blimp/pkg/auth"
-	"github.com/kelda/blimp/pkg/cfgdir"
 	"github.com/kelda/blimp/pkg/dockercompose"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/proto/cluster"
@@ -45,20 +44,9 @@ func New() *cobra.Command {
 			"Up boots the docker-compose.yml in the current directory. " +
 			"If service are specified, `up` boots the services, as well as their dependencies.",
 		Run: func(_ *cobra.Command, services []string) {
-			auth, err := authstore.New()
+			blimpConfig, err := cliConfig.GetConfig()
 			if err != nil {
-				log.WithError(err).Fatal("Failed to parse local authentication store")
-			}
-
-			// TODO: Prompt to login again if token is expired.
-			if auth.AuthToken == "" {
-				fmt.Fprintln(os.Stderr, "Not logged in. Please run `blimp login`.")
-				os.Exit(1)
-			}
-
-			globalConfig, err := cfgdir.ParseConfig()
-			if err != nil {
-				log.WithError(err).Fatal("Failed to read blimp config")
+				errors.HandleFatalError(err)
 			}
 
 			// Convert the compose path to an absolute path so that the code
@@ -83,8 +71,7 @@ func New() *cobra.Command {
 			cmd.composePath = composePath
 			cmd.overridePaths = overridePaths
 			cmd.dockerConfig = dockerConfig
-			cmd.auth = auth
-			cmd.globalConfig = globalConfig
+			cmd.config = blimpConfig
 			if err := cmd.run(services); err != nil {
 				errors.HandleFatalError(err)
 			}
@@ -109,8 +96,7 @@ func New() *cobra.Command {
 }
 
 type up struct {
-	auth                authstore.Store
-	globalConfig        cfgdir.Config
+	config              cliConfig.Config
 	composePath         string
 	overridePaths       []string
 	alwaysBuild         bool
@@ -184,7 +170,7 @@ func (cmd *up) run(services []string) error {
 	go pp.Run()
 
 	_, err = manager.C.DeployToSandbox(context.Background(), &cluster.DeployRequest{
-		Token:       cmd.auth.AuthToken,
+		Token:       cmd.config.BlimpAuth(),
 		ComposeFile: string(parsedComposeBytes),
 		BuiltImages: builtImages,
 	})
@@ -200,7 +186,7 @@ func (cmd *up) run(services []string) error {
 		go func() {
 			defer close(syncthingError)
 
-			output, err := stClient.Run(syncthingCtx, cmd.nodeControllerClient, cmd.auth.AuthToken, cmd.tunnelManager)
+			output, err := stClient.Run(syncthingCtx, cmd.nodeControllerClient, cmd.config.BlimpAuth(), cmd.tunnelManager)
 			select {
 			// We intentionally killed the Syncthing process, so exiting was expected.
 			case <-syncthingCtx.Done():
@@ -284,7 +270,7 @@ func (cmd *up) run(services []string) error {
 
 			downFinished := make(chan error)
 			go func() {
-				downFinished <- down.Run(cmd.auth.AuthToken, false)
+				downFinished <- down.Run(cmd.config.BlimpAuth(), false)
 			}()
 
 			select {
@@ -308,7 +294,7 @@ func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) err
 
 	resp, err := manager.C.CreateSandbox(context.TODO(),
 		&cluster.CreateSandboxRequest{
-			Token:               cmd.auth.AuthToken,
+			Token:               cmd.config.BlimpAuth(),
 			ComposeFile:         composeCfg,
 			RegistryCredentials: cmd.regCreds.ToProtobuf(),
 			SyncedFolders:       idPathMap,
@@ -334,27 +320,27 @@ func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) err
 		return errors.WithContext("connect to node controller", err)
 	}
 	cmd.nodeControllerClient = node.NewControllerClient(cmd.nodeControllerConn)
-	cmd.tunnelManager = tunnel.NewManager(cmd.nodeControllerClient, cmd.auth.AuthToken)
+	cmd.tunnelManager = tunnel.NewManager(cmd.nodeControllerClient, cmd.config.BlimpAuth())
 
 	cmd.imageNamespace = resp.ImageNamespace
 	// Add the registry credentials for pushing to the blimp registry.
 	cmd.regCreds[strings.SplitN(cmd.imageNamespace, "/", 2)[0]] = types.AuthConfig{
 		Username: "ignored",
-		Password: cmd.auth.AuthToken,
+		Password: cmd.config.Auth.AuthToken,
 	}
 
 	// Save the Kubernetes API credentials for use by other Blimp commands.
 	kubeCreds := resp.GetKubeCredentials()
-	cmd.auth.KubeToken = kubeCreds.Token
-	cmd.auth.KubeHost = kubeCreds.Host
-	cmd.auth.KubeCACrt = kubeCreds.CaCrt
-	cmd.auth.KubeNamespace = kubeCreds.Namespace
+	cmd.config.Auth.KubeToken = kubeCreds.Token
+	cmd.config.Auth.KubeHost = kubeCreds.Host
+	cmd.config.Auth.KubeCACrt = kubeCreds.CaCrt
+	cmd.config.Auth.KubeNamespace = kubeCreds.Namespace
 
 	// Apply any overrides from the user's local config.
-	if cmd.globalConfig.KubeHost != "" {
-		cmd.auth.KubeHost = cmd.globalConfig.KubeHost
+	if cmd.config.ConfigFile.KubeHost != "" {
+		cmd.config.Auth.KubeHost = cmd.config.ConfigFile.KubeHost
 	}
-	if err := cmd.auth.Save(); err != nil {
+	if err := cmd.config.Auth.Save(); err != nil {
 		return err
 	}
 	return nil
@@ -363,7 +349,7 @@ func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) err
 func (cmd *up) runGUI(ctx context.Context, parsedCompose composeTypes.Project) error {
 	services := parsedCompose.ServiceNames()
 	statusPrinter := newStatusPrinter(services, cmd.disableStatusOutput)
-	if !statusPrinter.Run(ctx, manager.C, cmd.auth.AuthToken) {
+	if !statusPrinter.Run(ctx, manager.C, cmd.config.BlimpAuth()) {
 		return nil
 	}
 	analytics.Log.Info("Containers booted")
@@ -371,7 +357,7 @@ func (cmd *up) runGUI(ctx context.Context, parsedCompose composeTypes.Project) e
 	return logs.Command{
 		Services: services,
 		Opts:     corev1.PodLogOptions{Follow: true},
-		Auth:     cmd.auth,
+		Config:     cmd.config,
 	}.Run(ctx)
 }
 

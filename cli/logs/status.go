@@ -100,7 +100,7 @@ func (cmd *Command) startStatusUpdater(ctx context.Context) error {
 	// Fetch initial statuses.
 	fetchCtx, _ := context.WithTimeout(ctx, 15*time.Second)
 	initStatus, err := manager.C.GetStatus(fetchCtx, &cluster.GetStatusRequest{
-		Token: cmd.Auth.AuthToken,
+		Token: cmd.Config.BlimpAuth(),
 	})
 	if err != nil {
 		return errors.WithContext("logs fetch initial statuses", err)
@@ -117,7 +117,7 @@ func (cmd *Command) startStatusUpdater(ctx context.Context) error {
 
 	go func() {
 		for {
-			err := watchStatus(ctx, cmd.svcStatus, cmd.Auth.AuthToken)
+			err := watchStatus(ctx, cmd.svcStatus, cmd.Config.BlimpAuth())
 
 			switch {
 			case err == nil:

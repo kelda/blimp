@@ -2,7 +2,6 @@ package build
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -13,7 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"github.com/kelda/blimp/cli/authstore"
+	cliConfig "github.com/kelda/blimp/cli/config"
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/cli/util"
 	"github.com/kelda/blimp/pkg/auth"
@@ -39,14 +38,9 @@ func New() *cobra.Command {
 			"If you change a service's `Dockerfile` or the contents of its build directory, " +
 			"you can run `blimp build` to rebuild it.",
 		Run: func(_ *cobra.Command, services []string) {
-			authConfig, err := authstore.New()
+			blimpConfig, err := cliConfig.GetConfig()
 			if err != nil {
-				log.WithError(err).Fatal("Failed to parse auth store")
-			}
-
-			if authConfig.AuthToken == "" {
-				fmt.Fprintln(os.Stderr, "Not logged in. Please run `blimp login`.")
-				return
+				errors.HandleFatalError(err)
 			}
 
 			dockerConfig, err := config.Load(config.Dir())
@@ -55,7 +49,7 @@ func New() *cobra.Command {
 			}
 
 			getNamespaceCtx, _ := context.WithTimeout(context.Background(), 30*time.Second)
-			getImageNamespaceResp, err := manager.C.GetImageNamespace(getNamespaceCtx, &cluster.GetImageNamespaceRequest{Token: authConfig.AuthToken})
+			getImageNamespaceResp, err := manager.C.GetImageNamespace(getNamespaceCtx, &cluster.GetImageNamespaceRequest{Token: blimpConfig.BlimpAuth()})
 			if err != nil {
 				log.WithError(err).Fatal("Failed to get development environment's image namespace")
 			}
@@ -70,7 +64,7 @@ func New() *cobra.Command {
 			// Add the registry credentials for pushing to the blimp registry.
 			regCreds[strings.SplitN(imageNamespace, "/", 2)[0]] = types.AuthConfig{
 				Username: "ignored",
-				Password: authConfig.AuthToken,
+				Password: blimpConfig.BlimpAuth(),
 			}
 
 			// Convert the compose path to an absolute path so that the code
@@ -92,7 +86,7 @@ func New() *cobra.Command {
 				log.WithError(err).Fatal("Failed to load compose file")
 			}
 
-			builder, err := getImageBuilder(regCreds, dockerConfig, authConfig.AuthToken, forceBuildkit)
+			builder, err := getImageBuilder(regCreds, dockerConfig, blimpConfig.BlimpAuth(), forceBuildkit)
 			if err != nil {
 				log.WithError(err).Fatal("Get image builder")
 			}
