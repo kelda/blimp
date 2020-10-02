@@ -11,6 +11,7 @@ import (
 	"github.com/kelda/blimp/cli/config"
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/proto/auth"
 	"github.com/kelda/blimp/pkg/proto/cluster"
 )
 
@@ -62,9 +63,9 @@ might be different from the port you use locally.`,
 	return cobraCmd
 }
 
-func runExpose(authToken, service string, port int) error {
+func runExpose(auth *auth.BlimpAuth, service string, port int) error {
 	resp, err := manager.C.Expose(context.Background(), &cluster.ExposeRequest{
-		Token:   authToken,
+		Auth:   auth,
 		Service: service,
 		Port:    uint32(port),
 	})
@@ -76,9 +77,9 @@ func runExpose(authToken, service string, port int) error {
 	return nil
 }
 
-func runUnexpose(authToken string) error {
+func runUnexpose(auth *auth.BlimpAuth) error {
 	_, err := manager.C.Unexpose(context.Background(), &cluster.UnexposeRequest{
-		Token: authToken,
+		Auth: auth,
 	})
 	if err != nil {
 		return errors.WithContext("send unexpose request", err)

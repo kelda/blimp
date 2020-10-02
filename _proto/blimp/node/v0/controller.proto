@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package blimp.node.v0;
 
+import "blimp/auth/v0/auth.proto";
 import "blimp/errors/v0/errors.proto";
 
 option go_package = "github.com/kelda/blimp/pkg/proto/node";
@@ -16,15 +17,17 @@ service Controller {
   rpc SyncNotifications(stream SyncStatusResponse) returns (stream GetSyncStatusRequest) {}
 }
 
-// In a Tunnel, name, port, and token are used. In an ExposedTunnel, token and
-// namespace are used.
 message TunnelHeader{
-    string name = 1;
-    uint32 port = 2;
-    // For Tunnel, token is a normal OAuth ID Token. For ExposedTunnel, it is
-    // the secret key indexing the service/port combination to be exposed.
-    string token = 3;
-    string namespace = 4;
+  reserved 4;
+  string name = 1;
+  uint32 port = 2;
+  string old_token = 3;
+  blimp.auth.v0.BlimpAuth auth = 5;
+}
+
+message ExposedTunnelHeader{
+  string token = 1;
+  string namespace = 2;
 }
 
 message EOF {}
@@ -36,6 +39,7 @@ message TunnelMsg {
   oneof msg {
     blimp.errors.v0.Error error = 1;
     TunnelHeader header = 2;
+    ExposedTunnelHeader exposed_header = 5;
     bytes buf = 3;
     EOF eof = 4;
   }
@@ -44,7 +48,9 @@ message TunnelMsg {
 message SyncStatusResponse {
   oneof msg {
     // Only used in handshake.
-    string token = 1;
+    string old_token = 1;
+    blimp.auth.v0.BlimpAuth auth = 3;
+
     bool synced = 2;
   }
 }

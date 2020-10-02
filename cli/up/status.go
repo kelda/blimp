@@ -17,6 +17,7 @@ import (
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/cli/ps"
 	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/proto/auth"
 	"github.com/kelda/blimp/pkg/proto/cluster"
 )
 
@@ -40,12 +41,12 @@ func newStatusPrinter(services []string, disableOutput bool) *statusPrinter {
 }
 
 func (sp *statusPrinter) Run(ctx context.Context,
-	clusterManager manager.Client, authToken string) bool {
+	clusterManager manager.Client, auth *auth.BlimpAuth) bool {
 	// Stop watching the status after we're done printing the status.
 	syncCtx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
 
-	go sp.syncStatus(syncCtx, clusterManager, authToken)
+	go sp.syncStatus(syncCtx, clusterManager, auth)
 
 	for {
 		if !sp.disableOutput {
@@ -78,7 +79,7 @@ func (sp *statusPrinter) Run(ctx context.Context,
 }
 
 func (sp *statusPrinter) syncStatus(ctx context.Context,
-	clusterManager manager.Client, authToken string) {
+	clusterManager manager.Client, auth *auth.BlimpAuth) {
 	syncStream := func(stream cluster.Manager_WatchStatusClient) error {
 		for {
 			msg, err := stream.Recv()
@@ -102,7 +103,7 @@ func (sp *statusPrinter) syncStatus(ctx context.Context,
 
 	for {
 		statusStream, err := clusterManager.WatchStatus(ctx, &cluster.GetStatusRequest{
-			Token: authToken,
+			Auth: auth,
 		})
 		if err != nil {
 			log.WithError(err).Warn("Failed to start status watch")

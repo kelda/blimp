@@ -10,6 +10,7 @@ import (
 
 	"github.com/kelda/blimp/cli/util"
 	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/proto/auth"
 	"github.com/kelda/blimp/pkg/proto/cluster"
 	"github.com/kelda/blimp/pkg/version"
 )
@@ -85,10 +86,10 @@ func dial(host, cert, hostname string) (Client, error) {
 	return client, nil
 }
 
-func CheckServiceStatus(svc string, authToken string,
+func CheckServiceStatus(svc string, auth *auth.BlimpAuth,
 	predicate func(*cluster.ServiceStatus) bool) error {
 	statusResp, err := C.GetStatus(context.Background(), &cluster.GetStatusRequest{
-		Token: authToken,
+		Auth: auth,
 	})
 	if err != nil {
 		return err
@@ -112,8 +113,8 @@ func CheckServiceStatus(svc string, authToken string,
 		"This service isn't booted. You can check its status with `blimp ps`.")
 }
 
-func CheckServiceRunning(svc string, authToken string) error {
-	return CheckServiceStatus(svc, authToken, func(svcStatus *cluster.ServiceStatus) bool {
+func CheckServiceRunning(svc string, auth *auth.BlimpAuth) error {
+	return CheckServiceStatus(svc, auth, func(svcStatus *cluster.ServiceStatus) bool {
 		// If a service is unhealthy, we probably still want to be able to
 		// interact with it, to figure out why it's unhealthy.
 		return svcStatus.GetPhase() == cluster.ServicePhase_RUNNING ||
@@ -122,8 +123,8 @@ func CheckServiceRunning(svc string, authToken string) error {
 }
 
 // CheckServiceStarted checks that the service has started at some point. It may or may not be actively running.
-func CheckServiceStarted(svc string, authToken string) error {
-	return CheckServiceStatus(svc, authToken, func(svcStatus *cluster.ServiceStatus) bool {
+func CheckServiceStarted(svc string, auth *auth.BlimpAuth) error {
+	return CheckServiceStatus(svc, auth, func(svcStatus *cluster.ServiceStatus) bool {
 		return svcStatus.GetHasStarted()
 	})
 }

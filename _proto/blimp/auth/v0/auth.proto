@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package blimp.auth.v0;
+
+option go_package = "github.com/kelda/blimp/pkg/proto/auth";
+
+// BlimpAuth should provide all credentials necessary for authentication and
+// authorization.
+message BlimpAuth {
+  // token is an OAuth ID token obtained via the blimp login-proxy.
+  string token = 1;
+
+  // cluster_auth is a secret token authorizing use of the cluster. This is only
+  // needed by some clusters.
+  string cluster_auth = 2;
+}

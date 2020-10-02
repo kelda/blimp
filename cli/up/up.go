@@ -170,7 +170,7 @@ func (cmd *up) run(services []string) error {
 	go pp.Run()
 
 	_, err = manager.C.DeployToSandbox(context.Background(), &cluster.DeployRequest{
-		Token:       cmd.config.BlimpAuth(),
+		Auth:        cmd.config.BlimpAuth(),
 		ComposeFile: string(parsedComposeBytes),
 		BuiltImages: builtImages,
 	})
@@ -294,7 +294,7 @@ func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) err
 
 	resp, err := manager.C.CreateSandbox(context.TODO(),
 		&cluster.CreateSandboxRequest{
-			Token:               cmd.config.BlimpAuth(),
+			Auth:                cmd.config.BlimpAuth(),
 			ComposeFile:         composeCfg,
 			RegistryCredentials: cmd.regCreds.ToProtobuf(),
 			SyncedFolders:       idPathMap,
@@ -324,10 +324,11 @@ func (cmd *up) createSandbox(composeCfg string, idPathMap map[string]string) err
 
 	cmd.imageNamespace = resp.ImageNamespace
 	// Add the registry credentials for pushing to the blimp registry.
-	cmd.regCreds[strings.SplitN(cmd.imageNamespace, "/", 2)[0]] = types.AuthConfig{
-		Username: "ignored",
-		Password: cmd.config.Auth.AuthToken,
+	blimpRegcred, err := auth.BlimpRegcred(cmd.config.BlimpAuth())
+	if err != nil {
+		return errors.WithContext("create Blimp regcred", err)
 	}
+	cmd.regCreds[strings.SplitN(cmd.imageNamespace, "/", 2)[0]] = blimpRegcred.ToDocker()
 
 	// Save the Kubernetes API credentials for use by other Blimp commands.
 	kubeCreds := resp.GetKubeCredentials()

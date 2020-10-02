@@ -47,6 +47,7 @@ generate:
 	protoc -I _proto _proto/blimp/node/v0/controller.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
 	protoc -I _proto _proto/blimp/cluster/v0/manager.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
 	protoc -I _proto _proto/blimp/login/v0/login.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
+	protoc _proto/blimp/auth/v0/auth.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
 	protoc _proto/blimp/errors/v0/errors.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
 
 certs:

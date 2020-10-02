@@ -4,6 +4,7 @@ import (
 	"github.com/kelda/blimp/cli/authstore"
 	"github.com/kelda/blimp/pkg/cfgdir"
 	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/proto/auth"
 )
 
 type Config struct {
@@ -32,6 +33,9 @@ func GetConfig() (Config, error) {
 	}, nil
 }
 
-func (config Config) BlimpAuth() string {
-	return config.Auth.AuthToken
+func (config Config) BlimpAuth() *auth.BlimpAuth {
+	return &auth.BlimpAuth{
+		Token:       config.Auth.AuthToken,
+		ClusterAuth: config.ConfigFile.ClusterToken,
+	}
 }

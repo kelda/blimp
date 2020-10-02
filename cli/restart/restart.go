@@ -47,7 +47,7 @@ func run(svc string) error {
 	}
 
 	_, err = manager.C.Restart(context.Background(), &cluster.RestartRequest{
-		Token:   blimpConfig.BlimpAuth(),
+		Auth:    blimpConfig.BlimpAuth(),
 		Service: svc,
 	})
 	return err

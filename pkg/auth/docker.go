@@ -3,14 +3,26 @@ package auth
 import (
 	"encoding/base64"
 	"encoding/json"
+	"strings"
 
 	"github.com/docker/cli/cli/config/configfile"
 	clitypes "github.com/docker/cli/cli/config/types"
 	"github.com/docker/docker/api/types"
+
+	// We use jsonpb rather than google.golang.org/protobuf/encoding/protojson
+	// because we're still using v1 rather than v2 protobufs.
+	"github.com/golang/protobuf/jsonpb"
+	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 
+	"github.com/kelda/blimp/pkg/proto/auth"
 	"github.com/kelda/blimp/pkg/proto/cluster"
 )
+
+// JSONCredUsername is the username that we use for registry credentials to the
+// Blimp registry to indicate that the password is a JSON-encoded
+// auth.BlimpAuth, as opposed to a plain ID token.
+const JSONCredUsername = "_json"
 
 type RegistryCredentials map[string]types.AuthConfig
 
@@ -95,4 +107,58 @@ func RegistryAuthHeader(cred types.AuthConfig) (string, error) {
 	}
 
 	return base64.URLEncoding.EncodeToString(authJSON), nil
+}
+
+type BlimpRegistryAuth struct {
+	Username string
+	Password string
+}
+
+func BlimpRegcred(auth *auth.BlimpAuth) (BlimpRegistryAuth, error) {
+	marshaller := jsonpb.Marshaler{}
+	json, err := marshaller.MarshalToString(auth)
+	if err != nil {
+		return BlimpRegistryAuth{}, err
+	}
+
+	return BlimpRegistryAuth{
+		Username: JSONCredUsername,
+		Password: json,
+	}, nil
+}
+
+func (regAuth BlimpRegistryAuth) ToProtobuf() *cluster.RegistryCredential {
+	return &cluster.RegistryCredential{
+		Username: regAuth.Username,
+		Password: regAuth.Password,
+	}
+}
+
+func (regAuth BlimpRegistryAuth) ToContainerRegistry() authn.Authenticator {
+	return &authn.Basic{
+		Username: regAuth.Username,
+		Password: regAuth.Password,
+	}
+}
+
+func (regAuth BlimpRegistryAuth) ToDocker() types.AuthConfig {
+	return types.AuthConfig{
+		Username: regAuth.Username,
+		Password: regAuth.Password,
+	}
+}
+
+func (regAuth BlimpRegistryAuth) ToBlimpAuth() (*auth.BlimpAuth, error) {
+	if regAuth.Username == JSONCredUsername {
+		var blimpAuth auth.BlimpAuth
+		err := jsonpb.Unmarshal(strings.NewReader(regAuth.Password), &blimpAuth)
+		if err != nil {
+			return nil, err
+		}
+		return &blimpAuth, nil
+	}
+
+	// If Username does not match JSONCredUsername, we assume the password is
+	// just a plain token. This was the old behavior.
+	return &auth.BlimpAuth{Token: regAuth.Password}, nil
 }

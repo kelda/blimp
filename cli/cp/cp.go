@@ -15,6 +15,7 @@ import (
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/names"
+	"github.com/kelda/blimp/pkg/proto/auth"
 )
 
 func New() *cobra.Command {
@@ -102,13 +103,13 @@ func run(src, dst string) error {
 		"One of src or dest must be a remote file specification.")
 }
 
-func translateSpec(fileSpec kubectlcp.FileSpec, authToken string) (kubectlcp.FileSpec, error) {
+func translateSpec(fileSpec kubectlcp.FileSpec, auth *auth.BlimpAuth) (kubectlcp.FileSpec, error) {
 	if len(fileSpec.PodNamespace) != 0 {
 		return kubectlcp.FileSpec{}, errors.NewFriendlyError(
 			"Specifying the remote namespace is not allowed.")
 	}
 
-	err := manager.CheckServiceRunning(fileSpec.PodName, authToken)
+	err := manager.CheckServiceRunning(fileSpec.PodName, auth)
 	if err != nil {
 		return kubectlcp.FileSpec{}, err
 	}

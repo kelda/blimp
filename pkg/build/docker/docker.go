@@ -25,13 +25,14 @@ import (
 	"github.com/kelda/blimp/pkg/auth"
 	"github.com/kelda/blimp/pkg/build"
 	"github.com/kelda/blimp/pkg/errors"
+	protoAuth "github.com/kelda/blimp/pkg/proto/auth"
 )
 
 type client struct {
 	client       *docker.Client
 	regCreds     auth.RegistryCredentials
 	dockerConfig *configfile.ConfigFile
-	blimpToken   string
+	blimpAuth    *protoAuth.BlimpAuth
 
 	// Cache state
 	composePath        string
@@ -44,7 +45,8 @@ type CacheOptions struct {
 	ComposePath string
 }
 
-func New(regCreds auth.RegistryCredentials, dockerConfig *configfile.ConfigFile, blimpToken string, cacheOpts CacheOptions) (build.Interface, error) {
+func New(regCreds auth.RegistryCredentials, dockerConfig *configfile.ConfigFile,
+	blimpAuth *protoAuth.BlimpAuth, cacheOpts CacheOptions) (build.Interface, error) {
 	dockerClient, err := getDockerClient()
 	if err != nil {
 		return nil, err
@@ -54,7 +56,7 @@ func New(regCreds auth.RegistryCredentials, dockerConfig *configfile.ConfigFile,
 		client:       dockerClient,
 		regCreds:     regCreds,
 		dockerConfig: dockerConfig,
-		blimpToken:   blimpToken,
+		blimpAuth:    blimpAuth,
 	}
 
 	if cacheOpts.ProjectName != "" && cacheOpts.ComposePath != "" {
@@ -77,7 +79,7 @@ func (c client) BuildAndPush(images map[string]build.BuildPushConfig) (pushedIma
 	prePushChan := make(chan prePushResult)
 	prePushErr := make(chan error)
 	go func() {
-		prePushErr <- pushBaseImages(c.client, c.blimpToken, c.regCreds, images, prePushChan)
+		prePushErr <- pushBaseImages(c.client, c.blimpAuth, c.regCreds, images, prePushChan)
 	}()
 
 	// needToPush keeps track of which images still need to be pushed to the

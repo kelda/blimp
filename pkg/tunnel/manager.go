@@ -6,16 +6,17 @@ import (
 	"strings"
 
 	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/proto/auth"
 	"github.com/kelda/blimp/pkg/proto/node"
 )
 
 type Manager struct {
-	ncc   node.ControllerClient
-	token string
+	ncc  node.ControllerClient
+	auth *auth.BlimpAuth
 }
 
-func NewManager(ncc node.ControllerClient, token string) Manager {
-	return Manager{ncc, token}
+func NewManager(ncc node.ControllerClient, auth *auth.BlimpAuth) Manager {
+	return Manager{ncc, auth}
 }
 
 func (m Manager) Run(hostIP string, hostPort uint32, serviceName string, servicePort uint32, readyNotifier chan struct{}) error {
@@ -43,5 +44,5 @@ func (m Manager) Run(hostIP string, hostPort uint32, serviceName string, service
 		close(readyNotifier)
 	}
 
-	return Client(m.ncc, ln, m.token, serviceName, servicePort)
+	return Client(m.ncc, ln, m.auth, serviceName, servicePort)
 }

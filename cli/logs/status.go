@@ -11,6 +11,7 @@ import (
 
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/proto/auth"
 	"github.com/kelda/blimp/pkg/proto/cluster"
 )
 
@@ -100,7 +101,7 @@ func (cmd *Command) startStatusUpdater(ctx context.Context) error {
 	// Fetch initial statuses.
 	fetchCtx, _ := context.WithTimeout(ctx, 15*time.Second)
 	initStatus, err := manager.C.GetStatus(fetchCtx, &cluster.GetStatusRequest{
-		Token: cmd.Config.BlimpAuth(),
+		Auth: cmd.Config.BlimpAuth(),
 	})
 	if err != nil {
 		return errors.WithContext("logs fetch initial statuses", err)
@@ -146,9 +147,9 @@ func (cmd *Command) startStatusUpdater(ctx context.Context) error {
 	return nil
 }
 
-func watchStatus(ctx context.Context, statuses map[string]*statusNotifier, authToken string) error {
+func watchStatus(ctx context.Context, statuses map[string]*statusNotifier, auth *auth.BlimpAuth) error {
 	stream, err := manager.C.WatchStatus(ctx, &cluster.GetStatusRequest{
-		Token: authToken,
+		Auth: auth,
 	})
 	if err != nil {
 		return errors.WithContext("watch status", err)

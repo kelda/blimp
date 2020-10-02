@@ -19,6 +19,7 @@ import (
 	"github.com/kelda/blimp/pkg/cfgdir"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/hash"
+	"github.com/kelda/blimp/pkg/proto/auth"
 	"github.com/kelda/blimp/pkg/proto/node"
 	"github.com/kelda/blimp/pkg/strs"
 	"github.com/kelda/blimp/pkg/tunnel"
@@ -291,7 +292,7 @@ func NewClient(volumes []BindVolume) Client {
 }
 
 func (c Client) Run(ctx context.Context, ncc node.ControllerClient,
-	token string, tunnelManager tunnel.Manager) ([]byte, error) {
+	auth *auth.BlimpAuth, tunnelManager tunnel.Manager) ([]byte, error) {
 
 	tunnelsErr := c.startTunnels(tunnelManager)
 
@@ -301,7 +302,7 @@ func (c Client) Run(ctx context.Context, ncc node.ControllerClient,
 	}
 
 	finishedInitialSync := make(chan struct{}, 1)
-	go runSyncCompletionServer(ctx, ncc, token, finishedInitialSync)
+	go runSyncCompletionServer(ctx, ncc, auth, finishedInitialSync)
 
 	var out bytes.Buffer
 	cmd := exec.CommandContext(ctx, stbinPath(), "-verbose", "-home", cfgdir.Expand(""),
