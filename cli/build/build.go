@@ -21,6 +21,7 @@ import (
 	"github.com/kelda/blimp/pkg/build/docker"
 	"github.com/kelda/blimp/pkg/dockercompose"
 	"github.com/kelda/blimp/pkg/errors"
+	protoAuth "github.com/kelda/blimp/pkg/proto/auth"
 	"github.com/kelda/blimp/pkg/proto/cluster"
 	"github.com/kelda/blimp/pkg/proto/node"
 	"github.com/kelda/blimp/pkg/tunnel"
@@ -49,7 +50,7 @@ func New() *cobra.Command {
 			}
 
 			getNamespaceCtx, _ := context.WithTimeout(context.Background(), 30*time.Second)
-			getImageNamespaceResp, err := manager.C.GetImageNamespace(getNamespaceCtx, &cluster.GetImageNamespaceRequest{Token: blimpConfig.BlimpAuth()})
+			getImageNamespaceResp, err := manager.C.GetImageNamespace(getNamespaceCtx, &cluster.GetImageNamespaceRequest{Auth: blimpConfig.BlimpAuth()})
 			if err != nil {
 				log.WithError(err).Fatal("Failed to get development environment's image namespace")
 			}
@@ -62,10 +63,11 @@ func New() *cobra.Command {
 				regCreds = map[string]types.AuthConfig{}
 			}
 			// Add the registry credentials for pushing to the blimp registry.
-			regCreds[strings.SplitN(imageNamespace, "/", 2)[0]] = types.AuthConfig{
-				Username: "ignored",
-				Password: blimpConfig.BlimpAuth(),
+			blimpRegcred, err := auth.BlimpRegcred(blimpConfig.BlimpAuth())
+			if err != nil {
+				log.WithError(err).Fatal("Failed to create Blimp registry credential", err)
 			}
+			regCreds[strings.SplitN(imageNamespace, "/", 2)[0]] = blimpRegcred.ToDocker()
 
 			// Convert the compose path to an absolute path so that the code
 			// that makes identifiers for bind volumes are unique for relative
@@ -125,9 +127,9 @@ func New() *cobra.Command {
 	return cobraCmd
 }
 
-func getImageBuilder(regCreds auth.RegistryCredentials, dockerConfig *configfile.ConfigFile, authToken string, forceBuildkit bool) (build.Interface, error) {
+func getImageBuilder(regCreds auth.RegistryCredentials, dockerConfig *configfile.ConfigFile, auth *protoAuth.BlimpAuth, forceBuildkit bool) (build.Interface, error) {
 	if !forceBuildkit {
-		dockerClient, err := docker.New(regCreds, dockerConfig, authToken, docker.CacheOptions{})
+		dockerClient, err := docker.New(regCreds, dockerConfig, auth, docker.CacheOptions{})
 		if err == nil {
 			return dockerClient, nil
 		}
@@ -139,7 +141,7 @@ func getImageBuilder(regCreds auth.RegistryCredentials, dockerConfig *configfile
 	pp := util.NewProgressPrinter(os.Stdout, "Booting remote Docker image builder")
 	go pp.Run()
 	ctx, _ := context.WithTimeout(context.Background(), 3*time.Minute)
-	buildkitConn, err := manager.C.GetBuildkit(ctx, &cluster.GetBuildkitRequest{Token: authToken})
+	buildkitConn, err := manager.C.GetBuildkit(ctx, &cluster.GetBuildkitRequest{Auth: auth})
 	pp.Stop()
 	if err != nil {
 		return nil, errors.WithContext("boot buildkit", err)
@@ -149,7 +151,7 @@ func getImageBuilder(regCreds auth.RegistryCredentials, dockerConfig *configfile
 	if err != nil {
 		return nil, errors.WithContext("connect to node controller", err)
 	}
-	tunnelManager := tunnel.NewManager(node.NewControllerClient(nodeConn), authToken)
+	tunnelManager := tunnel.NewManager(node.NewControllerClient(nodeConn), auth)
 
 	buildkitClient, err := buildkit.New(tunnelManager, regCreds)
 	if err != nil {

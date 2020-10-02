@@ -7,10 +7,11 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/proto/auth"
 	"github.com/kelda/blimp/pkg/proto/node"
 )
 
-func runSyncCompletionServer(ctx context.Context, ncc node.ControllerClient, token string, syncedChan <-chan struct{}) {
+func runSyncCompletionServer(ctx context.Context, ncc node.ControllerClient, auth *auth.BlimpAuth, syncedChan <-chan struct{}) {
 	var hasSynced bool
 	runServer := func() error {
 		log.Debug("Starting sync status server")
@@ -22,8 +23,8 @@ func runSyncCompletionServer(ctx context.Context, ncc node.ControllerClient, tok
 		defer conn.CloseSend()
 
 		err = conn.Send(&node.SyncStatusResponse{
-			Msg: &node.SyncStatusResponse_Token{
-				Token: token,
+			Msg: &node.SyncStatusResponse_Auth{
+				Auth: auth,
 			},
 		})
 		if err != nil {

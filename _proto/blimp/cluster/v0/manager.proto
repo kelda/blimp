@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package blimp.cluster.v0;
 
+import "blimp/auth/v0/auth.proto";
 import "blimp/errors/v0/errors.proto";
 
 option go_package = "github.com/kelda/blimp/pkg/proto/cluster";
@@ -50,7 +51,8 @@ message CheckVersionResponse {
 }
 
 message CreateSandboxRequest {
-  string token = 1;
+  string old_token = 1;
+  blimp.auth.v0.BlimpAuth auth = 5;
   string composeFile = 2;
   map<string, RegistryCredential> registryCredentials = 3;
   map<string, string> syncedFolders = 4;
@@ -62,7 +64,8 @@ message RegistryCredential {
 }
 
 message AttachToSandboxRequest {
-  string token = 1;
+  string old_token = 1;
+  blimp.auth.v0.BlimpAuth auth = 2;
 }
 
 message AttachToSandboxResponse {
@@ -84,7 +87,8 @@ message CreateSandboxResponse {
 }
 
 message DeployRequest {
-  string token = 1;
+  string old_token = 1;
+  blimp.auth.v0.BlimpAuth auth = 4;
   string composeFile = 2;
   map<string, string> builtImages = 3;
 }
@@ -101,7 +105,8 @@ message KubeCredentials {
 }
 
 message DeleteSandboxRequest {
-  string token = 1;
+  string old_token = 1;
+  blimp.auth.v0.BlimpAuth auth = 3;
   bool delete_volumes = 2;
 }
 
@@ -110,7 +115,8 @@ message DeleteSandboxResponse {
 }
 
 message GetStatusRequest {
-  string token = 1;
+  string old_token = 1;
+  blimp.auth.v0.BlimpAuth auth = 2;
 }
 
 message GetStatusResponse {
@@ -150,7 +156,8 @@ message ServiceStatus {
 }
 
 message RestartRequest {
-  string token = 1;
+  string old_token = 1;
+  blimp.auth.v0.BlimpAuth auth = 3;
   string service = 2;
 }
 
@@ -165,7 +172,8 @@ message TagImageRequest {
 }
 
 message TagImagesRequest {
-  string token = 1;
+  string old_token = 1;
+  blimp.auth.v0.BlimpAuth auth = 4;
   repeated TagImageRequest tagRequests = 2;
   map<string, RegistryCredential> registryCredentials = 3;
 }
@@ -176,7 +184,8 @@ message TagImagesResponse {
 }
 
 message ExposeRequest {
-  string token = 1;
+  string old_token = 1;
+  blimp.auth.v0.BlimpAuth auth = 4;
   string service = 2;
   uint32 port = 3;
 }
@@ -187,7 +196,8 @@ message ExposeResponse {
 }
 
 message UnexposeRequest {
-  string token = 1;
+  string old_token = 1;
+  blimp.auth.v0.BlimpAuth auth = 2;
 }
 
 message UnexposeResponse {
@@ -195,7 +205,8 @@ message UnexposeResponse {
 }
 
 message GetImageNamespaceRequest {
-  string token = 1;
+  string old_token = 1;
+  blimp.auth.v0.BlimpAuth auth = 2;
 }
 
 message GetImageNamespaceResponse {
@@ -204,7 +215,8 @@ message GetImageNamespaceResponse {
 }
 
 message GetBuildkitRequest {
-  string token = 1;
+  string old_token = 1;
+  blimp.auth.v0.BlimpAuth auth = 2;
 }
 
 message GetBuildkitResponse {
@@ -214,7 +226,8 @@ message GetBuildkitResponse {
 }
 
 message BlimpUpPreviewRequest {
-  string token = 1;
+  reserved 1;
+  blimp.auth.v0.BlimpAuth auth = 5;
   string repo = 2;
   repeated string composeFiles = 3;
   map<string, string> env = 4;

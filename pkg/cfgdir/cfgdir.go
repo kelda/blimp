@@ -15,6 +15,8 @@ import (
 type Config struct {
 	OptOutAnalytics bool `json:"opt_out_analytics"`
 
+	ClusterToken string `json:"cluster_token"`
+
 	KubeHost    string `json:"kube_host"`
 	ManagerHost string `json:"manager_host"`
 	ManagerCert string `json:"manager_cert"`

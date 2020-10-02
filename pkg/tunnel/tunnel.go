@@ -10,8 +10,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/kelda/blimp/pkg/auth"
-	"github.com/kelda/blimp/pkg/errors"
+	protoAuth "github.com/kelda/blimp/pkg/proto/auth"
 	"github.com/kelda/blimp/pkg/proto/node"
 )
 
@@ -20,33 +19,12 @@ type tunnel interface {
 	Recv() (*node.TunnelMsg, error)
 }
 
-func ServerHeader(nsrv node.Controller_TunnelServer) (
-	name string, port uint32, namespace string, err error) {
-
-	msg, err := nsrv.Recv()
-	if err != nil {
-		return "", 0, "", err
-	}
-
-	header := msg.GetHeader()
-	if header == nil {
-		return "", 0, "", status.New(codes.Internal, "first message must be a header").Err()
-	}
-
-	user, err := auth.ParseIDToken(header.GetToken(), auth.DefaultVerifier)
-	if err != nil {
-		return "", 0, "", errors.WithContext("bad token", err)
-	}
-
-	return header.Name, header.Port, user.Namespace, nil
-}
-
 func ServerStream(nsrv node.Controller_TunnelServer, stream net.Conn) {
 	streamBidirectional(stream, nsrv, func() {})
 }
 
 // TODO, How does this thing get cleaned up?  Do we leak a go routine here?
-func Client(scc node.ControllerClient, ln net.Listener, token,
+func Client(scc node.ControllerClient, ln net.Listener, auth *protoAuth.BlimpAuth,
 	name string, port uint32) error {
 
 	fields := log.Fields{
@@ -63,14 +41,14 @@ func Client(scc node.ControllerClient, ln net.Listener, token,
 
 		log.WithFields(fields).Trace("new connection")
 		go func() {
-			connect(scc, stream, token, name, port)
+			connect(scc, stream, auth, name, port)
 			log.WithFields(fields).Trace("finish connection")
 		}()
 	}
 }
 
 func connect(scc node.ControllerClient, stream net.Conn,
-	token, name string, port uint32) {
+	auth *protoAuth.BlimpAuth, name string, port uint32) {
 	defer stream.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -82,9 +60,9 @@ func connect(scc node.ControllerClient, stream net.Conn,
 
 	err = tnl.Send(&node.TunnelMsg{Msg: &node.TunnelMsg_Header{
 		Header: &node.TunnelHeader{
-			Token: token,
-			Name:  name,
-			Port:  port,
+			Auth: auth,
+			Name: name,
+			Port: port,
 		}}})
 	if err != nil {
 		log.WithError(err).Error("failed to send tunnel connect")

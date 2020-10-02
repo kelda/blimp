@@ -12,6 +12,7 @@ import (
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/cli/util"
 	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/proto/auth"
 	"github.com/kelda/blimp/pkg/proto/cluster"
 )
 
@@ -53,9 +54,9 @@ Volumes aren't removed unless the -v flag is used.
 	return cobraCmd
 }
 
-func Run(authToken string, deleteVolumes bool) error {
+func Run(auth *auth.BlimpAuth, deleteVolumes bool) error {
 	_, err := manager.C.DeleteSandbox(context.Background(), &cluster.DeleteSandboxRequest{
-		Token:         authToken,
+		Auth:          auth,
 		DeleteVolumes: deleteVolumes,
 	})
 	if err != nil {
@@ -71,7 +72,7 @@ func Run(authToken string, deleteVolumes bool) error {
 	watchCtx, cancelWatch := context.WithCancel(context.Background())
 	defer cancelWatch()
 	statusStream, err := manager.C.WatchStatus(watchCtx, &cluster.GetStatusRequest{
-		Token: authToken,
+		Auth: auth,
 	})
 	if err != nil {
 		return errors.WithContext("start sandbox status watch", err)

@@ -19,6 +19,7 @@ import (
 	"github.com/kelda/blimp/pkg/auth"
 	"github.com/kelda/blimp/pkg/build"
 	"github.com/kelda/blimp/pkg/errors"
+	protoAuth "github.com/kelda/blimp/pkg/proto/auth"
 	"github.com/kelda/blimp/pkg/proto/cluster"
 )
 
@@ -27,7 +28,7 @@ type prePushResult struct {
 	err     error
 }
 
-func pushBaseImages(dockerClient *docker.Client, blimpToken string, regCreds auth.RegistryCredentials,
+func pushBaseImages(dockerClient *docker.Client, blimpAuth *protoAuth.BlimpAuth, regCreds auth.RegistryCredentials,
 	images map[string]build.BuildPushConfig, resultsChan chan<- prePushResult) error {
 	defer close(resultsChan)
 
@@ -57,7 +58,7 @@ func pushBaseImages(dockerClient *docker.Client, blimpToken string, regCreds aut
 	}
 
 	tagStream, err := manager.C.TagImages(context.Background(), &cluster.TagImagesRequest{
-		Token:               blimpToken,
+		Auth:                blimpAuth,
 		TagRequests:         tagRequests,
 		RegistryCredentials: regCreds.ToProtobuf(),
 	})

@@ -13,6 +13,7 @@ import (
 	"github.com/kelda/blimp/cli/config"
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/proto/auth"
 	"github.com/kelda/blimp/pkg/proto/cluster"
 )
 
@@ -33,9 +34,9 @@ func New() *cobra.Command {
 	}
 }
 
-func run(authToken string) error {
+func run(auth *auth.BlimpAuth) error {
 	status, err := manager.C.GetStatus(context.Background(), &cluster.GetStatusRequest{
-		Token: authToken,
+		Auth: auth,
 	})
 	if err != nil {
 		return err

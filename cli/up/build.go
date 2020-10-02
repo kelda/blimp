@@ -3,13 +3,13 @@ package up
 import (
 	"sync"
 
-	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 	composeTypes "github.com/kelda/compose-go/types"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/kelda/blimp/pkg/auth"
 	"github.com/kelda/blimp/pkg/build"
 	"github.com/kelda/blimp/pkg/build/buildkit"
 	"github.com/kelda/blimp/pkg/build/docker"
@@ -93,6 +93,12 @@ func (cmd *up) getRemoteCachedImages(services composeTypes.Services) map[string]
 		return map[string]string{}
 	}
 
+	regcred, err := auth.BlimpRegcred(cmd.config.BlimpAuth())
+	if err != nil {
+		log.WithError(err).Warn("Failed to generate Blimp registry credential")
+		return map[string]string{}
+	}
+
 	var wg sync.WaitGroup
 	var pushedImagesLock sync.Mutex
 	pushedImages := map[string]string{}
@@ -111,7 +117,7 @@ func (cmd *up) getRemoteCachedImages(services composeTypes.Services) map[string]
 				}
 
 				remoteImage, err := remote.Image(imageRef,
-					remote.WithAuth(&authn.Basic{Username: "ignored", Password: cmd.config.BlimpAuth()}))
+					remote.WithAuth(regcred.ToContainerRegistry()))
 				if err != nil {
 					isDoesNotExist := false
 					if err, ok := err.(*transport.Error); ok {
