@@ -10,7 +10,7 @@ import (
 	"k8s.io/kubectl/pkg/cmd/exec"
 	"k8s.io/kubectl/pkg/scheme"
 
-	"github.com/kelda/blimp/cli/authstore"
+	"github.com/kelda/blimp/cli/config"
 	"github.com/kelda/blimp/cli/cp/kubectlcp"
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/pkg/errors"
@@ -40,14 +40,9 @@ To copy TO a container:
 }
 
 func run(src, dst string) error {
-	auth, err := authstore.New()
+	blimpConfig, err := config.GetConfig()
 	if err != nil {
-		return errors.WithContext("parse auth config", err)
-	}
-
-	if auth.AuthToken == "" {
-		fmt.Fprintln(os.Stderr, "Not logged in. Please run `blimp login`.")
-		return nil
+		return err
 	}
 
 	srcSpec, err := kubectlcp.ExtractFileSpec(src)
@@ -68,7 +63,7 @@ func run(src, dst string) error {
 		srcSpec = kubectlcp.FileSpec{File: src}
 	}
 
-	kubeClient, restConfig, err := auth.KubeClient()
+	kubeClient, restConfig, err := blimpConfig.Auth.KubeClient()
 	if err != nil {
 		return errors.WithContext("get kube client", err)
 	}
@@ -84,20 +79,20 @@ func run(src, dst string) error {
 			In:     os.Stdin,
 			ErrOut: os.Stderr,
 		},
-		Namespace:    auth.KubeNamespace,
+		Namespace:    blimpConfig.Auth.KubeNamespace,
 		Clientset:    kubeClient,
 		ClientConfig: restConfig,
 	}
 
 	if len(srcSpec.PodName) != 0 {
-		translatedSrcSpec, err := translateSpec(srcSpec, auth.AuthToken)
+		translatedSrcSpec, err := translateSpec(srcSpec, blimpConfig.BlimpAuth())
 		if err != nil {
 			return err
 		}
 		return o.CopyFromPod(translatedSrcSpec, destSpec)
 	}
 	if len(destSpec.PodName) != 0 {
-		translatedDestSpec, err := translateSpec(destSpec, auth.AuthToken)
+		translatedDestSpec, err := translateSpec(destSpec, blimpConfig.BlimpAuth())
 		if err != nil {
 			return err
 		}

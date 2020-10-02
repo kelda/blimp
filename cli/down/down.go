@@ -6,10 +6,9 @@ import (
 	"os"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"github.com/kelda/blimp/cli/authstore"
+	"github.com/kelda/blimp/cli/config"
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/cli/util"
 	"github.com/kelda/blimp/pkg/errors"
@@ -27,15 +26,9 @@ All containers are removed.
 Volumes aren't removed unless the -v flag is used.
 `,
 		Run: func(_ *cobra.Command, args []string) {
-			auth, err := authstore.New()
+			blimpConfig, err := config.GetConfig()
 			if err != nil {
-				log.WithError(err).Fatal("Failed to parse local authentication store")
-			}
-
-			// TODO: Prompt to login again if token is expired.
-			if auth.AuthToken == "" {
-				fmt.Fprintln(os.Stderr, "Not logged in. Please run `blimp login`.")
-				os.Exit(1)
+				errors.HandleFatalError(err)
 			}
 
 			if util.UpRunning() {
@@ -50,7 +43,7 @@ Volumes aren't removed unless the -v flag is used.
 				}
 			}
 
-			if err := Run(auth.AuthToken, deleteVolumes); err != nil {
+			if err := Run(blimpConfig.BlimpAuth(), deleteVolumes); err != nil {
 				errors.HandleFatalError(err)
 			}
 		},

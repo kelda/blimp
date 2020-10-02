@@ -21,7 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/kelda/blimp/cli/authstore"
+	"github.com/kelda/blimp/cli/config"
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/names"
@@ -30,7 +30,7 @@ import (
 type Command struct {
 	Services []string
 	Opts     corev1.PodLogOptions
-	Auth     authstore.Store
+	Config   config.Config
 
 	svcStatus map[string]*statusNotifier
 }
@@ -76,14 +76,9 @@ func New() *cobra.Command {
 		Long: "Print the logs for the given services.\n\n" +
 			"If multiple services are provided, the log output is interleaved.",
 		Run: func(_ *cobra.Command, args []string) {
-			auth, err := authstore.New()
+			blimpConfig, err := config.GetConfig()
 			if err != nil {
-				log.WithError(err).Fatal("Failed to parse auth store")
-			}
-
-			if auth.AuthToken == "" {
-				fmt.Fprintln(os.Stderr, "Not logged in. Please run `blimp login`.")
-				return
+				errors.HandleFatalError(err)
 			}
 
 			if len(args) == 0 {
@@ -91,7 +86,7 @@ func New() *cobra.Command {
 				os.Exit(1)
 			}
 
-			cmd.Auth = auth
+			cmd.Config = blimpConfig
 			cmd.Services = args
 			if err := cmd.Run(context.Background()); err != nil {
 				errors.HandleFatalError(err)
@@ -108,7 +103,7 @@ func New() *cobra.Command {
 }
 
 func (cmd Command) Run(ctx context.Context) error {
-	kubeClient, _, err := cmd.Auth.KubeClient()
+	kubeClient, _, err := cmd.Config.Auth.KubeClient()
 	if err != nil {
 		return errors.WithContext("connect to cluster", err)
 	}
@@ -116,7 +111,7 @@ func (cmd Command) Run(ctx context.Context) error {
 	for _, container := range cmd.Services {
 		// For logs to work, the container needs to have started, but it doesn't
 		// necessarily need to be running.
-		err = manager.CheckServiceStarted(container, cmd.Auth.AuthToken)
+		err = manager.CheckServiceStarted(container, cmd.Config.BlimpAuth())
 		if err != nil {
 			return err
 		}
@@ -264,7 +259,7 @@ func (cmd *Command) forwardLogs(ctx context.Context, combinedLogs chan<- rawLogL
 		}
 
 		logsReq := kubeClient.CoreV1().
-			Pods(cmd.Auth.KubeNamespace).
+			Pods(cmd.Config.Auth.KubeNamespace).
 			GetLogs(names.PodName(service), &opts)
 
 		logsStream, err := logsReq.Stream()

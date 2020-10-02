@@ -8,10 +8,9 @@ import (
 	"text/tabwriter"
 
 	"github.com/buger/goterm"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"github.com/kelda/blimp/cli/authstore"
+	"github.com/kelda/blimp/cli/config"
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/proto/cluster"
@@ -22,18 +21,12 @@ func New() *cobra.Command {
 		Use:   "ps",
 		Short: "Print the status of services in the cloud sandbox",
 		Run: func(_ *cobra.Command, args []string) {
-			auth, err := authstore.New()
+			blimpConfig, err := config.GetConfig()
 			if err != nil {
-				log.WithError(err).Fatal("Failed to parse local authentication store")
+				errors.HandleFatalError(err)
 			}
 
-			// TODO: Prompt to login again if token is expired.
-			if auth.AuthToken == "" {
-				fmt.Fprintln(os.Stderr, "Not logged in. Please run `blimp login`.")
-				os.Exit(1)
-			}
-
-			if err := run(auth.AuthToken); err != nil {
+			if err := run(blimpConfig.BlimpAuth()); err != nil {
 				errors.HandleFatalError(err)
 			}
 		},

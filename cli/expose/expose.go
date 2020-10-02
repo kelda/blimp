@@ -6,10 +6,9 @@ import (
 	"os"
 	"strconv"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"github.com/kelda/blimp/cli/authstore"
+	"github.com/kelda/blimp/cli/config"
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/proto/cluster"
@@ -24,14 +23,9 @@ func New() *cobra.Command {
 PORT should be the port on SERVICE's container that should be exposed, which
 might be different from the port you use locally.`,
 		Run: func(_ *cobra.Command, args []string) {
-			auth, err := authstore.New()
+			blimpConfig, err := config.GetConfig()
 			if err != nil {
-				log.WithError(err).Fatal("Failed to parse local authentication store")
-			}
-
-			if auth.AuthToken == "" {
-				fmt.Fprintln(os.Stderr, "Not logged in. Please run `blimp login`.")
-				os.Exit(1)
+				errors.HandleFatalError(err)
 			}
 
 			if unexpose {
@@ -40,7 +34,7 @@ might be different from the port you use locally.`,
 						"Please do not pass any arguments.")
 					os.Exit(1)
 				}
-				if err := runUnexpose(auth.AuthToken); err != nil {
+				if err := runUnexpose(blimpConfig.BlimpAuth()); err != nil {
 					errors.HandleFatalError(err)
 				}
 				return
@@ -58,7 +52,7 @@ might be different from the port you use locally.`,
 				os.Exit(1)
 			}
 
-			if err := runExpose(auth.AuthToken, args[0], port); err != nil {
+			if err := runExpose(blimpConfig.BlimpAuth(), args[0], port); err != nil {
 				errors.HandleFatalError(err)
 			}
 		},

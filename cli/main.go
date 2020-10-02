@@ -75,6 +75,7 @@ func main() {
 }
 
 func setup(cmd *cobra.Command, _ []string) {
+	// XXX: Use config.GetConfig instead?
 	cfg, err := cfgdir.ParseConfig()
 	if err != nil {
 		log.WithError(err).Fatal("Failed to read blimp config")

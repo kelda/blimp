@@ -70,7 +70,7 @@ func (cmd *up) buildImages(composeFile composeTypes.Project) (map[string]string,
 
 func (cmd *up) getImageBuilder(projectName string) (build.Interface, error) {
 	if !cmd.forceBuildkit {
-		dockerClient, err := docker.New(cmd.regCreds, cmd.dockerConfig, cmd.auth.AuthToken, docker.CacheOptions{
+		dockerClient, err := docker.New(cmd.regCreds, cmd.dockerConfig, cmd.config.BlimpAuth(), docker.CacheOptions{
 			ProjectName: projectName,
 			ComposePath: cmd.composePath,
 		})
@@ -111,7 +111,7 @@ func (cmd *up) getRemoteCachedImages(services composeTypes.Services) map[string]
 				}
 
 				remoteImage, err := remote.Image(imageRef,
-					remote.WithAuth(&authn.Basic{Username: "ignored", Password: cmd.auth.AuthToken}))
+					remote.WithAuth(&authn.Basic{Username: "ignored", Password: cmd.config.BlimpAuth()}))
 				if err != nil {
 					isDoesNotExist := false
 					if err, ok := err.(*transport.Error); ok {

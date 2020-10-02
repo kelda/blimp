@@ -10,7 +10,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/remotecommand"
 
-	"github.com/kelda/blimp/cli/authstore"
+	"github.com/kelda/blimp/cli/config"
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/names"
@@ -34,23 +34,18 @@ func New() *cobra.Command {
 }
 
 func run(svc string) error {
-	auth, err := authstore.New()
+	blimpConfig, err := config.GetConfig()
 	if err != nil {
 		return errors.WithContext("parse auth config", err)
 	}
 
-	if auth.AuthToken == "" {
-		fmt.Fprintln(os.Stderr, "Not logged in. Please run `blimp login`.")
-		return nil
-	}
-
 	// Make sure the pod is actually booted.
-	err = manager.CheckServiceRunning(svc, auth.AuthToken)
+	err = manager.CheckServiceRunning(svc, blimpConfig.BlimpAuth())
 	if err != nil {
 		return err
 	}
 
-	kubeClient, restConfig, err := auth.KubeClient()
+	kubeClient, restConfig, err := blimpConfig.Auth.KubeClient()
 	if err != nil {
 		return errors.WithContext("get kube client", err)
 	}
@@ -83,7 +78,7 @@ func run(svc string) error {
 		Resource("pods").
 		SubResource("exec").
 		Name(names.PodName(svc)).
-		Namespace(auth.KubeNamespace).
+		Namespace(blimpConfig.Auth.KubeNamespace).
 		VersionedParams(&execOpts, scheme.ParameterCodec)
 	exec, err := remotecommand.NewSPDYExecutor(restConfig, "POST", req.URL())
 	if err != nil {
