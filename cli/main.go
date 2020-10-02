@@ -2,9 +2,7 @@ package main
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
-	"time"
 
 	"github.com/buger/goterm"
 	"github.com/spf13/cobra"
@@ -43,10 +41,6 @@ func main() {
 	}
 
 	configureLogrus()
-
-	// By default, the random number generator is seeded to 1, so the resulting
-	// numbers aren't actually different unless we explicitly seed it.
-	rand.Seed(time.Now().UnixNano())
 
 	rootCmd := &cobra.Command{
 		Use: "blimp",
