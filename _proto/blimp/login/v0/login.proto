@@ -8,6 +8,7 @@ option go_package = "github.com/kelda/blimp/pkg/proto/login";
 
 service Login {
     rpc Login(LoginRequest) returns (stream LoginResponse) {}
+    rpc ExchangeRefreshToken(ExchangeRefreshTokenRequest) returns (ExchangeRefreshTokenResponse) {}
 }
 
 message LoginRequest {
@@ -27,6 +28,16 @@ message LoginInstructions {
 }
 
 message LoginResult {
-    string token = 1;
+    string id_token = 1;
+    string error = 2;
+    string refresh_token = 3;
+}
+
+message ExchangeRefreshTokenRequest {
+    string refresh_token = 1;
+}
+
+message ExchangeRefreshTokenResponse {
+    string id_token = 1;
     string error = 2;
 }

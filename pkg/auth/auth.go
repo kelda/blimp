@@ -27,6 +27,9 @@ const (
 	LoginProxyGRPCPort = 443
 )
 
+// LoginProxyGRPCHost may be overriden by make.
+var LoginProxyGRPCHost = "blimp-login-grpc.kelda.io"
+
 var Endpoint = oauth2.Endpoint{
 	AuthURL:   AuthHost + "/authorize",
 	TokenURL:  AuthHost + "/oauth/token",
@@ -36,6 +39,9 @@ var Endpoint = oauth2.Endpoint{
 var DefaultKeySet = oidc.NewRemoteKeySet(context.Background(), JWKSURL)
 
 var DefaultVerifier = VerifierFromKeySet(DefaultKeySet)
+
+var ErrTokenExpired = errors.NewFriendlyError("Blimp session expired. " +
+	"Please log in again with `blimp login`.")
 
 func VerifierFromKeySet(keySet oidc.KeySet) *oidc.IDTokenVerifier {
 	return oidc.NewVerifier(
@@ -58,6 +64,9 @@ func GetOAuthConfig(clientSecret string) oauth2.Config {
 		Scopes: []string{
 			"openid",
 			"email",
+
+			// For getting refresh tokens.
+			"offline_access",
 		},
 	}
 }
@@ -69,8 +78,7 @@ func ParseIDToken(token string, verifier *oidc.IDTokenVerifier) (User, error) {
 	}
 
 	if time.Now().After(idToken.Expiry) {
-		return User{}, errors.NewFriendlyError("Blimp session expired. " +
-			"Please log in again with `blimp login`.")
+		return User{}, ErrTokenExpired
 	}
 
 	var user User

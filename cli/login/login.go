@@ -18,9 +18,6 @@ import (
 	"github.com/kelda/blimp/pkg/proto/login"
 )
 
-// LoginProxyGRPCHost is set by make.
-var LoginProxyGRPCHost = ""
-
 func New() *cobra.Command {
 	return &cobra.Command{
 		Use:   "login",
@@ -29,7 +26,7 @@ func New() *cobra.Command {
 
 Kelda Blimp only uses your login to identify you, and doesn't pull any other information.`,
 		Run: func(_ *cobra.Command, _ []string) {
-			token, err := getAuthToken()
+			idToken, refreshToken, err := getAuthToken()
 			if err != nil {
 				log.WithError(err).Fatal("Failed to login")
 			}
@@ -41,7 +38,8 @@ Kelda Blimp only uses your login to identify you, and doesn't pull any other inf
 				log.WithError(err).Fatal("Failed to parse existing Kelda Blimp credentials")
 			}
 
-			store.AuthToken = token
+			store.AuthToken = idToken
+			store.RefreshToken = refreshToken
 			if err := store.Save(); err != nil {
 				log.WithError(err).Fatal("Failed to update local Kelda Blimp credentials")
 			}
@@ -49,15 +47,15 @@ Kelda Blimp only uses your login to identify you, and doesn't pull any other inf
 	}
 }
 
-func getAuthToken() (string, error) {
+func getAuthToken() (string, string, error) {
 	// Use the system's default certificate pool.
 	tlsConfig := &tls.Config{}
-	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", LoginProxyGRPCHost, auth.LoginProxyGRPCPort),
+	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", auth.LoginProxyGRPCHost, auth.LoginProxyGRPCPort),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		grpc.WithUnaryInterceptor(errors.UnaryClientInterceptor),
 	)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer conn.Close()
 
@@ -65,13 +63,13 @@ func getAuthToken() (string, error) {
 	client := login.NewLoginClient(conn)
 	stream, err := client.Login(context.Background(), &login.LoginRequest{})
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	// Open the login URL as instructed by the login proxy.
 	loginURL, err := getLoginURL(stream)
 	if err != nil {
-		return "", errors.WithContext("read instructions", err)
+		return "", "", errors.WithContext("read instructions", err)
 	}
 
 	fmt.Printf("Your browser has been opened to log in.\n"+
@@ -107,26 +105,26 @@ func getLoginURL(stream login.Login_LoginClient) (string, error) {
 }
 
 // The second, and final, message in the stream should be the result of the login.
-func getLoginResult(stream login.Login_LoginClient) (string, error) {
+func getLoginResult(stream login.Login_LoginClient) (string, string, error) {
 	msg, err := stream.Recv()
 	if err != nil {
-		return "", errors.WithContext("receive", err)
+		return "", "", errors.WithContext("receive", err)
 	}
 
 	if msg.Msg == nil {
-		return "", errors.New("nil message")
+		return "", "", errors.New("nil message")
 	}
 
 	res, ok := msg.Msg.(*login.LoginResponse_Result)
 	if !ok {
-		return "", errors.New("unexpected type")
+		return "", "", errors.New("unexpected type")
 	}
 
 	var loginErr error
 	if res.Result.Error != "" {
 		loginErr = errors.New(res.Result.Error)
 	}
-	return res.Result.Token, loginErr
+	return res.Result.IdToken, res.Result.RefreshToken, loginErr
 }
 
 func openBrowser(url string) (err error) {
