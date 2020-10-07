@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -62,18 +63,18 @@ func (s *cliLoginServer) Register(mux *http.ServeMux) {
 func (s *cliLoginServer) cliLoginCallback(w http.ResponseWriter, r *http.Request) {
 	log.Info("Received oauth code")
 
-	sessionID, token, err := func() (string, string, error) {
+	sessionID, idToken, refreshToken, err := func() (string, string, string, error) {
 		sessionID, err := getSession(r)
 		if err != nil {
-			return "", "", errors.WithContext("get session", err)
+			return "", "", "", errors.WithContext("get session", err)
 		}
 
-		token, err := getTokenForCode(s.oauthConf, r)
+		idToken, refreshToken, err := getTokenForCode(s.oauthConf, r)
 		if err != nil {
-			return "", "", errors.WithContext("get token", err)
+			return "", "", "", errors.WithContext("get token", err)
 		}
 
-		return sessionID, token, nil
+		return sessionID, idToken, refreshToken, nil
 	}()
 
 	s.sessionsLock.Lock()
@@ -90,8 +91,9 @@ func (s *cliLoginServer) cliLoginCallback(w http.ResponseWriter, r *http.Request
 
 	// Send the result to the CLI.
 	ch <- login.LoginResult{
-		Token: token,
-		Error: errorToString(err),
+		IdToken:      idToken,
+		RefreshToken: refreshToken,
+		Error:        errorToString(err),
 	}
 
 	// Show a friendly message in the user's browser.
@@ -103,7 +105,7 @@ func (s *cliLoginServer) cliLoginCallback(w http.ResponseWriter, r *http.Request
 	}
 
 	redirectURL := "https://blimpup.io/thank-you-login/"
-	if user, err := auth.ParseIDToken(token, auth.DefaultVerifier); err == nil {
+	if user, err := auth.ParseIDToken(idToken, auth.DefaultVerifier); err == nil {
 		redirectURL += fmt.Sprintf("?bns=%s", user.Namespace)
 	} else {
 		log.WithError(err).Warn("Failed to parse ID token from auth0")
@@ -138,7 +140,7 @@ func (s *cliLoginServer) Login(_ *login.LoginRequest, srv login.Login_LoginServe
 	err = srv.Send(&login.LoginResponse{
 		Msg: &login.LoginResponse_Instructions{
 			Instructions: &login.LoginInstructions{
-				URL: s.oauthConf.AuthCodeURL(state),
+				URL: s.oauthConf.AuthCodeURL(state, oauth2.AccessTypeOffline),
 			},
 		},
 	})
@@ -157,6 +159,23 @@ func (s *cliLoginServer) Login(_ *login.LoginRequest, srv login.Login_LoginServe
 		return errors.WithContext("send result", err)
 	}
 	return nil
+}
+
+func (s *cliLoginServer) ExchangeRefreshToken(ctx context.Context, req *login.ExchangeRefreshTokenRequest) (*login.ExchangeRefreshTokenResponse, error) {
+	log.Info("Exchanging refresh token")
+
+	src := s.oauthConf.TokenSource(ctx, &oauth2.Token{RefreshToken: req.RefreshToken})
+	newToken, err := src.Token()
+	if err != nil {
+		return &login.ExchangeRefreshTokenResponse{}, errors.WithContext("refresh token", err)
+	}
+
+	idToken, ok := newToken.Extra("id_token").(string)
+	if !ok {
+		return &login.ExchangeRefreshTokenResponse{}, errors.New("missing id token")
+	}
+
+	return &login.ExchangeRefreshTokenResponse{IdToken: idToken}, nil
 }
 
 var sessionGenerator *rand.Rand = rand.New(

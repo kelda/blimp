@@ -32,12 +32,12 @@ func (s *manualLoginServer) Register(mux *http.ServeMux) {
 
 func (s *manualLoginServer) manualLogin(w http.ResponseWriter, r *http.Request) {
 	log.Info("Starting manual login")
-	http.Redirect(w, r, s.oauthConf.AuthCodeURL("state"), http.StatusFound)
+	http.Redirect(w, r, s.oauthConf.AuthCodeURL("state", oauth2.AccessTypeOffline), http.StatusFound)
 }
 
 func (s *manualLoginServer) manualLoginCallback(w http.ResponseWriter, r *http.Request) {
 	log.Info("Received oauth code")
-	idToken, err := getTokenForCode(s.oauthConf, r)
+	idToken, refreshToken, err := getTokenForCode(s.oauthConf, r)
 	if err != nil {
 		fmt.Fprintf(w, "Login failed: %s\n", err)
 		return
@@ -47,6 +47,7 @@ func (s *manualLoginServer) manualLoginCallback(w http.ResponseWriter, r *http.R
 
 cat <<EOF > ~/.blimp/auth.yaml
 AuthToken: %s
+RefreshToken: %s
 EOF`
-	fmt.Fprintf(w, msgTemplate, idToken)
+	fmt.Fprintf(w, msgTemplate, idToken, refreshToken)
 }

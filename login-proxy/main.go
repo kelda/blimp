@@ -56,27 +56,34 @@ func main() {
 }
 
 // getTokenForCode exchanges the authorization code from Auth0 for an identity token.
-func getTokenForCode(oauthConf *oauth2.Config, r *http.Request) (string, error) {
+func getTokenForCode(oauthConf *oauth2.Config, r *http.Request) (string, string, error) {
 	err := r.ParseForm()
 	if err != nil {
-		return "", errors.WithContext("parse form", err)
+		return "", "", errors.WithContext("parse form", err)
 	}
 
 	code := r.FormValue("code")
 	if code == "" {
-		return "", errors.New("no auth code")
+		return "", "", errors.New("no auth code")
 	}
 
 	log.WithField("code", code).Info("Exchanging oauth code for token")
 	tok, err := oauthConf.Exchange(context.Background(), code)
 	if err != nil {
-		return "", errors.WithContext("exchange auth code", err)
+		return "", "", errors.WithContext("exchange auth code", err)
 	}
 
 	idToken, ok := tok.Extra("id_token").(string)
 	if !ok {
-		return "", errors.New("missing id token")
+		return "", "", errors.New("missing id token")
 	}
 
-	return idToken, nil
+	refreshToken, ok := tok.Extra("refresh_token").(string)
+	if !ok {
+		// The refresh token isn't required, but it's expected.
+		log.Warn("No refresh token in oauth response. Just returning id token.")
+		return idToken, "", nil
+	}
+
+	return idToken, refreshToken, nil
 }
