@@ -4,7 +4,7 @@ VERSION?=latest
 MANAGER_CERT_PATH = "./certs/cluster-manager.crt.pem"
 LD_FLAGS = "-X github.com/kelda/blimp/pkg/version.Version=${VERSION} \
 	   -X github.com/kelda/blimp/cli/manager.ClusterManagerCertBase64=$(shell base64 ${MANAGER_CERT_PATH} | tr -d "\n") \
-	   -X github.com/kelda/blimp/cli/login.LoginProxyGRPCHost=${LOGIN_PROXY_GRPC_HOSTNAME} \
+	   -X github.com/kelda/blimp/pkg/auth.LoginProxyGRPCHost=${LOGIN_PROXY_GRPC_HOSTNAME} \
 	   -X github.com/kelda/blimp/cli/manager.DefaultManagerHost=${CLUSTER_MANAGER_HOST} \
 	   -s -w"
 SYNCTHING_VERSION=1.4.0
