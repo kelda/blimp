@@ -18,6 +18,7 @@ var loggedInPaths = []string{
 	"/thank-you-login",
 	"/login-success-sign-up-try-blimp",
 	"/get-started/#welcome",
+	"/get-started/#blimp",
 	"/docs/logged-in",
 }
 
