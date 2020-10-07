@@ -298,11 +298,18 @@ func (sf *statusFetcher) getServiceStatus(pod *corev1.Pod) cluster.ServiceStatus
 	// Fallback to the pod's phase.
 	switch pod.Status.Phase {
 	case corev1.PodRunning:
-		return cluster.ServiceStatus{Phase: cluster.ServicePhase_RUNNING}
+		return cluster.ServiceStatus{
+			Phase:      cluster.ServicePhase_RUNNING,
+			HasStarted: true,
+		}
 	case corev1.PodPending:
 		return cluster.ServiceStatus{Phase: cluster.ServicePhase_PENDING}
 	case corev1.PodSucceeded, corev1.PodFailed:
-		return cluster.ServiceStatus{Phase: cluster.ServicePhase_EXITED}
+		return cluster.ServiceStatus{
+			Phase:      cluster.ServicePhase_EXITED,
+			Msg:        pod.Status.Message,
+			HasStarted: true,
+		}
 	default:
 		return cluster.ServiceStatus{Phase: cluster.ServicePhase_UNKNOWN}
 	}
