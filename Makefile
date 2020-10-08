@@ -10,7 +10,6 @@ CLUSTER_MANAGER_HTTP_API_IP ?= 35.247.75.232
 CLUSTER_MANAGER_HTTP_API_HOSTNAME ?= blimp-manager-api.kelda.io
 REGISTRY_IP ?= 8.8.8.8
 REGISTRY_STORAGE ?= "5Gi"
-#VERSION?=$(shell ./scripts/dev_version.sh)
 VERSION?=latest
 MANAGER_KEY_PATH = "./certs/cluster-manager.key.pem"
 MANAGER_CERT_PATH = "./certs/cluster-manager.crt.pem"
@@ -39,18 +38,6 @@ LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
 
 install:
 	CGO_ENABLED=0 go install -ldflags $(LD_FLAGS) ./...
-
-syncthing-macos:
-	curl -L -O https://github.com/syncthing/syncthing/releases/download/v1.4.0/syncthing-macos-amd64-v1.4.0.tar.gz
-	tar -xf syncthing*.tar.gz
-	mv syncthing-macos-amd64-v1.4.0/syncthing syncthing-macos
-	rm -rf syncthing-macos-amd64*
-
-syncthing-linux:
-	curl -L -O https://github.com/syncthing/syncthing/releases/download/v1.4.0/syncthing-linux-amd64-v1.4.0.tar.gz
-	tar -xf syncthing*.tar.gz
-	mv syncthing-linux-amd64-v1.4.0/syncthing syncthing-linux
-	rm -rf syncthing-linux-amd64*
 
 generate:
 	protoc -I $$GOPATH/src/ github.com/kelda-inc/blimp/_proto/blimp/wait/v0/wait.proto --go_out=plugins=grpc:$$GOPATH/src
