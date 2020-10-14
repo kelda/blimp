@@ -112,7 +112,7 @@ func makeConfig(server bool, folders map[string]string, folderType string) strin
 	}
 
 	//nolint:lll
-	return fmt.Sprintf(`<configuration version="30">%s
+	return fmt.Sprintf(`<configuration version="32">%s
     <gui enabled="true">
         <address>%s</address>
         <apikey>%s</apikey>

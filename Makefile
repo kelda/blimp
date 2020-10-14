@@ -7,7 +7,7 @@ LD_FLAGS = "-X github.com/kelda/blimp/pkg/version.Version=${VERSION} \
 	   -X github.com/kelda/blimp/pkg/auth.LoginProxyGRPCHost=${LOGIN_PROXY_GRPC_HOSTNAME} \
 	   -X github.com/kelda/blimp/cli/manager.DefaultManagerHost=${CLUSTER_MANAGER_HOST} \
 	   -s -w"
-SYNCTHING_VERSION=1.4.0
+SYNCTHING_VERSION=1.10.0
 DOCKER_REPO ?= gcr.io/kelda-blimp
 DOCKER_IMAGE = ${DOCKER_REPO}/blimp:latest
 
@@ -22,8 +22,8 @@ install: certs build-cli-osx
 	CGO_ENABLED=0 go install -ldflags $(LD_FLAGS) ./...
 
 syncthing-macos:
-	curl -L -O https://github.com/syncthing/syncthing/releases/download/v$(SYNCTHING_VERSION)/syncthing-macos-amd64-v$(SYNCTHING_VERSION).tar.gz
-	tar -xf syncthing-macos-amd64-v$(SYNCTHING_VERSION).tar.gz
+	curl -L -O https://github.com/syncthing/syncthing/releases/download/v$(SYNCTHING_VERSION)/syncthing-macos-amd64-v$(SYNCTHING_VERSION).zip
+	unzip syncthing-macos-amd64-v$(SYNCTHING_VERSION).zip
 	mv syncthing-macos-amd64-v$(SYNCTHING_VERSION)/syncthing syncthing-macos
 	rm -rf syncthing-macos-amd64*
 
