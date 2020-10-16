@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"net/http"
 	"net/http/httputil"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -35,6 +36,10 @@ type server struct {
 var LinkProxyBaseHostname string
 
 func main() {
+	if linkProxyBaseHostnameVar, ok := os.LookupEnv("BLIMP_LINK_PROXY_BASE_HOSTNAME"); ok {
+		LinkProxyBaseHostname = linkProxyBaseHostnameVar
+	}
+
 	kubeClient, _, err := kube.GetClient()
 	if err != nil {
 		log.WithError(err).Fatal("Failed to get kubernetes client")

@@ -111,6 +111,10 @@ func main() {
 		RegistryHostname = registryHostnameVar
 	}
 
+	if linkProxyBaseHostnameVar, ok := os.LookupEnv("BLIMP_LINK_PROXY_BASE_HOSTNAME"); ok {
+		LinkProxyBaseHostname = linkProxyBaseHostnameVar
+	}
+
 	maxSandboxes := 100
 	if maxSandboxesVar, ok := os.LookupEnv("MAX_SANDBOXES"); ok {
 		parsedVar, err := strconv.Atoi(maxSandboxesVar)
