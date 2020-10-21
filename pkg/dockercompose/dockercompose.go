@@ -128,7 +128,9 @@ func Load(composePath string, overridePaths, services []string) (types.Project, 
 			continue
 		}
 
-		cfgPtr.Services[svcIdx].Build.Context = filepath.Join(filepath.Dir(composePath), svc.Build.Context)
+		if !filepath.IsAbs(svc.Build.Context) {
+			cfgPtr.Services[svcIdx].Build.Context = filepath.Join(filepath.Dir(composePath), svc.Build.Context)
+		}
 		if svc.Build.Dockerfile == "" {
 			cfgPtr.Services[svcIdx].Build.Dockerfile = "Dockerfile"
 		}
