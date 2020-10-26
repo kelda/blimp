@@ -1,0 +1,9 @@
+version: '3'
+services:
+  syncer:
+    image: ubuntu
+    command: tail -f /dev/null
+    volumes:
+    - './dir1:/dir1'
+    - './dir2/subdir:/dir2/subdir'
+    - './file:/file'

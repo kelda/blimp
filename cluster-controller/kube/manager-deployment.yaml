@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: manager
+  namespace: manager
+spec:
+  selector:
+    matchLabels:
+      service: manager
+  template:
+    metadata:
+      labels:
+        service: manager
+    spec:
+      containers:
+      - name: manager
+        image: <CLUSTER_MANAGER_IMAGE>
+        imagePullPolicy: Always
+        command:
+        - blimp-cluster-controller
+        - -tls-cert
+        - /etc/blimp/cert.pem
+        - -tls-key
+        - /etc/blimp/key.pem
+        - -license
+        - /etc/blimp/license
+        env:
+        - name: MAX_SANDBOXES
+          value: "500"
+        volumeMounts:
+        - name: kubeconfig
+          mountPath: "/root/.kube"
+          readOnly: true
+        - name: secrets
+          mountPath: "/etc/blimp"
+          readOnly: true
+      volumes:
+      - name: kubeconfig
+        secret:
+          secretName: customer-cluster-kubeconfig
+      - name: secrets
+        secret:
+          secretName: manager-secrets

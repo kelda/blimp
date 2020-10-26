@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: login-proxy
+  namespace: login-proxy
+spec:
+  selector:
+    matchLabels:
+      service: login-proxy
+  template:
+    metadata:
+      labels:
+        service: login-proxy
+    spec:
+      containers:
+      # A nginx reverse proxy that gets a SSL certificate from LetsEncrypt, and
+      # forwards traffic to the token service.
+      - name: letsencrypt
+        image: linuxserver/letsencrypt
+        env:
+          - name: URL
+            value: <LOGIN_PROXY_HOSTNAME>
+          - name: EXTRA_DOMAINS
+            value: <LOGIN_PROXY_GRPC_HOSTNAME>
+        volumeMounts:
+        - mountPath: /config
+          name: lets-encrypt-state
+        - mountPath: /config/nginx/site-confs
+          name: nginx-conf
+
+      - name: login-proxy
+        image: <LOGIN_PROXY_IMAGE>
+        imagePullPolicy: Always
+        env:
+          - name: CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: oauth-client-secret
+                key: CLIENT_SECRET
+
+      volumes:
+      - name: lets-encrypt-state
+        persistentVolumeClaim:
+          claimName: lets-encrypt-pvc
+      - name: nginx-conf
+        configMap:
+          name: nginx-conf
+  strategy:
+    type: Recreate

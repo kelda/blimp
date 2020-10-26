@@ -1,0 +1,11 @@
+version: '3.4'
+services:
+  web:
+    build:
+      args:
+        text: "from-compose"
+      context: ./build-context
+      dockerfile: Dockerfile.test
+      target: stage-two
+    ports:
+      - "8000:80"

@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: badge-server
+  namespace: badge-server
+spec:
+  selector:
+    matchLabels:
+      service: badge-server
+  template:
+    metadata:
+      labels:
+        service: badge-server
+    spec:
+      containers:
+      - name: badge-server
+        image: gcr.io/kelda-blimp/badge-server:latest
+        imagePullPolicy: Always

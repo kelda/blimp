@@ -1,0 +1,11 @@
+version: '2'
+services:
+  web:
+    # Test extends to a different file.
+    extends:
+      file: nginx/nginx.yml
+      service: nginx
+    volumes:
+      - './extends.html:/usr/share/nginx/html/extends.html'
+    ports:
+      - "8000:80"

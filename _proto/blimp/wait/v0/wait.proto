@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package blimp.wait.v0;
+
+import "github.com/kelda/blimp/_proto/blimp/errors/v0/errors.proto";
+
+option go_package = "github.com/kelda-inc/blimp/pkg/proto/wait";
+
+service BootWaiter {
+  rpc CheckReady(CheckReadyRequest) returns (stream CheckReadyResponse) {}
+}
+
+message CheckReadyRequest {
+    string namespace = 1;
+    WaitSpec wait_spec = 2;
+}
+
+message WaitSpec {
+    // depends_on is a list of services that must be running or healthy
+    // before the service can start.
+    repeated ServiceCondition depends_on = 1;
+
+    // bind_volumes is a list of paths that must be fully synced before the
+    // service can start.
+    repeated string bind_volumes = 2;
+
+    // finished_volume_init is a list of services that must have finished initializing
+    // volumes before the service can start.
+    repeated string finished_volume_init = 3;
+}
+
+message ServiceCondition {
+    string service = 1;
+    string condition = 2;
+}
+
+message CheckReadyResponse {
+    blimp.errors.v0.Error error = 1;
+
+    bool ready = 2;
+
+    // An optional message providing more information on why the container
+    // needs to wait.
+    string reason = 3;
+}
