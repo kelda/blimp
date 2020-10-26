@@ -22,8 +22,6 @@ spec:
         - /etc/blimp/cert.pem
         - -tls-key
         - /etc/blimp/key.pem
-        - -license
-        - /etc/blimp/license
         env:
         - name: MAX_SANDBOXES
           value: "500"

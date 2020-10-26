@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"net"
 	"os"
@@ -45,7 +44,6 @@ import (
 	"github.com/kelda/blimp/pkg/expose"
 	"github.com/kelda/blimp/pkg/kube"
 	"github.com/kelda/blimp/pkg/kubewait"
-	"github.com/kelda/blimp/pkg/license"
 	"github.com/kelda/blimp/pkg/metadata"
 	"github.com/kelda/blimp/pkg/names"
 	"github.com/kelda/blimp/pkg/ports"
@@ -68,7 +66,6 @@ type server struct {
 	statusFetcher     *statusFetcher
 	certPath, keyPath string
 	maxSandboxes      int
-	license           *license.License
 }
 
 var (
@@ -94,7 +91,6 @@ func main() {
 
 	certPath := flag.String("tls-cert", "", "The path to the PEM-encoded certificate used for encrypting gRPC")
 	keyPath := flag.String("tls-key", "", "The path to the PEM-encoded private key used for encrypting gRPC")
-	licensePath := flag.String("license", "", "The path to the Blimp license file")
 	flag.Parse()
 
 	if *certPath == "" || *keyPath == "" {
@@ -121,21 +117,6 @@ func main() {
 	}
 	log.Infof("Capping maximum concurrent sandboxes to %d", maxSandboxes)
 
-	var blimpLicense *license.License
-	if *licensePath != "" {
-		licenseBytes, err := ioutil.ReadFile(*licensePath)
-		if err != nil {
-			log.WithError(err).Error("Failed to read license file")
-			os.Exit(1)
-		}
-
-		blimpLicense, err = license.Unmarshal(licenseBytes)
-		if err != nil {
-			log.WithError(err).Error("Failed to parse license")
-			os.Exit(1)
-		}
-	}
-
 	s := &server{
 		statusFetcher: newStatusFetcher(kubeClient),
 		kubeClient:    kubeClient,
@@ -143,7 +124,6 @@ func main() {
 		certPath:      *certPath,
 		keyPath:       *keyPath,
 		maxSandboxes:  maxSandboxes,
-		license:       blimpLicense,
 	}
 	s.statusFetcher.Start(nil)
 
@@ -408,12 +388,6 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, errors.NewFriendlyError(
 			"Sorry, the Blimp servers are overloaded right now.\n" +
 				"Please try again later.")
-	}
-
-	// When checking the license, we want to include the sandbox that is about
-	// to be created, so use len(sandboxes) + 1.
-	if err := s.license.Validate(len(sandboxes) + 1); err != nil {
-		return &cluster.CreateSandboxResponse{}, err
 	}
 
 	composeFileIssues := ValidateComposeFile(dcCfg)
