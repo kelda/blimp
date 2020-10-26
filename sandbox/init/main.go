@@ -12,8 +12,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding/gzip"
 
-	"github.com/kelda-inc/blimp/node/wait"
-	protoWait "github.com/kelda-inc/blimp/pkg/proto/wait"
+	"github.com/kelda/blimp/node/wait"
+	protoWait "github.com/kelda/blimp/pkg/proto/wait"
 	"github.com/kelda/blimp/pkg/errors"
 )
 

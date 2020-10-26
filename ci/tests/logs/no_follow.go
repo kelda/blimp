@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/kelda-inc/blimp/ci/util"
+	"github.com/kelda/blimp/ci/util"
 )
 
 var noFollowTestFiles = map[string]string{

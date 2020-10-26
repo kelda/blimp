@@ -11,14 +11,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	blimpAssert "github.com/kelda-inc/blimp/ci/assert"
-	"github.com/kelda-inc/blimp/ci/examples"
-	"github.com/kelda-inc/blimp/ci/file"
-	"github.com/kelda-inc/blimp/ci/tests/build"
-	"github.com/kelda-inc/blimp/ci/tests/buildcache"
-	"github.com/kelda-inc/blimp/ci/tests/logs"
-	"github.com/kelda-inc/blimp/ci/tests/volume"
-	"github.com/kelda-inc/blimp/ci/util"
+	blimpAssert "github.com/kelda/blimp/ci/assert"
+	"github.com/kelda/blimp/ci/examples"
+	"github.com/kelda/blimp/ci/file"
+	"github.com/kelda/blimp/ci/tests/build"
+	"github.com/kelda/blimp/ci/tests/buildcache"
+	"github.com/kelda/blimp/ci/tests/logs"
+	"github.com/kelda/blimp/ci/tests/volume"
+	"github.com/kelda/blimp/ci/util"
 )
 
 func TestBlimp(t *testing.T) {
@@ -94,7 +94,7 @@ func TestBlimp(t *testing.T) {
 
 		examples.Test{
 			Name:       "Extends",
-			WorkingDir: filepath.Join(reposRoot, "github.com/kelda-inc/blimp/ci/tests/extends"),
+			WorkingDir: filepath.Join(reposRoot, "github.com/kelda/blimp/ci/tests/extends"),
 			Tests: []blimpAssert.Test{
 				blimpAssert.HTTPGetTest{
 					Name:     "Get",
@@ -111,7 +111,7 @@ func TestBlimp(t *testing.T) {
 
 		examples.Test{
 			Name:       "VolumeInitSymlink",
-			WorkingDir: filepath.Join(reposRoot, "github.com/kelda-inc/blimp/ci/tests/volume-init-symlink"),
+			WorkingDir: filepath.Join(reposRoot, "github.com/kelda/blimp/ci/tests/volume-init-symlink"),
 			Tests: []blimpAssert.Test{
 				blimpAssert.HTTPGetTest{
 					Name:     "Get",
@@ -131,7 +131,7 @@ func TestBlimp(t *testing.T) {
 			// Don't start blimp from the same directory as the compose file to
 			// test path resolution.
 			UpArgs:     []string{"-f", "tests/buildopts/docker-compose.yml", "--build"},
-			WorkingDir: filepath.Join(reposRoot, "github.com/kelda-inc/blimp/ci"),
+			WorkingDir: filepath.Join(reposRoot, "github.com/kelda/blimp/ci"),
 			Tests: []blimpAssert.Test{
 				blimpAssert.HTTPGetTest{
 					Name:     "Get",
@@ -146,7 +146,7 @@ func TestBlimp(t *testing.T) {
 			// Don't start blimp from the same directory as the compose file to
 			// test path resolution.
 			UpArgs:     []string{"-f", "tests/buildopts/docker-compose.yml", "--remote-build", "--build"},
-			WorkingDir: filepath.Join(reposRoot, "github.com/kelda-inc/blimp/ci"),
+			WorkingDir: filepath.Join(reposRoot, "github.com/kelda/blimp/ci"),
 			Tests: []blimpAssert.Test{
 				blimpAssert.HTTPGetTest{
 					Name:     "Get",

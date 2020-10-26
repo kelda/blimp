@@ -9,16 +9,9 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-
-	"github.com/kelda-inc/blimp/pkg/analytics"
 )
 
 func main() {
-	analytics.Init(analytics.StreamID{
-		Source:    "vcp",
-		Namespace: os.Getenv("NAMESPACE"),
-	})
-
 	fmt.Println("Hello World! This is Volume CP!")
 	for _, arg := range os.Args[2:] {
 		argSplit := strings.Split(arg, ":")

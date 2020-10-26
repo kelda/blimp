@@ -1,11 +1,6 @@
 LOGIN_PROXY_GRPC_HOSTNAME ?= blimp-login-grpc.kelda.io
 CLUSTER_MANAGER_HOST ?= blimp-manager.kelda.io:443
 MANAGER_CERT_PATH = "./certs/cluster-manager.crt.pem"
-LD_FLAGS = "-X github.com/kelda/blimp/pkg/version.Version=${VERSION} \
-	   -X github.com/kelda/blimp/cli/manager.ClusterManagerCertBase64=$(shell base64 ${MANAGER_CERT_PATH} | tr -d "\n") \
-	   -X github.com/kelda/blimp/pkg/auth.LoginProxyGRPCHost=${LOGIN_PROXY_GRPC_HOSTNAME} \
-	   -X github.com/kelda/blimp/cli/manager.DefaultManagerHost=${CLUSTER_MANAGER_HOST} \
-	   -s -w"
 SYNCTHING_VERSION=1.10.0
 DOCKER_REPO ?= gcr.io/kelda-blimp
 REGISTRY_HOSTNAME ?= blimp-registry.kelda.io
@@ -28,17 +23,20 @@ LICENSE_PUBLIC_KEY_BASE64 ?= $(shell base64 ${LICENSE_PUBLIC_KEY_PATH} | tr -d "
 
 # Note that main.LinkProxyBaseHostname refers to a variable in
 # cluster-controller/main.go and link-proxy/main.go.
-LD_FLAGS = "-X github.com/kelda-inc/blimp/pkg/version.Version=${VERSION} \
-	   -X github.com/kelda-inc/blimp/pkg/version.CLIImage=${CLI_IMAGE} \
-	   -X github.com/kelda-inc/blimp/pkg/version.DNSImage=${DNS_IMAGE} \
-	   -X github.com/kelda-inc/blimp/pkg/version.InitImage=${INIT_IMAGE} \
-	   -X github.com/kelda-inc/blimp/pkg/version.NodeControllerImage=${NODE_CONTROLLER_IMAGE} \
-	   -X github.com/kelda-inc/blimp/pkg/version.ReservationImage=${RESERVATION_IMAGE} \
-	   -X github.com/kelda-inc/blimp/pkg/version.SyncthingImage=${SYNCTHING_IMAGE} \
-	   -X github.com/kelda-inc/blimp/pkg/license.LicensePublicKeyBase64=${LICENSE_PUBLIC_KEY_BASE64} \
+LD_FLAGS = "-X github.com/kelda/blimp/pkg/version.Version=${VERSION} \
+	   -X github.com/kelda/blimp/pkg/version.CLIImage=${CLI_IMAGE} \
+	   -X github.com/kelda/blimp/pkg/version.DNSImage=${DNS_IMAGE} \
+	   -X github.com/kelda/blimp/pkg/version.InitImage=${INIT_IMAGE} \
+	   -X github.com/kelda/blimp/pkg/version.NodeControllerImage=${NODE_CONTROLLER_IMAGE} \
+	   -X github.com/kelda/blimp/pkg/version.ReservationImage=${RESERVATION_IMAGE} \
+	   -X github.com/kelda/blimp/pkg/version.SyncthingImage=${SYNCTHING_IMAGE} \
+	   -X github.com/kelda/blimp/pkg/license.LicensePublicKeyBase64=${LICENSE_PUBLIC_KEY_BASE64} \
 	   -X main.LoginProxyHost=${LOGIN_PROXY_HOSTNAME} \
 	   -X main.RegistryHostname=${REGISTRY_HOSTNAME} \
 	   -X main.LinkProxyBaseHostname=${LINK_PROXY_BASE_HOSTNAME} \
+	   -X github.com/kelda/blimp/cli/manager.ClusterManagerCertBase64=$(shell base64 ${MANAGER_CERT_PATH} | tr -d "\n") \
+	   -X github.com/kelda/blimp/pkg/auth.LoginProxyGRPCHost=${LOGIN_PROXY_GRPC_HOSTNAME} \
+	   -X github.com/kelda/blimp/cli/manager.DefaultManagerHost=${CLUSTER_MANAGER_HOST} \
 	   -s -w"
 
 # Include override variables. The production Makefile takes precendence if it exists.
@@ -79,9 +77,7 @@ generate:
 	protoc -I _proto _proto/blimp/login/v0/login.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
 	protoc _proto/blimp/auth/v0/auth.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
 	protoc _proto/blimp/errors/v0/errors.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
-
-certs:
-	./scripts/setup-manager-cert.sh ${MANAGER_CERT_PATH}
+	protoc -I _proto _proto/blimp/wait/v0/wait.proto  --go_out=plugins=grpc:$(shell go env GOPATH)/src
 
 build-cli-osx: syncthing-macos certs
 	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LD_FLAGS) -o blimp-osx ./cli
@@ -100,12 +96,6 @@ build-cli-windows: syncthing-windows.exe certs
 	cp syncthing-windows.exe ./pkg/syncthing/stbin
 	rice append -i ./pkg/syncthing --exec blimp-windows.exe
 	rm ./pkg/syncthing/stbin
-
-install:
-	CGO_ENABLED=0 go install -ldflags $(LD_FLAGS) ./...
-
-generate:
-	protoc -I $$GOPATH/src/ github.com/kelda-inc/blimp/_proto/blimp/wait/v0/wait.proto --go_out=plugins=grpc:$$GOPATH/src
 
 certs:
 	./scripts/make-manager-cert.sh ${MANAGER_CERT_PATH} ${MANAGER_KEY_PATH} ${CLUSTER_MANAGER_IP}

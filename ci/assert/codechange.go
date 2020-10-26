@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/kelda-inc/blimp/ci/file"
-	"github.com/kelda-inc/blimp/ci/util"
+	"github.com/kelda/blimp/ci/file"
+	"github.com/kelda/blimp/ci/util"
 )
 
 // CodeChangeTest tests that Kelda properly syncs files by modifying a file,

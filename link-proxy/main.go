@@ -20,8 +20,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	// Importing cluster-controller/node seems bad...
-	"github.com/kelda-inc/blimp/cluster-controller/node"
-	"github.com/kelda-inc/blimp/pkg/kube"
+	"github.com/kelda/blimp/cluster-controller/node"
+	"github.com/kelda/blimp/pkg/kube"
 	"github.com/kelda/blimp/pkg/errors"
 	nodeGRPC "github.com/kelda/blimp/pkg/proto/node"
 )

@@ -11,7 +11,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/kelda-inc/blimp/pkg/license"
+	"github.com/kelda/blimp/pkg/license"
 )
 
 func main() {

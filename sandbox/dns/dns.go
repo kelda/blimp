@@ -17,8 +17,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/kelda-inc/blimp/pkg/analytics"
-	"github.com/kelda-inc/blimp/pkg/metadata"
+	"github.com/kelda/blimp/pkg/metadata"
 )
 
 func main() {
@@ -27,11 +26,6 @@ func main() {
 		log.Error("NAMESPACE environment variable is required")
 		os.Exit(1)
 	}
-
-	analytics.Init(analytics.StreamID{
-		Source:    "dns",
-		Namespace: namespace,
-	})
 
 	config, err := rest.InClusterConfig()
 	if err != nil {

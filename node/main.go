@@ -17,14 +17,13 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/kelda-inc/blimp/pkg/auth"
-	"github.com/kelda-inc/blimp/node/wait"
-	"github.com/kelda-inc/blimp/pkg/analytics"
-	"github.com/kelda-inc/blimp/pkg/expose"
-	"github.com/kelda-inc/blimp/pkg/kube"
-	"github.com/kelda-inc/blimp/pkg/ports"
+	"github.com/kelda/blimp/node/wait"
+	"github.com/kelda/blimp/pkg/auth"
 	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/expose"
+	"github.com/kelda/blimp/pkg/kube"
 	"github.com/kelda/blimp/pkg/names"
+	"github.com/kelda/blimp/pkg/ports"
 	"github.com/kelda/blimp/pkg/proto/node"
 	"github.com/kelda/blimp/pkg/tunnel"
 
@@ -39,11 +38,6 @@ const (
 
 func main() {
 	myNodeName := os.Getenv("NODE_NAME")
-	analytics.Init(analytics.StreamID{
-		Source:    "node-controller",
-		Namespace: myNodeName,
-	})
-
 	if myNodeName == "" {
 		log.Error("NODE_NAME environment variable is required")
 		os.Exit(1)

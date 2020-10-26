@@ -2,9 +2,9 @@ syntax = "proto3";
 
 package blimp.wait.v0;
 
-import "github.com/kelda/blimp/_proto/blimp/errors/v0/errors.proto";
+import "blimp/errors/v0/errors.proto";
 
-option go_package = "github.com/kelda-inc/blimp/pkg/proto/wait";
+option go_package = "github.com/kelda/blimp/pkg/proto/wait";
 
 service BootWaiter {
   rpc CheckReady(CheckReadyRequest) returns (stream CheckReadyResponse) {}

@@ -13,7 +13,7 @@ import (
 
 	"github.com/kelda/blimp/pkg/auth"
 	"github.com/kelda/blimp/pkg/errors"
-	clusterAuth "github.com/kelda-inc/blimp/pkg/auth"
+	clusterAuth "github.com/kelda/blimp/pkg/auth"
 )
 
 func init() {

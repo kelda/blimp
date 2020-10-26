@@ -22,7 +22,6 @@ import (
 	"github.com/kelda/blimp/cli/restart"
 	"github.com/kelda/blimp/cli/ssh"
 	"github.com/kelda/blimp/cli/up"
-	"github.com/kelda/blimp/pkg/analytics"
 	"github.com/kelda/blimp/pkg/auth"
 	"github.com/kelda/blimp/pkg/cfgdir"
 	"github.com/kelda/blimp/pkg/errors"
@@ -84,20 +83,6 @@ func setup(cmd *cobra.Command, _ []string) {
 	if err := manager.SetupClient(cfg.ManagerHost, cfg.ManagerCert); err != nil {
 		log.WithError(err).Fatal("Failed to connect to the Blimp cluster")
 	}
-
-	if cfg.OptOutAnalytics {
-		return
-	}
-
-	analytics.Init(manager.C, analytics.StreamID{
-		Source:    cmd.CalledAs(),
-		Namespace: getNamespace(),
-	})
-
-	analytics.Log.WithFields(log.Fields{
-		"cmd":      cmd.CalledAs(),
-		"full-cmd": os.Args,
-	}).Info("Ran command")
 }
 
 func getNamespace() string {
@@ -210,10 +195,6 @@ func (f formatter) Format(e *log.Entry) ([]byte, error) {
 		body += goterm.Color("Additional Info", goterm.YELLOW) + ":" + "\n"
 		body += dataBody
 	}
-
-	// Explicitly log the fatal error because the Logrus hook won't get
-	// triggered.
-	analytics.Log.WithField("msg", body).Error("Fatal error")
 
 	fmt.Fprintf(os.Stderr,
 		goterm.Color("[Error] Get help at https://kelda.io/blimp/docs/help/", goterm.RED)+"\n"+

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/kelda-inc/blimp/cluster-controller/httpapi"
+	"github.com/kelda/blimp/cluster-controller/httpapi"
 	"github.com/kelda/blimp/pkg/proto/cluster"
 )
 

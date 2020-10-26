@@ -6,9 +6,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/kelda-inc/blimp/cluster-controller/affinity"
-	"github.com/kelda-inc/blimp/pkg/kube"
-	"github.com/kelda-inc/blimp/pkg/version"
+	"github.com/kelda/blimp/cluster-controller/affinity"
+	"github.com/kelda/blimp/pkg/kube"
+	"github.com/kelda/blimp/pkg/version"
 	"github.com/kelda/blimp/pkg/errors"
 )
 

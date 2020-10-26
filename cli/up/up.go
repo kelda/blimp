@@ -24,7 +24,6 @@ import (
 	"github.com/kelda/blimp/cli/logs"
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/cli/util"
-	"github.com/kelda/blimp/pkg/analytics"
 	"github.com/kelda/blimp/pkg/auth"
 	"github.com/kelda/blimp/pkg/dockercompose"
 	"github.com/kelda/blimp/pkg/errors"
@@ -353,12 +352,11 @@ func (cmd *up) runGUI(ctx context.Context, parsedCompose composeTypes.Project) e
 	if !statusPrinter.Run(ctx, manager.C, cmd.config.BlimpAuth()) {
 		return nil
 	}
-	analytics.Log.Info("Containers booted")
 
 	return logs.Command{
 		Services: services,
 		Opts:     corev1.PodLogOptions{Follow: true},
-		Config:     cmd.config,
+		Config:   cmd.config,
 	}.Run(ctx)
 }
 

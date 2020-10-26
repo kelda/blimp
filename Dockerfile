@@ -2,10 +2,12 @@ FROM golang:1.13-alpine as builder
 
 RUN apk add busybox-static
 
-WORKDIR /go/src/github.com/kelda-inc/blimp
+WORKDIR /go/src/github.com/kelda/blimp
 
 ADD ./go.mod ./go.mod
 ADD ./go.sum ./go.sum
+# One of the files in pkg depends on cli/manager.
+ADD ./cli ./cli
 ADD ./pkg ./pkg
 
 ARG COMPILE_FLAGS

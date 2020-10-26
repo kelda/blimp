@@ -12,9 +12,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/kelda-inc/blimp/pkg/auth"
-	"github.com/kelda-inc/blimp/pkg/kube"
-	"github.com/kelda-inc/blimp/pkg/version"
+	"github.com/kelda/blimp/pkg/auth"
+	"github.com/kelda/blimp/pkg/kube"
+	"github.com/kelda/blimp/pkg/version"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/names"
 	"github.com/kelda/blimp/pkg/proto/cluster"

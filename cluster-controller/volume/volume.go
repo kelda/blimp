@@ -13,7 +13,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/retry"
 
-	"github.com/kelda-inc/blimp/pkg/kube"
+	"github.com/kelda/blimp/pkg/kube"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/kubewait"
 )

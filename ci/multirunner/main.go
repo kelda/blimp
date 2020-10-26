@@ -139,9 +139,9 @@ func buildRunnerImage(managerHost string) error {
 		"GO-COPY github.com/kelda/blimp/Makefile",
 		"RUN make go-get",
 
-		"WORKDIR /go/src/github.com/kelda-inc/blimp",
-		"GO-COPY github.com/kelda-inc/blimp/go.mod",
-		"GO-COPY github.com/kelda-inc/blimp/go.sum",
+		"WORKDIR /go/src/github.com/kelda/blimp",
+		"GO-COPY github.com/kelda/blimp/go.mod",
+		"GO-COPY github.com/kelda/blimp/go.sum",
 		"RUN go mod download",
 
 		// Build the CLI.
@@ -150,8 +150,8 @@ func buildRunnerImage(managerHost string) error {
 		"RUN make build-cli-linux && mv ./blimp-linux /usr/local/bin/blimp",
 
 		// Build the tests.
-		"WORKDIR /go/src/github.com/kelda-inc/blimp",
-		"GO-COPY github.com/kelda-inc/blimp",
+		"WORKDIR /go/src/github.com/kelda/blimp",
+		"GO-COPY github.com/kelda/blimp",
 		"RUN go test -v -c -o /usr/local/bin/run-tests --tags ci --timeout 0 ./ci",
 		fmt.Sprintf("ENV MANAGER_HOST=%s", managerHost),
 	}

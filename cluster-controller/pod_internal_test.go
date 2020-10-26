@@ -6,7 +6,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	composeTypes "github.com/kelda/compose-go/types"
 
-	"github.com/kelda-inc/blimp/pkg/proto/wait"
+	"github.com/kelda/blimp/pkg/proto/wait"
 	"github.com/kelda/blimp/pkg/hash"
 )
 

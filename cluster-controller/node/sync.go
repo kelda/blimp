@@ -27,9 +27,9 @@ import (
 	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/kelda-inc/blimp/pkg/kube"
-	"github.com/kelda-inc/blimp/pkg/ports"
-	"github.com/kelda-inc/blimp/pkg/version"
+	"github.com/kelda/blimp/pkg/kube"
+	"github.com/kelda/blimp/pkg/ports"
+	"github.com/kelda/blimp/pkg/version"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/kubewait"
 )

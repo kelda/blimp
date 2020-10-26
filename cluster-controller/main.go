@@ -34,27 +34,25 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/retry"
 
-	"github.com/kelda-inc/blimp/cluster-controller/affinity"
-	"github.com/kelda-inc/blimp/cluster-controller/httpapi"
-	"github.com/kelda-inc/blimp/cluster-controller/node"
-	"github.com/kelda-inc/blimp/cluster-controller/volume"
-	"github.com/kelda-inc/blimp/pkg/analytics"
-	clusterAuth "github.com/kelda-inc/blimp/pkg/auth"
-	"github.com/kelda-inc/blimp/pkg/expose"
-	"github.com/kelda-inc/blimp/pkg/kube"
-	"github.com/kelda-inc/blimp/pkg/license"
-	"github.com/kelda-inc/blimp/pkg/metadata"
-	"github.com/kelda-inc/blimp/pkg/ports"
-	"github.com/kelda-inc/blimp/pkg/version"
+	"github.com/kelda/blimp/cluster-controller/affinity"
+	"github.com/kelda/blimp/cluster-controller/httpapi"
+	"github.com/kelda/blimp/cluster-controller/node"
+	"github.com/kelda/blimp/cluster-controller/volume"
 	"github.com/kelda/blimp/pkg/auth"
+	clusterAuth "github.com/kelda/blimp/pkg/auth"
 	"github.com/kelda/blimp/pkg/dockercompose"
 	"github.com/kelda/blimp/pkg/errors"
-	"github.com/kelda/blimp/pkg/hash"
+	"github.com/kelda/blimp/pkg/expose"
+	"github.com/kelda/blimp/pkg/kube"
 	"github.com/kelda/blimp/pkg/kubewait"
+	"github.com/kelda/blimp/pkg/license"
+	"github.com/kelda/blimp/pkg/metadata"
 	"github.com/kelda/blimp/pkg/names"
+	"github.com/kelda/blimp/pkg/ports"
 	protoAuth "github.com/kelda/blimp/pkg/proto/auth"
 	"github.com/kelda/blimp/pkg/proto/cluster"
 	"github.com/kelda/blimp/pkg/syncthing"
+	"github.com/kelda/blimp/pkg/version"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	// Install the gzip compressor.
@@ -88,10 +86,6 @@ var (
 const MaxServices = 150
 
 func main() {
-	analytics.Init(analytics.StreamID{
-		Source: "manager",
-	})
-
 	kubeClient, restConfig, err := kube.GetClient()
 	if err != nil {
 		log.WithError(err).Error("Failed to connect to customer cluster")
@@ -276,11 +270,6 @@ func (s *server) CheckVersion(ctx context.Context, req *cluster.CheckVersionRequ
 	}, nil
 }
 
-func (s *server) ProxyAnalytics(ctx context.Context, req *cluster.ProxyAnalyticsRequest) (
-	*cluster.ProxyAnalyticsResponse, error) {
-	return &cluster.ProxyAnalyticsResponse{}, analytics.Post([]byte(req.GetBody()))
-}
-
 func (s *server) AttachToSandbox(ctx context.Context, req *cluster.AttachToSandboxRequest) (
 	*cluster.AttachToSandboxResponse, error) {
 	log.Info("Start AttachToSandbox")
@@ -403,12 +392,6 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, errors.WithContext("unmarshal compose file", err)
 	}
 
-	analytics.Log.
-		WithField("namespace", user.Namespace).
-		WithField("serviceNames", dcCfg.ServiceNames()).
-		WithField("composeHash", hash.DNSCompliant(req.GetComposeFile())).
-		Info("Parsed CreateSandbox request")
-
 	// If the user has already booted a sandbox, don't count it against the
 	// total.  This will allow you to boot if you already have a sandbox
 	// namespace, unless the number of sandboxes is OVER the maximum.
@@ -422,12 +405,6 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 		return &cluster.CreateSandboxResponse{}, errors.WithContext("list namespaces", err)
 	}
 	if len(sandboxes) >= s.maxSandboxes {
-		analytics.Log.
-			WithField("namespace", user.Namespace).
-			WithField("numSandboxes", len(sandboxes)).
-			WithField("maxSandboxes", s.maxSandboxes).
-			Info("Hit maxSandboxes")
-
 		return &cluster.CreateSandboxResponse{}, errors.NewFriendlyError(
 			"Sorry, the Blimp servers are overloaded right now.\n" +
 				"Please try again later.")
@@ -540,11 +517,6 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 			"We're working on reaching full parity with Docker Compose.\n"+
 			"Ping us in Slack (http://slack.blimpup.io) to request support for features!",
 			unsupportedFeatures)
-
-		analytics.Log.
-			WithField("namespace", user.Namespace).
-			WithField("unsupportedFeatures", unsupportedFeatures).
-			Warn("Used unsupported feature")
 	}
 
 	// Block the RPC on the buildkit pod starting up so that the CLI doesn't
@@ -1202,7 +1174,6 @@ func (s *server) TagImages(req *cluster.TagImagesRequest, stream cluster.Manager
 	if regCreds == nil {
 		regCreds = map[string]*cluster.RegistryCredential{}
 	}
-
 
 	blimpRegCred, err := auth.BlimpRegcred(clusterAuth.GetAuth(req))
 	if err != nil {

@@ -6,7 +6,7 @@ import (
 	"github.com/kelda/compose-go/types"
 	"github.com/stretchr/testify/assert"
 
-	main "github.com/kelda-inc/blimp/cluster-controller"
+	main "github.com/kelda/blimp/cluster-controller"
 )
 
 func TestValidateFeatures(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	fakeKube "k8s.io/client-go/kubernetes/fake"
 
-	"github.com/kelda-inc/blimp/pkg/kube"
+	"github.com/kelda/blimp/pkg/kube"
 	"github.com/kelda/blimp/pkg/proto/cluster"
 )
 

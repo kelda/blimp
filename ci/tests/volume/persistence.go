@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	blimpAssert "github.com/kelda-inc/blimp/ci/assert"
-	"github.com/kelda-inc/blimp/ci/util"
+	blimpAssert "github.com/kelda/blimp/ci/assert"
+	"github.com/kelda/blimp/ci/util"
 )
 
 var persistenceTestFiles = map[string]string{

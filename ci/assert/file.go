@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/kelda-inc/blimp/ci/util"
+	"github.com/kelda/blimp/ci/util"
 )
 
 func FileExistence(t *testing.T, service, path string, shouldExist bool) {
