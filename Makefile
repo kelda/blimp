@@ -136,26 +136,6 @@ push-docker: build-docker
 	docker push ${LINK_PROXY_IMAGE} & \
 	wait # Wait for all background jobs to exit before continuing so that we can guarantee the images are pushed.
 
-deploy-registry:
-	sed -i.bak 's|<DOCKER_AUTH_IMAGE>|${DOCKER_AUTH_IMAGE}|' ./registry/kube/registry-deployment.yaml
-	sed -i.bak 's|<REGISTRY_HOSTNAME>|${REGISTRY_HOSTNAME}|' ./registry/kube/registry-deployment.yaml
-	sed -i.bak 's|<REGISTRY_IP>|${REGISTRY_IP}|' ./registry/kube/registry-service.yaml
-	sed -i.bak 's|<REGISTRY_STORAGE>|${REGISTRY_STORAGE}|' ./registry/kube/registry-pvc.yaml
-	kubectl apply -f ./registry/kube
-
-deploy-manager:
-	sed -i.bak 's|<CLUSTER_MANAGER_IMAGE>|${CLUSTER_CONTROLLER_IMAGE}|' ./cluster-controller/kube/manager-deployment.yaml
-	sed -i.bak 's|<CLUSTER_MANAGER_HTTP_API_HOSTNAME>|${CLUSTER_MANAGER_HTTP_API_HOSTNAME}|' ./cluster-controller/kube/letsencrypt-deployment.yaml
-	sed -i.bak 's|<CLUSTER_MANAGER_IP>|${CLUSTER_MANAGER_IP}|' ./cluster-controller/kube/manager-grpc-service.yaml
-	sed -i.bak 's|<CLUSTER_MANAGER_HTTP_API_IP>|${CLUSTER_MANAGER_HTTP_API_IP}|' ./cluster-controller/kube/manager-https-service.yaml
-	kubectl apply -f ./cluster-controller/kube
-
-deploy-link-proxy:
-	sed -i.bak 's|<LINK_PROXY_IMAGE>|${LINK_PROXY_IMAGE}|' ./link-proxy/kube/link-proxy-deployment.yaml
-	sed -i.bak 's|<LINK_PROXY_BASE_HOSTNAME>|${LINK_PROXY_BASE_HOSTNAME}|' ./link-proxy/kube/link-proxy-deployment.yaml
-	sed -i.bak 's|<LINK_PROXY_IP>|${LINK_PROXY_IP}|' ./link-proxy/kube/link-proxy-service.yaml
-	kubectl apply -f ./link-proxy/kube
-
 lint:
 	golangci-lint run
 
