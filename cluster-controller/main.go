@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/Masterminds/semver"
@@ -356,15 +355,6 @@ func (s *server) CreateSandbox(ctx context.Context, req *cluster.CreateSandboxRe
 	user, err := clusterAuth.AuthorizeRequest(clusterAuth.GetAuth(req))
 	if err != nil {
 		return &cluster.CreateSandboxResponse{}, err
-	}
-
-	// We schedule Kustomer emails on to special nodes, so make sure that
-	// kustomer email addresses are verified.
-	// We don't enforce email verification for other email addresses to make
-	// onboarding simpler.
-	if strings.HasSuffix(user.Email, "@kustomer.com") && !user.EmailVerified {
-		return &cluster.CreateSandboxResponse{}, errors.NewFriendlyError(
-			"Hi Kustomer employee! Please verify your email and then run `blimp login` again.")
 	}
 
 	dcCfg, err := dockercompose.Unmarshal([]byte(req.GetComposeFile()))

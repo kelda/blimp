@@ -2,9 +2,7 @@ package affinity
 
 import (
 	"os"
-	"strings"
 
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -16,10 +14,6 @@ const (
 	// the same namespace onto the same node. It should be set to sandbox's
 	// namespace.
 	ColocateNamespaceKey = "blimp.customer"
-
-	// kustomerNodeKey is the node label used to designate that a node should
-	// only run kustomer sandboxes.
-	kustomerNodeKey = "blimp.kustomer"
 
 	// buildkitNodeKey is the node label used to designate that a node should
 	// only run buildkit containers. These nodes should use Ubuntu as the host
@@ -46,17 +40,6 @@ func ForUser(user auth.User) *corev1.Affinity {
 	isolateBuildkit, ok := os.LookupEnv("ISOLATE_BUILDKIT")
 	if !ok || isolateBuildkit != "false" {
 		opts = append(opts, notNode(buildkitNodeKey))
-	}
-
-	if strings.HasSuffix(user.Email, "@kustomer.com") {
-		if user.EmailVerified {
-			opts = append(opts, onNode(kustomerNodeKey))
-		} else {
-			log.WithField("user", user).Warn("Kustomer user without verified email booted to non-customer node")
-			opts = append(opts, notNode(kustomerNodeKey))
-		}
-	} else {
-		opts = append(opts, notNode(kustomerNodeKey))
 	}
 
 	return newAffinity(opts...)
