@@ -18,16 +18,16 @@ import (
 
 	"github.com/kelda/blimp/cluster-controller/affinity"
 	"github.com/kelda/blimp/cluster-controller/volume"
-	"github.com/kelda/blimp/pkg/kube"
-	"github.com/kelda/blimp/pkg/metadata"
-	"github.com/kelda/blimp/pkg/proto/wait"
-	"github.com/kelda/blimp/pkg/version"
 	"github.com/kelda/blimp/pkg/auth"
 	"github.com/kelda/blimp/pkg/dockercompose"
 	"github.com/kelda/blimp/pkg/errors"
 	"github.com/kelda/blimp/pkg/hash"
+	"github.com/kelda/blimp/pkg/kube"
+	"github.com/kelda/blimp/pkg/metadata"
 	"github.com/kelda/blimp/pkg/names"
+	"github.com/kelda/blimp/pkg/proto/wait"
 	"github.com/kelda/blimp/pkg/strs"
+	"github.com/kelda/blimp/pkg/version"
 )
 
 const (
@@ -276,7 +276,7 @@ func (p *podSpec) addRuntimeContainer(svc composeTypes.ServiceConfig, dnsIP stri
 	svcAliasesMapping map[string][]string, namedBindVolumes map[string]string) error {
 
 	p.pod.Namespace = p.namespace
-	p.pod.Name = names.PodName(svc.Name)
+	p.pod.Name = names.ToDNS1123(svc.Name)
 	p.pod.Labels = map[string]string{
 		"blimp.service":               svc.Name,
 		"blimp.customerPod":           "true",
@@ -346,7 +346,7 @@ func (p *podSpec) addRuntimeContainer(svc composeTypes.ServiceConfig, dnsIP stri
 			Env:             toEnvVars(svc.Environment),
 			Image:           p.image,
 			ImagePullPolicy: "Always",
-			Name:            names.PodName(svc.Name),
+			Name:            names.ToDNS1123(svc.Name),
 			SecurityContext: securityContext,
 			Stdin:           svc.StdinOpen,
 			TTY:             svc.Tty,
@@ -617,7 +617,7 @@ func (p *podSpec) addWaiter(nodeControllerIP, svcName, waitType string, spec wai
 	configMap := corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: p.namespace,
-			Name:      names.PodName(fmt.Sprintf("wait-spec-%s-%s", waitType, svcName)),
+			Name:      names.ToDNS1123(fmt.Sprintf("wait-spec-%s-%s", waitType, svcName)),
 		},
 		BinaryData: map[string][]byte{
 			"wait-spec": waitSpecBytes,

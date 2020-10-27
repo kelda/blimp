@@ -1,11 +1,8 @@
-LOGIN_PROXY_GRPC_HOSTNAME ?= blimp-login-grpc.kelda.io
 CLUSTER_MANAGER_HOST ?= blimp-manager.kelda.io:443
 MANAGER_CERT_PATH = "./certs/cluster-manager.crt.pem"
 SYNCTHING_VERSION=1.10.0
 DOCKER_REPO ?= gcr.io/kelda-blimp
 REGISTRY_HOSTNAME ?= blimp-registry.kelda.io
-LOGIN_PROXY_HOSTNAME ?= blimp-login.kelda.io
-LOGIN_PROXY_GRPC_HOSTNAME ?= blimp-login-grpc.kelda.io
 LINK_PROXY_BASE_HOSTNAME ?= blimp.dev
 # Only needs to be set during local development if the manager is being
 # deployed to a remote cluster.
@@ -27,11 +24,9 @@ LD_FLAGS = "-X github.com/kelda/blimp/pkg/version.Version=${VERSION} \
 	   -X github.com/kelda/blimp/pkg/version.NodeControllerImage=${NODE_CONTROLLER_IMAGE} \
 	   -X github.com/kelda/blimp/pkg/version.ReservationImage=${RESERVATION_IMAGE} \
 	   -X github.com/kelda/blimp/pkg/version.SyncthingImage=${SYNCTHING_IMAGE} \
-	   -X main.LoginProxyHost=${LOGIN_PROXY_HOSTNAME} \
 	   -X main.RegistryHostname=${REGISTRY_HOSTNAME} \
 	   -X main.LinkProxyBaseHostname=${LINK_PROXY_BASE_HOSTNAME} \
 	   -X github.com/kelda/blimp/cli/manager.ClusterManagerCertBase64=$(shell base64 ${MANAGER_CERT_PATH} | tr -d "\n") \
-	   -X github.com/kelda/blimp/pkg/auth.LoginProxyGRPCHost=${LOGIN_PROXY_GRPC_HOSTNAME} \
 	   -X github.com/kelda/blimp/cli/manager.DefaultManagerHost=${CLUSTER_MANAGER_HOST} \
 	   -s -w"
 
@@ -70,7 +65,6 @@ go-get:
 generate:
 	protoc -I _proto _proto/blimp/node/v0/controller.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
 	protoc -I _proto _proto/blimp/cluster/v0/manager.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
-	protoc -I _proto _proto/blimp/login/v0/login.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
 	protoc _proto/blimp/auth/v0/auth.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
 	protoc _proto/blimp/errors/v0/errors.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
 	protoc -I _proto _proto/blimp/wait/v0/wait.proto  --go_out=plugins=grpc:$(shell go env GOPATH)/src
@@ -113,7 +107,6 @@ DNS_IMAGE = ${DOCKER_REPO}/blimp-dns:${VERSION}
 DOCKER_AUTH_IMAGE = ${DOCKER_REPO}/blimp-docker-auth:${VERSION}
 INIT_IMAGE = ${DOCKER_REPO}/blimp-init:${VERSION}
 LINK_PROXY_IMAGE = ${DOCKER_REPO}/link-proxy:${VERSION}
-LOGIN_PROXY_IMAGE = ${DOCKER_REPO}/login-proxy:${VERSION}
 NODE_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-node-controller:${VERSION}
 RESERVATION_IMAGE = ${DOCKER_REPO}/sandbox-reservation:${VERSION}
 SYNCTHING_IMAGE = ${DOCKER_REPO}/sandbox-syncthing:${VERSION}
@@ -128,7 +121,6 @@ build-docker: certs
 	docker build -t blimp-dns -t ${DNS_IMAGE} - < ./sandbox/dns/Dockerfile & \
 	docker build -t blimp-init -t ${INIT_IMAGE} - < ./sandbox/init/Dockerfile & \
 	docker build -t blimp-docker-auth -t ${DOCKER_AUTH_IMAGE} - < ./registry/Dockerfile & \
-	docker build -t login-proxy -t ${LOGIN_PROXY_IMAGE} - < ./login-proxy/Dockerfile & \
 	docker build -t sandbox-reservation -t ${RESERVATION_IMAGE} - < ./sandbox/reservation/Dockerfile & \
 	docker build -t link-proxy -t ${LINK_PROXY_IMAGE} - < ./link-proxy/Dockerfile & \
 	wait # Wait for all background jobs to exit before continuing so that we can guarantee the images are built.
@@ -140,7 +132,6 @@ push-docker: build-docker
 	docker push ${SYNCTHING_IMAGE} & \
 	docker push ${INIT_IMAGE} & \
 	docker push ${DOCKER_AUTH_IMAGE} & \
-	docker push ${LOGIN_PROXY_IMAGE} & \
 	docker push ${RESERVATION_IMAGE} & \
 	docker push ${LINK_PROXY_IMAGE} & \
 	wait # Wait for all background jobs to exit before continuing so that we can guarantee the images are pushed.
@@ -158,15 +149,6 @@ deploy-manager:
 	sed -i.bak 's|<CLUSTER_MANAGER_IP>|${CLUSTER_MANAGER_IP}|' ./cluster-controller/kube/manager-grpc-service.yaml
 	sed -i.bak 's|<CLUSTER_MANAGER_HTTP_API_IP>|${CLUSTER_MANAGER_HTTP_API_IP}|' ./cluster-controller/kube/manager-https-service.yaml
 	kubectl apply -f ./cluster-controller/kube
-
-deploy-login-proxy:
-	sed -i.bak 's|<LOGIN_PROXY_IMAGE>|${LOGIN_PROXY_IMAGE}|' ./login-proxy/kube/login-deployment.yaml
-	sed -i.bak 's|<LOGIN_PROXY_HOSTNAME>|${LOGIN_PROXY_HOSTNAME}|' ./login-proxy/kube/login-deployment.yaml
-	sed -i.bak 's|<LOGIN_PROXY_GRPC_HOSTNAME>|${LOGIN_PROXY_GRPC_HOSTNAME}|' ./login-proxy/kube/login-deployment.yaml
-	sed -i.bak 's|<LOGIN_PROXY_HOSTNAME>|${LOGIN_PROXY_HOSTNAME}|' ./login-proxy/kube/nginx-configmap.yaml
-	sed -i.bak 's|<LOGIN_PROXY_GRPC_HOSTNAME>|${LOGIN_PROXY_GRPC_HOSTNAME}|' ./login-proxy/kube/nginx-configmap.yaml
-	sed -i.bak 's|<LOGIN_PROXY_IP>|${LOGIN_PROXY_IP}|' ./login-proxy/kube/login-service.yaml
-	kubectl apply -f ./login-proxy/kube
 
 deploy-link-proxy:
 	sed -i.bak 's|<LINK_PROXY_IMAGE>|${LINK_PROXY_IMAGE}|' ./link-proxy/kube/link-proxy-deployment.yaml

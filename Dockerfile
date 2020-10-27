@@ -15,9 +15,6 @@ ARG COMPILE_FLAGS
 # Build incrementally for better caching.
 RUN CGO_ENABLED=0 go install -i -ldflags "${COMPILE_FLAGS}" ./pkg/...
 
-ADD ./login-proxy ./login-proxy
-RUN CGO_ENABLED=0 go install -i -ldflags "${COMPILE_FLAGS}" ./login-proxy/...
-
 ADD ./registry ./registry
 RUN CGO_ENABLED=0 go install -i -ldflags "${COMPILE_FLAGS}" ./registry/...
 
@@ -40,7 +37,6 @@ RUN cp /go/bin/init /gobin/blimp-init
 RUN cp /go/bin/node /gobin/blimp-node-controller
 RUN cp /go/bin/registry /gobin/blimp-auth
 RUN cp /go/bin/vcp /gobin/blimp-vcp
-RUN cp /go/bin/login-proxy /gobin/login-proxy
 RUN cp /go/bin/dns /gobin/blimp-dns
 RUN cp /go/bin/link-proxy /gobin/link-proxy
 

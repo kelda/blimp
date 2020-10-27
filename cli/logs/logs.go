@@ -260,7 +260,7 @@ func (cmd *Command) forwardLogs(ctx context.Context, combinedLogs chan<- rawLogL
 
 		logsReq := kubeClient.CoreV1().
 			Pods(cmd.Config.Auth.KubeNamespace).
-			GetLogs(names.PodName(service), &opts)
+			GetLogs(names.ToDNS1123(service), &opts)
 
 		logsStream, err := logsReq.Stream()
 		if err != nil {

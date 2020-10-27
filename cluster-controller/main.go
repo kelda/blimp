@@ -126,8 +126,6 @@ func main() {
 	}
 	s.statusFetcher.Start(nil)
 
-	createCLINamespace(kubeClient)
-
 	useNodePort := os.Getenv("USE_NODE_PORT_FOR_NODE_CONTROLLER") == "true"
 	node.StartControllerBooter(kubeClient, useNodePort)
 
@@ -1093,7 +1091,7 @@ func (s *server) Restart(ctx context.Context, req *cluster.RestartRequest) (*clu
 		return &cluster.RestartResponse{}, err
 	}
 
-	podName := names.PodName(req.GetService())
+	podName := names.ToDNS1123(req.GetService())
 	currPod, err := s.kubeClient.CoreV1().Pods(user.Namespace).
 		Get(podName, metav1.GetOptions{})
 	if err != nil {

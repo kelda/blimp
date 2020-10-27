@@ -24,15 +24,6 @@ func TestRegistryCredentialsLookupByHost(t *testing.T) {
 			},
 			host: "gcr.io",
 		},
-		// TODO: In Christopher's code from prepushing.
-		//{
-		//name: "MatchScheme",
-		//regCreds: RegistryCredentials{
-		//"https://gcr.io":    correct,
-		//"https://us.gcr.io": incorrect,
-		//},
-		//host: "gcr.io",
-		//},
 		{
 			name: "DockerIndexAlias",
 			regCreds: RegistryCredentials{

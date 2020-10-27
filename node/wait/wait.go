@@ -16,10 +16,10 @@ import (
 	listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/kelda/blimp/pkg/kube"
-	"github.com/kelda/blimp/pkg/proto/wait"
 	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/kube"
 	"github.com/kelda/blimp/pkg/names"
+	"github.com/kelda/blimp/pkg/proto/wait"
 
 	// Install the gzip compressor.
 	_ "google.golang.org/grpc/encoding/gzip"
@@ -103,7 +103,7 @@ func (s *server) CheckReady(req *wait.CheckReadyRequest, srv wait.BootWaiter_Che
 
 		waiters = append(waiters, podWaiter{
 			namespace: req.GetNamespace(),
-			name:      names.PodName(condition.Service),
+			name:      names.ToDNS1123(condition.Service),
 			condition: pc,
 			watcher:   s.podWatcher,
 			lister:    s.podLister,
@@ -113,7 +113,7 @@ func (s *server) CheckReady(req *wait.CheckReadyRequest, srv wait.BootWaiter_Che
 	for _, service := range req.GetWaitSpec().GetFinishedVolumeInit() {
 		waiters = append(waiters, podWaiter{
 			namespace: req.GetNamespace(),
-			name:      names.PodName(service),
+			name:      names.ToDNS1123(service),
 			condition: conditionFinishedVolumeInit,
 			watcher:   s.podWatcher,
 			lister:    s.podLister,

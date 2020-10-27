@@ -44,8 +44,8 @@ brew install kelda/tools/blimp
 git clone https://github.com/kelda/node-todo
 cd node-todo
 
-# Create a Blimp sandbox.
-blimp login
+# Pick a username.
+mkdir -p ~/.blimp && echo 'username: your_user' > ~/.blimp/auth.yaml
 
 # Boot the docker-compose.yml.
 blimp up

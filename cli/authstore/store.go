@@ -13,8 +13,7 @@ import (
 )
 
 type Store struct {
-	AuthToken    string
-	RefreshToken string
+	Username string `json:"username"`
 
 	KubeToken     string
 	KubeHost      string

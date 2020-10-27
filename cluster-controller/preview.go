@@ -13,11 +13,11 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/kelda/blimp/pkg/auth"
-	"github.com/kelda/blimp/pkg/kube"
-	"github.com/kelda/blimp/pkg/version"
 	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/kube"
 	"github.com/kelda/blimp/pkg/names"
 	"github.com/kelda/blimp/pkg/proto/cluster"
+	"github.com/kelda/blimp/pkg/version"
 )
 
 func createCLINamespace(kubeClient kubernetes.Interface) {
@@ -69,7 +69,7 @@ func (s *server) BlimpUpPreview(req *cluster.BlimpUpPreviewRequest, srv cluster.
 	// the CLI to be running after it completes the initial boot anyways.
 	pod := corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      names.PodName(fmt.Sprintf("blimp-cli-%s", user.Namespace)),
+			Name:      names.ToDNS1123(fmt.Sprintf("blimp-cli-%s", user.Namespace)),
 			Namespace: kube.PreviewCLINamespace,
 		},
 		Spec: corev1.PodSpec{

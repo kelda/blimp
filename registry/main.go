@@ -12,8 +12,8 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/kelda/blimp/pkg/auth"
-	"github.com/kelda/blimp/pkg/errors"
 	clusterAuth "github.com/kelda/blimp/pkg/auth"
+	"github.com/kelda/blimp/pkg/errors"
 )
 
 func init() {
@@ -70,12 +70,7 @@ func authenticate(input string) error {
 	if err != nil {
 		return errors.WithContext("parse regcred", err)
 	}
-	user, err := clusterAuth.AuthorizeRequestWithVerifier(
-		blimpAuth,
-		auth.VerifierFromKeySet(diskCachedKeySet{
-			localPath: "/blimp-jwks.json",
-			remoteURL: auth.JWKSURL,
-		}))
+	user, err := clusterAuth.AuthorizeRequest(blimpAuth)
 	if err != nil {
 		return errors.WithContext("parse id token", err)
 	}

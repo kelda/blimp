@@ -128,7 +128,7 @@ func (s *server) Tunnel(nsrv node.Controller_TunnelServer) error {
 	// SSH.
 	podName := header.Name
 	if header.Name != kube.PodNameSyncthing && header.Name != kube.PodNameBuildkitd {
-		podName = names.PodName(header.Name)
+		podName = names.ToDNS1123(header.Name)
 	}
 
 	dstPod, err := s.podLister.Pods(user.Namespace).Get(podName)
@@ -179,7 +179,7 @@ func (s *server) ExposedTunnel(nsrv node.Controller_ExposedTunnelServer) error {
 		return status.New(codes.OutOfRange, "unknown destination").Err()
 	}
 
-	podName := names.PodName(info.Service)
+	podName := names.ToDNS1123(info.Service)
 
 	dstPod, err := s.podLister.Pods(header.Namespace).Get(podName)
 	if err != nil {

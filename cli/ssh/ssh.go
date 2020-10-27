@@ -77,7 +77,7 @@ func run(svc string) error {
 	req := kubeClient.CoreV1().RESTClient().Post().
 		Resource("pods").
 		SubResource("exec").
-		Name(names.PodName(svc)).
+		Name(names.ToDNS1123(svc)).
 		Namespace(blimpConfig.Auth.KubeNamespace).
 		VersionedParams(&execOpts, scheme.ParameterCodec)
 	exec, err := remotecommand.NewSPDYExecutor(restConfig, "POST", req.URL())
