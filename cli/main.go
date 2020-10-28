@@ -7,23 +7,18 @@ import (
 	"github.com/buger/goterm"
 	"github.com/spf13/cobra"
 
-	"github.com/kelda/blimp/cli/authstore"
 	"github.com/kelda/blimp/cli/bugtool"
 	"github.com/kelda/blimp/cli/build"
 	"github.com/kelda/blimp/cli/cp"
 	"github.com/kelda/blimp/cli/down"
 	"github.com/kelda/blimp/cli/exec"
 	"github.com/kelda/blimp/cli/expose"
-	"github.com/kelda/blimp/cli/login"
-	"github.com/kelda/blimp/cli/loginpw"
 	"github.com/kelda/blimp/cli/logs"
 	"github.com/kelda/blimp/cli/manager"
 	"github.com/kelda/blimp/cli/ps"
 	"github.com/kelda/blimp/cli/restart"
 	"github.com/kelda/blimp/cli/ssh"
 	"github.com/kelda/blimp/cli/up"
-	"github.com/kelda/blimp/pkg/analytics"
-	"github.com/kelda/blimp/pkg/auth"
 	"github.com/kelda/blimp/pkg/cfgdir"
 	"github.com/kelda/blimp/pkg/errors"
 
@@ -59,8 +54,6 @@ func main() {
 		down.New(),
 		exec.New(),
 		expose.New(),
-		login.New(),
-		loginpw.New(),
 		logs.New(),
 		ps.New(),
 		restart.New(),
@@ -84,37 +77,6 @@ func setup(cmd *cobra.Command, _ []string) {
 	if err := manager.SetupClient(cfg.ManagerHost, cfg.ManagerCert); err != nil {
 		log.WithError(err).Fatal("Failed to connect to the Blimp cluster")
 	}
-
-	if cfg.OptOutAnalytics {
-		return
-	}
-
-	analytics.Init(manager.C, analytics.StreamID{
-		Source:    cmd.CalledAs(),
-		Namespace: getNamespace(),
-	})
-
-	analytics.Log.WithFields(log.Fields{
-		"cmd":      cmd.CalledAs(),
-		"full-cmd": os.Args,
-	}).Info("Ran command")
-}
-
-func getNamespace() string {
-	store, err := authstore.New()
-	if err != nil {
-		return ""
-	}
-
-	if store.AuthToken == "" {
-		return "unauthenticated"
-	}
-
-	user, err := auth.ParseIDToken(store.AuthToken, auth.DefaultVerifier)
-	if err == nil {
-		return user.Namespace
-	}
-	return ""
 }
 
 func closeManager(_ *cobra.Command, _ []string) {
@@ -210,10 +172,6 @@ func (f formatter) Format(e *log.Entry) ([]byte, error) {
 		body += goterm.Color("Additional Info", goterm.YELLOW) + ":" + "\n"
 		body += dataBody
 	}
-
-	// Explicitly log the fatal error because the Logrus hook won't get
-	// triggered.
-	analytics.Log.WithField("msg", body).Error("Fatal error")
 
 	fmt.Fprintf(os.Stderr,
 		goterm.Color("[Error] Get help at https://kelda.io/blimp/docs/help/", goterm.RED)+"\n"+

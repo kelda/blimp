@@ -5,8 +5,6 @@ import (
 	"os"
 
 	"github.com/buger/goterm"
-
-	"github.com/kelda/blimp/pkg/analytics"
 )
 
 // ContextError is an error that has information on what caused it.
@@ -121,7 +119,6 @@ func getFriendlyMessage(err error) (string, bool) {
 
 func HandleFatalError(err error) {
 	body := GetPrintableMessage(err)
-	analytics.Log.WithField("msg", body).Error("Fatal error")
 	fmt.Fprintln(os.Stderr,
 		goterm.Color("[Error] Get help at https://kelda.io/blimp/docs/help/", goterm.RED))
 	fmt.Fprintln(os.Stderr, body)

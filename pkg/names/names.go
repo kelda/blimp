@@ -8,7 +8,7 @@ import (
 	"github.com/kelda/blimp/pkg/hash"
 )
 
-// PodName returns the name that should be used to refer to the given service.
+// ToDNS1123 returns the name that should be used to refer to the given identifier.
 // This is necessary because Docker Compose allows service names that don't
 // comply with Kubernetes's naming requirements. For example, Compose allows
 // services to have underscores in their names.
@@ -17,10 +17,10 @@ import (
 // 2) The `-` character can also be used in any interior character
 //    of the string.
 // 3) Max of 63 characters.
-func PodName(serviceName string) string {
+func ToDNS1123(id string) string {
 	// Use a sanitized version of the service name as a prefix for readibility
 	// when working directly with pods.
-	sanitized := strings.ToLower(serviceName)
+	sanitized := strings.ToLower(id)
 	invalidChars := regexp.MustCompile(`[^-a-z0-9]`)
 	sanitized = invalidChars.ReplaceAllString(sanitized, "")
 	sanitized = strings.TrimLeft(sanitized, "-")
@@ -41,7 +41,7 @@ func PodName(serviceName string) string {
 
 	// Also append a hash to distinguish between services that are identitical
 	// after being sanitized.
-	h := hash.DNSCompliant(serviceName)
+	h := hash.DNSCompliant(id)
 	if len(h) > 10 {
 		h = h[:10]
 	}

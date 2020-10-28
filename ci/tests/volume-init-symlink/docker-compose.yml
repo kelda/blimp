@@ -1,0 +1,11 @@
+# If the path within the image is a symlink that points to a directory, blimp
+# should resolve the symlink before copying.
+version: '2'
+services:
+  web:
+    build: .
+    volumes:
+      - './html:/usr/share/nginx/html'
+      - '/usr/share/nginx/html/masked'
+    ports:
+      - "8000:80"

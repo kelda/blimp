@@ -8,7 +8,7 @@ import (
 	"github.com/kelda/blimp/pkg/names"
 )
 
-func TestPodName(t *testing.T) {
+func TestToDNS1123(t *testing.T) {
 	tests := []struct {
 		name      string
 		input     string
@@ -72,7 +72,7 @@ func TestPodName(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		podName := names.PodName(test.input)
+		podName := names.ToDNS1123(test.input)
 		assert.Equal(t, test.expOutput, podName, test.name)
 	}
 }

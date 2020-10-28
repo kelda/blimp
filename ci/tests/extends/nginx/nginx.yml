@@ -1,0 +1,9 @@
+version: '2'
+services:
+  nginx-parent:
+    build: .
+  nginx:
+    # Test extends in the same file.
+    extends: nginx-parent
+    volumes:
+      - './base.html:/usr/share/nginx/html/base.html'

@@ -15,20 +15,29 @@ replace (
 
 require (
 	github.com/GeertJohan/go.rice v1.0.0
+	github.com/Masterminds/semver v1.5.0
+	github.com/Microsoft/hcsshim v0.8.7 // indirect
 	github.com/buger/goterm v0.0.0-20200322175922-2f3e71b85129
+	github.com/cesanta/docker_auth/auth_server v0.0.0-20200309093330-99bfe0217f59
 	github.com/containerd/console v0.0.0-20181022165439-0650fd9eeb50
 	github.com/containerd/continuity v0.0.0-20200413184840-d3ef23f19fbb // indirect
 	github.com/containerd/ttrpc v1.0.1 // indirect
 	github.com/coreos/go-oidc v2.2.1+incompatible
-	github.com/docker/cli v0.0.0-20191017083524-a8ff7f821017
+	github.com/daaku/go.zipexe v1.0.1 // indirect
+	github.com/docker/cli v0.0.0-20200320120634-22acbbcc4b3f
 	github.com/docker/docker v1.14.0-0.20190319215453-e7b5f7dbe98c
-	github.com/ghodss/yaml v1.0.0
+	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
 	github.com/golang/protobuf v1.4.2
 	github.com/google/go-containerregistry v0.1.0
+	github.com/googleapis/gnostic v0.4.0 // indirect
+	github.com/gorilla/mux v1.7.4 // indirect
+	github.com/gorilla/websocket v1.4.2
 	github.com/kelda/compose-go v0.0.0-20200902144940-ad3de8621596
 	github.com/lithammer/dedent v1.1.0
+	github.com/miekg/dns v1.1.28
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/moby/buildkit v0.6.4
+	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
 	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/afero v1.2.2
 	github.com/spf13/cobra v1.0.0
@@ -38,6 +47,7 @@ require (
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208
 	google.golang.org/grpc v1.29.1
+	gopkg.in/square/go-jose.v2 v2.4.1
 	k8s.io/api v0.17.4
 	k8s.io/apimachinery v0.17.4
 	k8s.io/cli-runtime v0.17.3
