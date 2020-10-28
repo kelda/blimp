@@ -2,7 +2,6 @@ package manager
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"os"
 
@@ -15,18 +14,6 @@ import (
 	"github.com/kelda/blimp/pkg/version"
 )
 
-// DefaultManagerHost can be overridden by `make`.
-var DefaultManagerHost = "blimp-manager.kelda.io:443"
-
-var (
-	// ClusterManagerCertBase64 is the base64 encoded certificate for the
-	// cluster manager. This is set at build time.
-	ClusterManagerCertBase64 string
-
-	// The PEM-encoded certificate for the cluster manager.
-	clusterManagerCert = mustDecodeBase64(ClusterManagerCertBase64)
-)
-
 var C Client
 
 type Client struct {
@@ -34,17 +21,14 @@ type Client struct {
 	*grpc.ClientConn
 }
 
-func SetupClient(cfgHost, cfgCert string) (err error) {
-	host := DefaultManagerHost
-	hostname := "" // Use default for host.
-	cert := clusterManagerCert
+func SetupClient(host, cert string) (err error) {
+	hostname := "localhost" // Use default for host.
 	envVal := os.Getenv("MANAGER_HOST")
 	if envVal != "" {
 		host = envVal
-	} else if cfgHost != "" {
-		host = cfgHost
-		hostname = "localhost"
-		cert = cfgCert
+	}
+	if host != "" || cert != "" {
+		return errors.NewFriendlyError("Server host and certificate must be specified. Check your ~/.blimp/blimp.yaml")
 	}
 	C, err = dial(host, cert, hostname)
 	return err
@@ -127,12 +111,4 @@ func CheckServiceStarted(svc string, auth *auth.BlimpAuth) error {
 	return CheckServiceStatus(svc, auth, func(svcStatus *cluster.ServiceStatus) bool {
 		return svcStatus.GetHasStarted()
 	})
-}
-
-func mustDecodeBase64(encoded string) string {
-	decoded, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		panic(err)
-	}
-	return string(decoded)
 }

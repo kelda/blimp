@@ -1,15 +1,31 @@
-LOGIN_PROXY_GRPC_HOSTNAME ?= blimp-login-grpc.kelda.io
 CLUSTER_MANAGER_HOST ?= blimp-manager.kelda.io:443
-VERSION?=latest
-MANAGER_CERT_PATH = "./certs/cluster-manager.crt.pem"
-LD_FLAGS = "-X github.com/kelda/blimp/pkg/version.Version=${VERSION} \
-	   -X github.com/kelda/blimp/cli/manager.ClusterManagerCertBase64=$(shell base64 ${MANAGER_CERT_PATH} | tr -d "\n") \
-	   -X github.com/kelda/blimp/pkg/auth.LoginProxyGRPCHost=${LOGIN_PROXY_GRPC_HOSTNAME} \
-	   -X github.com/kelda/blimp/cli/manager.DefaultManagerHost=${CLUSTER_MANAGER_HOST} \
-	   -s -w"
 SYNCTHING_VERSION=1.10.0
 DOCKER_REPO ?= gcr.io/kelda-blimp
-DOCKER_IMAGE = ${DOCKER_REPO}/blimp:latest
+REGISTRY_HOSTNAME ?= blimp-registry.kelda.io
+LINK_PROXY_BASE_HOSTNAME ?= blimp.dev
+# Only needs to be set during local development if the manager is being
+# deployed to a remote cluster.
+CLUSTER_MANAGER_IP ?= 8.8.8.8
+CLUSTER_MANAGER_HTTP_API_IP ?= 35.247.75.232
+CLUSTER_MANAGER_HTTP_API_HOSTNAME ?= blimp-manager-api.kelda.io
+REGISTRY_IP ?= 8.8.8.8
+REGISTRY_STORAGE ?= "5Gi"
+VERSION?=latest
+MANAGER_KEY_PATH = "./certs/cluster-manager.key.pem"
+MANAGER_CERT_PATH = "./certs/cluster-manager.crt.pem"
+
+# Note that main.LinkProxyBaseHostname refers to a variable in
+# cluster-controller/main.go and link-proxy/main.go.
+LD_FLAGS = "-X github.com/kelda/blimp/pkg/version.Version=${VERSION} \
+	   -X github.com/kelda/blimp/pkg/version.CLIImage=${CLI_IMAGE} \
+	   -X github.com/kelda/blimp/pkg/version.DNSImage=${DNS_IMAGE} \
+	   -X github.com/kelda/blimp/pkg/version.InitImage=${INIT_IMAGE} \
+	   -X github.com/kelda/blimp/pkg/version.NodeControllerImage=${NODE_CONTROLLER_IMAGE} \
+	   -X github.com/kelda/blimp/pkg/version.ReservationImage=${RESERVATION_IMAGE} \
+	   -X github.com/kelda/blimp/pkg/version.SyncthingImage=${SYNCTHING_IMAGE} \
+	   -X main.RegistryHostname=${REGISTRY_HOSTNAME} \
+	   -X main.LinkProxyBaseHostname=${LINK_PROXY_BASE_HOSTNAME} \
+	   -s -w"
 
 # Include override variables. The production Makefile takes precendence if it exists.
 -include local.mk
@@ -46,12 +62,9 @@ go-get:
 generate:
 	protoc -I _proto _proto/blimp/node/v0/controller.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
 	protoc -I _proto _proto/blimp/cluster/v0/manager.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
-	protoc -I _proto _proto/blimp/login/v0/login.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
 	protoc _proto/blimp/auth/v0/auth.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
 	protoc _proto/blimp/errors/v0/errors.proto --go_out=plugins=grpc:$(shell go env GOPATH)/src
-
-certs:
-	./scripts/setup-manager-cert.sh ${MANAGER_CERT_PATH}
+	protoc -I _proto _proto/blimp/wait/v0/wait.proto  --go_out=plugins=grpc:$(shell go env GOPATH)/src
 
 build-cli-osx: syncthing-macos certs
 	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags $(LD_FLAGS) -o blimp-osx ./cli
@@ -71,11 +84,54 @@ build-cli-windows: syncthing-windows.exe certs
 	rice append -i ./pkg/syncthing --exec blimp-windows.exe
 	rm ./pkg/syncthing/stbin
 
-build-docker: build-cli-linux
-	docker build -t "${DOCKER_IMAGE}" .
+certs:
+	./scripts/make-manager-cert.sh ${MANAGER_CERT_PATH} ${MANAGER_KEY_PATH} ${CLUSTER_MANAGER_IP}
+
+run-cluster-controller: certs
+	go run -ldflags $(LD_FLAGS) ./cluster-controller -tls-cert ${MANAGER_CERT_PATH} -tls-key ${MANAGER_KEY_PATH}
+
+build-circle-image:
+	docker build -f .circleci/Dockerfile . -t keldaio/circleci-blimp
+
+test:
+	go test ./...
+
+# The CLI and cluster controller images aren't kept in sync, so we just deploy
+# `latest`.
+CLI_IMAGE = ${DOCKER_REPO}/blimp:latest
+CLUSTER_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-cluster-controller:${VERSION}
+DNS_IMAGE = ${DOCKER_REPO}/blimp-dns:${VERSION}
+DOCKER_AUTH_IMAGE = ${DOCKER_REPO}/blimp-docker-auth:${VERSION}
+INIT_IMAGE = ${DOCKER_REPO}/blimp-init:${VERSION}
+LINK_PROXY_IMAGE = ${DOCKER_REPO}/link-proxy:${VERSION}
+NODE_CONTROLLER_IMAGE = ${DOCKER_REPO}/blimp-node-controller:${VERSION}
+RESERVATION_IMAGE = ${DOCKER_REPO}/sandbox-reservation:${VERSION}
+SYNCTHING_IMAGE = ${DOCKER_REPO}/sandbox-syncthing:${VERSION}
+
+build-docker: certs
+	# Exit if the base container fails to build.
+	docker build -t blimp-go-build --build-arg COMPILE_FLAGS=${LD_FLAGS} .
+
+	docker build -t sandbox-syncthing -t ${SYNCTHING_IMAGE} -f ./sandbox/syncthing/Dockerfile . & \
+	docker build -t blimp-cluster-controller -t ${CLUSTER_CONTROLLER_IMAGE} - < ./cluster-controller/Dockerfile & \
+	docker build -t blimp-node-controller -t ${NODE_CONTROLLER_IMAGE} - < ./node/Dockerfile & \
+	docker build -t blimp-dns -t ${DNS_IMAGE} - < ./sandbox/dns/Dockerfile & \
+	docker build -t blimp-init -t ${INIT_IMAGE} - < ./sandbox/init/Dockerfile & \
+	docker build -t blimp-docker-auth -t ${DOCKER_AUTH_IMAGE} - < ./registry/Dockerfile & \
+	docker build -t sandbox-reservation -t ${RESERVATION_IMAGE} - < ./sandbox/reservation/Dockerfile & \
+	docker build -t link-proxy -t ${LINK_PROXY_IMAGE} - < ./link-proxy/Dockerfile & \
+	wait # Wait for all background jobs to exit before continuing so that we can guarantee the images are built.
 
 push-docker: build-docker
-	docker push "${DOCKER_IMAGE}"
+	docker push ${NODE_CONTROLLER_IMAGE} ;
+	docker push ${CLUSTER_CONTROLLER_IMAGE} & \
+	docker push ${DNS_IMAGE} & \
+	docker push ${SYNCTHING_IMAGE} & \
+	docker push ${INIT_IMAGE} & \
+	docker push ${DOCKER_AUTH_IMAGE} & \
+	docker push ${RESERVATION_IMAGE} & \
+	docker push ${LINK_PROXY_IMAGE} & \
+	wait # Wait for all background jobs to exit before continuing so that we can guarantee the images are pushed.
 
 lint:
 	golangci-lint run

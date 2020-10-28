@@ -49,7 +49,7 @@ might be different from the port you use locally.`,
 
 			port, err := strconv.Atoi(args[1])
 			if err != nil {
-				fmt.Fprintln(os.Stderr, "%q does not look like a valid port number.", args[1])
+				fmt.Fprintf(os.Stderr, "%q does not look like a valid port number\n", args[1])
 				os.Exit(1)
 			}
 
@@ -65,7 +65,7 @@ might be different from the port you use locally.`,
 
 func runExpose(auth *auth.BlimpAuth, service string, port int) error {
 	resp, err := manager.C.Expose(context.Background(), &cluster.ExposeRequest{
-		Auth:   auth,
+		Auth:    auth,
 		Service: service,
 		Port:    uint32(port),
 	})

@@ -1,0 +1,17 @@
+version: '2.4'
+services:
+  # Waiter shouldn't boot until we run `blimp exec dependency touch /sentinel`.
+  waiter:
+    image: ubuntu
+    command: tail -f /dev/null
+    depends_on:
+      dependency:
+        condition: service_healthy
+  dependency:
+    image: ubuntu
+    command: tail -f /dev/null
+    healthcheck:
+      test: ["CMD", "ls", "/sentinel"]
+      interval: 5s
+      timeout: 5s
+      retries: 3

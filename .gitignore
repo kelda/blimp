@@ -6,3 +6,6 @@ blimp-windows.exe
 blimp-linux
 blimp-osx
 certs/
+keys/
+local.mk
+ci.test

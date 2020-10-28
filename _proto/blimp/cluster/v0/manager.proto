@@ -16,22 +16,12 @@ service Manager {
   rpc GetBuildkit(GetBuildkitRequest) returns (GetBuildkitResponse) {}
   rpc GetStatus(GetStatusRequest) returns (GetStatusResponse) {}
   rpc GetImageNamespace(GetImageNamespaceRequest) returns (GetImageNamespaceResponse) {}
-  rpc ProxyAnalytics(ProxyAnalyticsRequest) returns (ProxyAnalyticsResponse) {}
   rpc WatchStatus(GetStatusRequest) returns (stream GetStatusResponse) {}
   rpc CheckVersion(CheckVersionRequest) returns (CheckVersionResponse) {}
   rpc Restart(RestartRequest) returns (RestartResponse) {}
   rpc TagImages(TagImagesRequest) returns (stream TagImagesResponse) {}
   rpc Expose(ExposeRequest) returns (ExposeResponse) {}
   rpc Unexpose(UnexposeRequest) returns (UnexposeResponse) {}
-}
-
-message ProxyAnalyticsRequest {
-  // The JSON payload to post to DataDog on behalf of the client.
-  string body = 1;
-}
-
-message ProxyAnalyticsResponse {
-  blimp.errors.v0.Error error = 1;
 }
 
 enum CLIAction {

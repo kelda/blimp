@@ -1,6 +1,8 @@
 run:
   deadline: 3m
   concurrency: 2
+  skip-dirs:
+    - ci
 
 linters:
   disable:

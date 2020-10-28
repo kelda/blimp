@@ -115,7 +115,7 @@ func translateSpec(fileSpec kubectlcp.FileSpec, auth *auth.BlimpAuth) (kubectlcp
 	}
 
 	return kubectlcp.FileSpec{
-		PodName: names.PodName(fileSpec.PodName),
+		PodName: names.ToDNS1123(fileSpec.PodName),
 		File:    fileSpec.File,
 	}, nil
 }
