@@ -27,7 +27,7 @@ func SetupClient(host, cert string) (err error) {
 	if envVal != "" {
 		host = envVal
 	}
-	if host != "" || cert != "" {
+	if host == "" || cert == "" {
 		return errors.NewFriendlyError("Server host and certificate must be specified. Check your ~/.blimp/blimp.yaml")
 	}
 	C, err = dial(host, cert, hostname)
