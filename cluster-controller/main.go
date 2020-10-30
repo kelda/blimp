@@ -219,7 +219,7 @@ func (s *server) CheckVersion(ctx context.Context, req *cluster.CheckVersionRequ
 		}, nil
 	}
 
-	c, err := semver.NewConstraint(">= 0.13.0")
+	c, err := semver.NewConstraint(">= 0.14.0")
 	if err != nil {
 		log.WithError(err).Warn("Failed to create version constraint")
 		return &cluster.CheckVersionResponse{
@@ -234,8 +234,7 @@ func (s *server) CheckVersion(ctx context.Context, req *cluster.CheckVersionRequ
 			Version: version.Version,
 			DisplayMessage: "CLI version is incompatible with server. " +
 				"Please upgrade by running:\n\n" +
-				"curl -fsSL 'https://blimpup.io/get-blimp.sh' | sh\n\n" +
-				"Or brew upgrade kelda/tools/blimp",
+				"curl -fsSL 'https://blimpup.io/install-selfhosted.sh' | sh\n\n",
 			Action: cluster.CLIAction_EXIT,
 		}, nil
 	}
