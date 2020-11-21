@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"net/http"
+	"net/url"
 	"testing"
 
 	"google.golang.org/grpc/metadata"
@@ -25,22 +27,22 @@ func (t *mockTunnelClient) Recv() (*node.TunnelMsg, error) {
 }
 
 // Implement grpc.ClientStream. (Or rather, don't implement...)
-func(t *mockTunnelClient) Header() (metadata.MD, error) {
+func (t *mockTunnelClient) Header() (metadata.MD, error) {
 	return nil, errors.New("not implemented")
 }
-func(t *mockTunnelClient) Trailer() metadata.MD {
+func (t *mockTunnelClient) Trailer() metadata.MD {
 	return nil
 }
-func(t *mockTunnelClient) CloseSend() error {
+func (t *mockTunnelClient) CloseSend() error {
 	return errors.New("not implemented")
 }
-func(t *mockTunnelClient) Context() context.Context {
+func (t *mockTunnelClient) Context() context.Context {
 	return nil
 }
-func(t *mockTunnelClient) SendMsg(_ interface{}) error {
+func (t *mockTunnelClient) SendMsg(_ interface{}) error {
 	return errors.New("not implemented")
 }
-func(t *mockTunnelClient) RecvMsg(_ interface{}) error {
+func (t *mockTunnelClient) RecvMsg(_ interface{}) error {
 	return errors.New("not implemented")
 }
 
@@ -62,4 +64,21 @@ func TestReadPending(t *testing.T) {
 		assert.Equal(t, n, len(dest))
 		assert.EqualValues(t, dest, expected)
 	}
+}
+
+func TestDirector(t *testing.T) {
+	LinkProxyBaseHostname = "blimp.test.com"
+	input := &http.Request{
+		Host: "kevinkeldaio-e8cbfe34030f2170a6.blimp.test.com",
+		URL:  &url.URL{},
+	}
+	exp := &http.Request{
+		Host: "kevinkeldaio-e8cbfe34030f2170a6.blimp.test.com",
+		URL: &url.URL{
+			Scheme: "http",
+			Host:   "kevinkeldaio-e8cbfe34030f2170a6",
+		},
+	}
+	director(input)
+	assert.Equal(t, exp, input)
 }

@@ -40,7 +40,7 @@ func (s *server) dialTunnelContext(ctx context.Context, network, addr string) (n
 	if err != nil {
 		return nil, errors.WithContext("tunnel dial parse address", err)
 	}
-	hostRegexp := regexp.MustCompile(`^([a-f0-9]{32})([a-f0-9]{8})$`)
+	hostRegexp := regexp.MustCompile(`^([a-z0-9\-]+)([a-f0-9]{8})$`)
 	matches := hostRegexp.FindStringSubmatch(host)
 	if len(matches) != 3 {
 		return nil, errors.New("unexpected namespace format: %q", host)
