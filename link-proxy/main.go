@@ -21,8 +21,8 @@ import (
 
 	// Importing cluster-controller/node seems bad...
 	"github.com/kelda/blimp/cluster-controller/node"
-	"github.com/kelda/blimp/pkg/kube"
 	"github.com/kelda/blimp/pkg/errors"
+	"github.com/kelda/blimp/pkg/kube"
 	nodeGRPC "github.com/kelda/blimp/pkg/proto/node"
 )
 
@@ -77,9 +77,9 @@ func main() {
 // used by our custom transport.
 func director(req *http.Request) {
 	// Make sure we don't get bamboozled into doing weird things. We expect
-	// "<namespace><token>.blimp.dev". The namespace is 32 hex characters, and
-	// the token is 8 hex characters.
-	hostRegexp := regexp.MustCompile(`^([0-9a-f]{40})\.` + regexp.QuoteMeta(LinkProxyBaseHostname) + `$`)
+	// "<namespace><token>.blimp.dev". The token is 8 hex characters, and
+	// everything before it is the namespace.
+	hostRegexp := regexp.MustCompile(`^([0-9a-z\-]+)\.` + regexp.QuoteMeta(LinkProxyBaseHostname) + `$`)
 	matches := hostRegexp.FindAllStringSubmatch(strings.ToLower(req.Host), 1)
 	if len(matches) != 1 {
 		// Host header did not match what we were expecting, abort.
