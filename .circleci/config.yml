@@ -24,8 +24,8 @@ jobs:
       - run:
           name: Push Docker image
           command: |
-            docker login gcr.io --username _json_key --password "${DOCKER_KEY}"
-            BLIMP_DOCKER_REPO=gcr.io/kelda-blimp VERSION=${CIRCLE_TAG} make push-docker
+            docker login gcr.io --username kelda-bot --password "${DOCKER_KEY}"
+            BLIMP_DOCKER_REPO=keldaio VERSION=${CIRCLE_TAG} make push-docker
 
   push-docker-latest:
     executor: docker-executor
@@ -35,8 +35,8 @@ jobs:
       - run:
           name: Push Docker image
           command: |
-            docker login gcr.io --username _json_key --password "${DOCKER_KEY}"
-            BLIMP_DOCKER_REPO=gcr.io/kelda-blimp VERSION=latest make push-docker
+            docker login gcr.io --username kelda-bot --password "${DOCKER_KEY}"
+            BLIMP_DOCKER_REPO=keldaio VERSION=latest make push-docker
 
   upload-release:
     executor: docker-executor
@@ -46,7 +46,7 @@ jobs:
       - run:
           name: Upload Release
           command: |
-            docker login gcr.io --username _json_key --password "${DOCKER_KEY}"
+            docker login gcr.io --username kelda-bot --password "${DOCKER_KEY}"
             ./scripts/upload_release.sh
 
   lint:

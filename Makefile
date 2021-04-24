@@ -1,6 +1,6 @@
 CLUSTER_MANAGER_HOST ?= blimp-manager.kelda.io:443
 SYNCTHING_VERSION=1.10.0
-DOCKER_REPO ?= gcr.io/kelda-blimp
+DOCKER_REPO ?= keldaio
 REGISTRY_HOSTNAME ?= blimp-registry.kelda.io
 LINK_PROXY_BASE_HOSTNAME ?= blimp.dev
 # Only needs to be set during local development if the manager is being
