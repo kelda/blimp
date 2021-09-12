@@ -15,7 +15,7 @@ RELEASE="0.15.1"
 
 # Download the latest Blimp release into a temporary directory
 # Try cURL, then wget, otherwise fail
-ENDPOINT="https://blimp-releases.s3-us-west-1.amazonaws.com/blimp-${OS}-${RELEASE}"
+ENDPOINT="https://github.com/kelda/blimp/releases/download/${RELEASE}/blimp-${OS}-${RELEASE}"
 if which curl > /dev/null; then
     if ! curl -#fSLo blimp "$ENDPOINT"; then
         echo "Failed to download Blimp...exiting"

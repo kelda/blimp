@@ -28,13 +28,7 @@ This repository is also used for issue tracking and feature requests.
 `blimp` has been tested on Mac, Linux, and Windows WSL.
 
 ```shell
-curl -fsSL 'https://kelda.io/get-blimp.sh' | sh
-```
-
-Or, on Homebrew:
-
-```shell
-brew install kelda/tools/blimp
+curl -fsSL 'https://raw.githubusercontent.com/kelda/blimp/master/scripts/install.sh' | sh
 ```
 
 ## Example
