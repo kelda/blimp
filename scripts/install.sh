@@ -11,7 +11,7 @@ else
     exit 1
 fi
 
-RELEASE="0.1.0"
+RELEASE="0.15.1"
 
 # Download the latest Blimp release into a temporary directory
 # Try cURL, then wget, otherwise fail
@@ -36,10 +36,10 @@ echo
 echo "The latest Blimp release has been downloaded to the current working directory."
 echo
 
-read -p "Copy the binary into /usr/local/bin? (y/N) " choice < /dev/tty
+read -p "Copy the binary into /usr/local/bin? (Y/n) " choice < /dev/tty
 case "$choice" in
-    y|Y )
-        echo "You may be prompted for your sudo password in order to write to /usr/local/bin."
+    n|N ) echo "You will have to move the binary into your PATH in order to invoke blimp globally.";;
+    * ) echo "You may be prompted for your sudo password in order to write to /usr/local/bin."
         if [ -d "/usr/local/bin" ]; then
             sudo -p 'Sudo password: ' -- mv ./blimp /usr/local/bin
         else
@@ -49,5 +49,4 @@ case "$choice" in
         echo
         echo "Successfully installed blimp!"
         ;;
-    * ) echo "You will have to move the binary into your PATH in order to invoke blimp globally.";;
 esac
