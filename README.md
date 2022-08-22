@@ -65,3 +65,8 @@ curl localhost:8080
 
 Contributions are very much welcome!  Check out the [contribution
 guide](CONTRIBUTING.md) to get started.
+
+
+### Infrastructure model
+
+![Infrastructure model](.infragenie/infrastructure_model.png)
